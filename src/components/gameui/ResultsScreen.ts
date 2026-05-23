@@ -1,6 +1,7 @@
 import { formatCm } from "../../core/coordinates.js";
 import type { EventBus } from "../../core/EventBus.js";
 import { modalA11y, type ModalA11yHandle } from "../../core/modalA11y.js";
+import { prefersReducedMotion } from "../../core/motionPrefs.js";
 import type { ExerciseConfig, ExerciseId, ScoreUpdate } from "../../types/motion.js";
 import type { SessionRecorder } from "../../core/scoring/SessionRecorder.js";
 import type { AiCoachPanel } from "./AiCoachPanel.js";
@@ -46,6 +47,7 @@ export class ResultsScreen {
   private riskHits = 0;
   private a11y: ModalA11yHandle;
   private lastDiagnosis: { key: string; text: string } | null = null;
+  private animationHandles: number[] = [];
 
   constructor(options: ResultsScreenOptions) {
     this.options = options;
@@ -76,28 +78,63 @@ export class ResultsScreen {
     const stats = this.options.getStats();
     const beat = Math.min(99, Math.max(40, Math.round(60 + (score - 60) * 1.6)));
     const avgDelta = average(this.rollingDelta);
+    const combo = stats.bestCombo || this.latest.combo;
 
-    this.options.scoreEl.textContent = String(score);
+    this.cancelAnimations();
     this.options.titleEl.textContent = `本次动作匹配度 ${score}%`;
-    this.options.beatEl.textContent = `${beat}%`;
-    this.options.comboEl.textContent = `×${stats.bestCombo || this.latest.combo}`;
-    this.options.perfectEl.textContent = String(stats.perfectFrames);
-    this.options.deltaEl.textContent = formatCm(avgDelta);
-    this.options.riskEl.textContent = String(this.riskHits);
     this.options.medalEl.textContent = MEDALS[this.currentExercise] ?? "限定数字勋章";
 
     this.options.root.classList.add("is-open");
     this.options.root.setAttribute("aria-hidden", "false");
     this.a11y.activate();
 
+    this.animateNumber(this.options.scoreEl, 0, score, 720, (v) => String(Math.round(v)));
+    this.animateNumber(this.options.beatEl, 0, beat, 760, (v) => `${Math.round(v)}%`);
+    this.animateNumber(this.options.comboEl, 0, combo, 640, (v) => `×${Math.round(v)}`);
+    this.animateNumber(this.options.perfectEl, 0, stats.perfectFrames, 680, (v) => String(Math.round(v)));
+    this.animateNumber(this.options.deltaEl, 0, avgDelta, 720, (v) => formatCm(v));
+    this.animateNumber(this.options.riskEl, 0, this.riskHits, 600, (v) => String(Math.round(v)));
+
     this.runDiagnosis();
   }
 
   close(): void {
+    this.cancelAnimations();
     this.options.aiCoach.cancel();
     this.options.root.classList.remove("is-open");
     this.options.root.setAttribute("aria-hidden", "true");
     this.a11y.deactivate();
+  }
+
+  private animateNumber(
+    el: HTMLElement,
+    from: number,
+    to: number,
+    durationMs: number,
+    format: (value: number) => string,
+  ): void {
+    if (prefersReducedMotion() || durationMs <= 0) {
+      el.textContent = format(to);
+      return;
+    }
+    const start = performance.now();
+    const tick = (now: number) => {
+      const t = Math.min(1, (now - start) / durationMs);
+      const eased = 1 - Math.pow(1 - t, 3);
+      const value = from + (to - from) * eased;
+      el.textContent = format(value);
+      if (t < 1) {
+        const handle = requestAnimationFrame(tick);
+        this.animationHandles.push(handle);
+      }
+    };
+    const handle = requestAnimationFrame(tick);
+    this.animationHandles.push(handle);
+  }
+
+  private cancelAnimations(): void {
+    for (const handle of this.animationHandles) cancelAnimationFrame(handle);
+    this.animationHandles = [];
   }
 
   private runDiagnosis(): void {
