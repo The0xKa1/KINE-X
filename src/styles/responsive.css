@@ -1,6 +1,7 @@
 @media (max-width: 1180px) {
   .main-grid { grid-template-columns: 1fr; }
   .seed-strip { grid-template-columns: 180px minmax(0, 1fr); }
+  .results-score .big { font-size: clamp(48px, 9vw, 96px); }
 }
 
 @media (max-width: 760px) {
@@ -18,15 +19,24 @@
   .rail-footer { display: none; }
   .workspace { padding: 12px; gap: 12px; }
   .topbar { flex-direction: column; align-items: stretch; }
-  .top-actions { justify-content: stretch; }
-  .top-actions > * { flex: 1; }
+  .top-actions { justify-content: flex-start; flex-wrap: wrap; }
+  .top-actions > * { flex: 0 0 auto; }
+  .top-actions .connection { flex: 1 1 100%; order: -1; }
   .seed-strip { grid-template-columns: 1fr; }
   .seed-strip-head { border-right: 0; border-bottom: var(--hairline); }
   .bay { grid-template-rows: auto minmax(280px, 50vh) auto; }
-  .timeline-frames { grid-template-columns: repeat(9, minmax(40px, 1fr)); }
+  .bay-toolbar { flex-direction: column; align-items: flex-start; gap: 6px; }
   .results-grid { grid-template-columns: 1fr; }
   .results-score { border-right: 0; border-bottom: var(--hairline); }
+  .results-score .big { font-size: clamp(40px, 14vw, 72px); }
   .dna-drawer { width: 100vw; }
   .score-orbit { width: 96px; height: 76px; }
   .score-orbit span { font-size: 32px; }
+  .coaching-tip {
+    left: 16px !important;
+    right: 16px;
+    top: auto !important;
+    bottom: 16px;
+    max-width: none;
+  }
 }

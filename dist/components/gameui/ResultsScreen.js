@@ -1,5 +1,6 @@
 import { formatCm } from "../../core/coordinates.js";
                                                        
+import { modalA11y,                      } from "../../core/modalA11y.js";
                                                                                      
                                                                              
                                                       
@@ -43,9 +44,16 @@ export class ResultsScreen {
           rollingScore           = [];
           rollingDelta           = [];
           riskHits = 0;
+          a11y                 ;
+          lastDiagnosis                                       = null;
 
   constructor(options                      ) {
     this.options = options;
+    this.a11y = modalA11y({
+      root: this.options.root,
+      onEscape: () => this.close(),
+      initialFocus: () => this.options.closeButton               ,
+    });
     this.options.bus.on("score:update", (payload) => this.handle(payload));
     this.options.closeButton.addEventListener("click", () => this.close());
     this.options.exportButton.addEventListener("click", () => this.options.onExport());
@@ -59,6 +67,7 @@ export class ResultsScreen {
     this.rollingScore = [];
     this.rollingDelta = [];
     this.riskHits = 0;
+    this.lastDiagnosis = null;
   }
 
   open()       {
@@ -79,6 +88,7 @@ export class ResultsScreen {
 
     this.options.root.classList.add("is-open");
     this.options.root.setAttribute("aria-hidden", "false");
+    this.a11y.activate();
 
     this.runDiagnosis();
   }
@@ -87,6 +97,7 @@ export class ResultsScreen {
     this.options.aiCoach.cancel();
     this.options.root.classList.remove("is-open");
     this.options.root.setAttribute("aria-hidden", "true");
+    this.a11y.deactivate();
   }
 
           runDiagnosis()       {
@@ -97,16 +108,25 @@ export class ResultsScreen {
       this.options.aiCoach.renderStatic(fallback, "no samples");
       return;
     }
+    const cacheKey = summaryCacheKey(this.currentExercise, summary);
+    if (this.lastDiagnosis && this.lastDiagnosis.key === cacheKey) {
+      this.options.aiCoach.renderStatic(this.lastDiagnosis.text, "cached");
+      return;
+    }
     const config = this.options.getLlmConfig();
     if (!config) {
       this.options.aiCoach.renderStatic(fallback);
       return;
     }
     const messages = buildDiagnosisMessages(exercise, summary, this.options.getPersona());
-    void this.options.aiCoach.renderStreaming(
-      (onDelta, signal) => streamChat(config, messages, onDelta, { signal }),
-      fallback,
-    );
+    void this.options.aiCoach
+      .renderStreaming(
+        (onDelta, signal) => streamChat(config, messages, onDelta, { signal }),
+        fallback,
+      )
+      .then((text) => {
+        if (text) this.lastDiagnosis = { key: cacheKey, text };
+      });
   }
 
           handle(payload             )       {
@@ -124,4 +144,18 @@ export class ResultsScreen {
 function average(values          )         {
   if (!values.length) return 0;
   return values.reduce((a, b) => a + b, 0) / values.length;
+}
+
+function summaryCacheKey(exerciseId            , summary                                         )         {
+  const joints = summary.joints
+    .map((j) => `${j.id}:${j.avgScore.toFixed(1)}`)
+    .join(",");
+  return [
+    exerciseId,
+    summary.frames,
+    summary.avgScore.toFixed(2),
+    summary.worstFrameScore.toFixed(2),
+    summary.worstPhase,
+    joints,
+  ].join("|");
 }

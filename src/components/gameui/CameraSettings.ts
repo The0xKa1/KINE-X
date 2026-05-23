@@ -8,6 +8,7 @@ import type { CalibrationController } from "../../core/scoring/CalibrationContro
 import type { UserProfileStore } from "../../core/scoring/UserProfile.js";
 import type { LlmSettings } from "../../core/llm/LLMClient.js";
 import type { CoachPersona } from "../../core/llm/buildPrompt.js";
+import { drawerStack } from "../../core/DrawerStack.js";
 
 export interface CameraSettingsCallbacks {
   onSafeZoneChange(visible: boolean): void;
@@ -19,7 +20,6 @@ interface CameraSettingsOptions {
   calibration: CalibrationController;
   profileStore: UserProfileStore;
   drawer: HTMLElement;
-  backdrop: HTMLElement;
   trigger: HTMLElement;
   closeButton: HTMLElement;
   deviceSelect: HTMLSelectElement;
@@ -36,6 +36,7 @@ interface CameraSettingsOptions {
   llmBaseUrl: HTMLInputElement;
   llmApiKey: HTMLInputElement;
   llmModel: HTMLInputElement;
+  llmClearButton: HTMLButtonElement;
   personaSelect: HTMLSelectElement;
   callbacks: CameraSettingsCallbacks;
 }
@@ -65,6 +66,11 @@ export class CameraSettings {
 
   constructor(options: CameraSettingsOptions) {
     this.options = options;
+    drawerStack.register({
+      id: "camera",
+      onForceClose: () => this.close(),
+      trigger: this.options.trigger,
+    });
     this.populateResolution();
     this.restore();
     this.bindEvents();
@@ -90,14 +96,14 @@ export class CameraSettings {
   open(): void {
     this.isOpen = true;
     this.options.drawer.classList.add("is-open");
-    this.options.backdrop.classList.add("is-open");
+    drawerStack.open("camera");
     void this.refreshDevices();
   }
 
   close(): void {
     this.isOpen = false;
     this.options.drawer.classList.remove("is-open");
-    this.options.backdrop.classList.remove("is-open");
+    drawerStack.close("camera");
   }
 
   toggle(): void {
@@ -108,10 +114,6 @@ export class CameraSettings {
   private bindEvents(): void {
     this.options.trigger.addEventListener("click", () => this.toggle());
     this.options.closeButton.addEventListener("click", () => this.close());
-    this.options.backdrop.addEventListener("click", () => this.close());
-    document.addEventListener("keydown", (event) => {
-      if (event.key === "Escape" && this.isOpen) this.close();
-    });
 
     this.options.deviceSelect.addEventListener("change", () => {
       const value = this.options.deviceSelect.value;
@@ -172,6 +174,7 @@ export class CameraSettings {
     this.options.llmBaseUrl.addEventListener("change", persistLlm);
     this.options.llmApiKey.addEventListener("change", persistLlm);
     this.options.llmModel.addEventListener("change", persistLlm);
+    this.options.llmClearButton.addEventListener("click", () => this.clearLlmKey());
     this.options.personaSelect.addEventListener("change", () => {
       const value = this.options.personaSelect.value;
       if (value === "biomech" || value === "baduanjin") {
@@ -250,6 +253,20 @@ export class CameraSettings {
       return;
     }
     this.options.calibrationStatusLabel.textContent = `身高 ${profile.heightMeters.toFixed(2)}m`;
+  }
+
+  private clearLlmKey(): void {
+    this.options.llmBaseUrl.value = "";
+    this.options.llmApiKey.value = "";
+    this.options.llmModel.value = "";
+    this.persist();
+    const original = this.options.llmClearButton.textContent;
+    this.options.llmClearButton.textContent = "已清除 ✓";
+    this.options.llmClearButton.disabled = true;
+    window.setTimeout(() => {
+      this.options.llmClearButton.textContent = original;
+      this.options.llmClearButton.disabled = false;
+    }, 1400);
   }
 
   private persist(): void {

@@ -10,6 +10,8 @@ interface AppShellOptions {
   timeSlider: HTMLInputElement;
   cameraButton: HTMLButtonElement;
   onNavMode(mode: MotionMode): void;
+  onRebuild(): void;
+  onSafety(): void;
   onViewChange(view: CameraView): void;
   onPlayChange(playing: boolean): void;
   onStressChange(enabled: boolean): void;
@@ -37,8 +39,11 @@ export class AppShell {
       button.addEventListener("click", () => {
         this.options.railItems.forEach((item) => item.classList.remove("is-active"));
         button.classList.add("is-active");
-        if (button.dataset.nav === "compare") this.options.onNavMode("stress");
-        if (button.dataset.nav === "seed") this.options.onNavMode("coach");
+        const nav = button.dataset.nav;
+        if (nav === "seed") this.options.onNavMode("coach");
+        else if (nav === "compare") this.options.onNavMode("stress");
+        else if (nav === "rebuild") this.options.onRebuild();
+        else if (nav === "score") this.options.onSafety();
       });
     });
 

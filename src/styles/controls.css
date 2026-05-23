@@ -23,6 +23,20 @@
   color: var(--invert-fg);
 }
 
+.icon-button.is-active {
+  background: var(--ink);
+  color: var(--invert-fg);
+  border-color: var(--ink);
+}
+
+.icon-button.is-active::after {
+  content: "";
+  width: 6px;
+  height: 6px;
+  background: var(--hot);
+  margin-left: 2px;
+}
+
 .primary-button {
   padding: 0 16px;
   background: var(--invert-bg);

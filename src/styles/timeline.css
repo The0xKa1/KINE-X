@@ -36,6 +36,8 @@
   overflow-x: auto;
   scrollbar-width: thin;
   scroll-behavior: smooth;
+  scroll-snap-type: x proximity;
+  -webkit-overflow-scrolling: touch;
 }
 
 .timeline-frames::-webkit-scrollbar { height: 6px; }
@@ -50,6 +52,7 @@
   border-right: var(--hairline);
   background: var(--surface);
   color: var(--muted);
+  scroll-snap-align: start;
 }
 
 .timeline-frame:last-child { border-right: 0; }

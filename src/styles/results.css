@@ -240,6 +240,27 @@
   font-size: 10px;
   letter-spacing: 0.16em;
   color: var(--muted);
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.results-ai-action {
+  appearance: none;
+  border: var(--hairline);
+  background: var(--surface);
+  color: var(--hot);
+  padding: 2px 8px;
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+
+.results-ai-action:hover {
+  background: var(--hot);
+  color: var(--invert-fg);
 }
 
 .results-ai-text {

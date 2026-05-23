@@ -15,6 +15,9 @@ export const $$ =                    (selector        )      =>
                         
                            
                                 
+                               
+                                 
+                                
                                          
                                   
                               
@@ -86,6 +89,7 @@ export const $$ =                    (selector        )      =>
                                
                               
                              
+                              
                                    
                            
                            
@@ -95,6 +99,8 @@ export const $$ =                    (selector        )      =>
                                 
                                
                               
+                                     
+                                     
                                      
 
                             
@@ -130,6 +136,9 @@ export function collectDomRefs()          {
     connectionDot: $("#connectionDot"),
     fpsLabel: $("#fpsLabel"),
     mirrorEmpty: $("#mirrorEmpty"),
+    mirrorEmptyTitle: $("#mirrorEmptyTitle"),
+    mirrorEmptyHint: $("#mirrorEmptyHint"),
+    cameraRetry: $("#cameraRetry")                     ,
     cameraVideo: $("#cameraVideo")                    ,
     cameraOverlayCanvas: $("#cameraOverlay")                     ,
     motionCanvas: $("#motionCanvas")                     ,
@@ -202,6 +211,7 @@ export function collectDomRefs()          {
     llmBaseUrl: $("#llmBaseUrl")                    ,
     llmApiKey: $("#llmApiKey")                    ,
     llmModel: $("#llmModel")                    ,
+    llmClear: $("#llmClear")                     ,
     personaSelect: $("#personaSelect")                     ,
     aiCoachCard: $("#aiCoachCard"),
     aiCoachText: $("#aiCoachText"),
@@ -212,6 +222,8 @@ export function collectDomRefs()          {
     calibrationHint: $("#calibrationHint"),
     calibrationBar: $("#calibrationBar"),
     calibrationSkip: $("#calibrationSkip")                     ,
+    calibrationDone: $("#calibrationDone")                     ,
+    calibrationRedo: $("#calibrationRedo")                     ,
 
     importDrawer: $("#importDrawer"),
     importButton: $("#importButton"),

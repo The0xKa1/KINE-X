@@ -1,6 +1,7 @@
 import { VideoSeeker } from "../../core/import/VideoSeeker.js";
 import { landmarksToPose } from "../../core/import/landmarksToPose.js";
 import { postProcessFrames } from "../../core/import/postProcess.js";
+import { drawerStack } from "../../core/DrawerStack.js";
 import type { LandmarkerController, PoseModel } from "../../core/PoseLandmarkerManager.js";
 import type { CoachClip, SeedMotion, SkeletonPose } from "../../types/motion.js";
 
@@ -9,7 +10,6 @@ const THUMB_HEIGHT = 106;
 
 interface ImportDrawerOptions {
   drawer: HTMLElement;
-  backdrop: HTMLElement;
   trigger: HTMLElement;
   closeButton: HTMLElement;
   fileInput: HTMLInputElement;
@@ -41,6 +41,14 @@ export class ImportDrawer {
 
   constructor(options: ImportDrawerOptions) {
     this.options = options;
+    drawerStack.register({
+      id: "import",
+      onForceClose: () => {
+        if (this.busy) return false;
+        this.close();
+      },
+      trigger: this.options.trigger,
+    });
     this.bindEvents();
     this.setStatus("等待上传视频");
     this.setProgress(0, 0);
@@ -51,14 +59,14 @@ export class ImportDrawer {
   open(): void {
     this.isOpen = true;
     this.options.drawer.classList.add("is-open");
-    this.options.backdrop.classList.add("is-open");
+    drawerStack.open("import");
   }
 
   close(): void {
     if (this.busy) return;
     this.isOpen = false;
     this.options.drawer.classList.remove("is-open");
-    this.options.backdrop.classList.remove("is-open");
+    drawerStack.close("import");
   }
 
   toggle(): void {
@@ -69,10 +77,6 @@ export class ImportDrawer {
   private bindEvents(): void {
     this.options.trigger.addEventListener("click", () => this.toggle());
     this.options.closeButton.addEventListener("click", () => this.close());
-    this.options.backdrop.addEventListener("click", () => this.close());
-    document.addEventListener("keydown", (event) => {
-      if (event.key === "Escape" && this.isOpen) this.close();
-    });
 
     this.options.fileInput.addEventListener("change", () => {
       const next = this.options.fileInput.files?.[0] ?? null;
@@ -148,7 +152,9 @@ export class ImportDrawer {
       const thumbCapture = createThumbCapture(THUMB_WIDTH, THUMB_HEIGHT);
 
       this.setStatus(`启动 Heavy 模型 (源 ${fps}fps)，首次约 10 秒…`);
+      this.options.progressBar.classList.add("is-pulsing");
       await ctrl.ensureReady(["pose"]);
+      this.options.progressBar.classList.remove("is-pulsing");
       let detectedCount = 0;
       const stats = { noResult: 0, noPose: 0, shortWorld: 0, badPose: 0 };
 
@@ -192,8 +198,10 @@ export class ImportDrawer {
           stats,
           meta,
         });
-        const detail = `noResult=${stats.noResult} noPose=${stats.noPose} shortWorld=${stats.shortWorld} badPose=${stats.badPose}`;
-        throw new Error(`只识别到 ${detectedCount} 帧人体（${detail}），打开 DevTools 控制台查看详情`);
+        if (detectedCount === 0) {
+          throw new Error("没有识别到人体 · 请确保视频里有清晰的全身画面、光线充足");
+        }
+        throw new Error(`只识别到 ${detectedCount} 帧人体 · 动作幅度可能太大或被遮挡`);
       }
 
       this.setStatus("时序平滑 + 居中归一…");
@@ -225,6 +233,7 @@ export class ImportDrawer {
       console.warn("[ImportDrawer] import failed", err);
       this.setStatus(`解析失败：${msg}`);
     } finally {
+      this.options.progressBar.classList.remove("is-pulsing");
       seeker.dispose();
       ctrl.setModel(restore.model);
       ctrl.setEnabled("pose", restore.pose);

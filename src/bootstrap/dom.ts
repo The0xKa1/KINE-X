@@ -14,6 +14,9 @@ export interface DomRefs {
   connectionDot: HTMLElement;
   fpsLabel: HTMLElement;
   mirrorEmpty: HTMLElement;
+  mirrorEmptyTitle: HTMLElement;
+  mirrorEmptyHint: HTMLElement;
+  cameraRetry: HTMLButtonElement;
   cameraVideo: HTMLVideoElement;
   cameraOverlayCanvas: HTMLCanvasElement;
   motionCanvas: HTMLCanvasElement;
@@ -86,6 +89,7 @@ export interface DomRefs {
   llmBaseUrl: HTMLInputElement;
   llmApiKey: HTMLInputElement;
   llmModel: HTMLInputElement;
+  llmClear: HTMLButtonElement;
   personaSelect: HTMLSelectElement;
   aiCoachCard: HTMLElement;
   aiCoachText: HTMLElement;
@@ -96,6 +100,8 @@ export interface DomRefs {
   calibrationHint: HTMLElement;
   calibrationBar: HTMLElement;
   calibrationSkip: HTMLButtonElement;
+  calibrationDone: HTMLButtonElement;
+  calibrationRedo: HTMLButtonElement;
 
   importDrawer: HTMLElement;
   importButton: HTMLElement;
@@ -130,6 +136,9 @@ export function collectDomRefs(): DomRefs {
     connectionDot: $("#connectionDot"),
     fpsLabel: $("#fpsLabel"),
     mirrorEmpty: $("#mirrorEmpty"),
+    mirrorEmptyTitle: $("#mirrorEmptyTitle"),
+    mirrorEmptyHint: $("#mirrorEmptyHint"),
+    cameraRetry: $("#cameraRetry") as HTMLButtonElement,
     cameraVideo: $("#cameraVideo") as HTMLVideoElement,
     cameraOverlayCanvas: $("#cameraOverlay") as HTMLCanvasElement,
     motionCanvas: $("#motionCanvas") as HTMLCanvasElement,
@@ -202,6 +211,7 @@ export function collectDomRefs(): DomRefs {
     llmBaseUrl: $("#llmBaseUrl") as HTMLInputElement,
     llmApiKey: $("#llmApiKey") as HTMLInputElement,
     llmModel: $("#llmModel") as HTMLInputElement,
+    llmClear: $("#llmClear") as HTMLButtonElement,
     personaSelect: $("#personaSelect") as HTMLSelectElement,
     aiCoachCard: $("#aiCoachCard"),
     aiCoachText: $("#aiCoachText"),
@@ -212,6 +222,8 @@ export function collectDomRefs(): DomRefs {
     calibrationHint: $("#calibrationHint"),
     calibrationBar: $("#calibrationBar"),
     calibrationSkip: $("#calibrationSkip") as HTMLButtonElement,
+    calibrationDone: $("#calibrationDone") as HTMLButtonElement,
+    calibrationRedo: $("#calibrationRedo") as HTMLButtonElement,
 
     importDrawer: $("#importDrawer"),
     importButton: $("#importButton"),
