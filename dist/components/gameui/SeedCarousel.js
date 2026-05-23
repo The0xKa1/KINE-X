@@ -1,4 +1,5 @@
                                                        
+import { prefersReducedMotion } from "../../core/motionPrefs.js";
                                                                                     
 
                                
@@ -39,7 +40,12 @@ export class SeedCarousel {
     const exercise = this.options.exercises[id];
     if (exercise) this.options.headName.textContent = exercise.name;
     const card = this.cards.get(id);
-    if (card) card.scrollIntoView({ behavior: "smooth", inline: "center", block: "nearest" });
+    if (!card) return;
+    const container = this.options.container;
+    const target =
+      card.offsetLeft - container.clientWidth / 2 + card.offsetWidth / 2;
+    const behavior = prefersReducedMotion() ? "auto" : "smooth";
+    container.scrollTo({ left: Math.max(0, target), behavior });
   }
 
   setMode(mode            )       {

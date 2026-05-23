@@ -1,3 +1,5 @@
+import { modalA11y,                      } from "../../core/modalA11y.js";
+
                             
                     
                            
@@ -13,9 +15,15 @@ export class DnaExport {
           options                  ;
           timer = 0;
           rendered = false;
+          a11y                 ;
 
   constructor(options                  ) {
     this.options = options;
+    this.a11y = modalA11y({
+      root: this.options.root,
+      onEscape: () => this.close(),
+      initialFocus: () => this.options.closeButton               ,
+    });
     this.options.closeButton.addEventListener("click", () => this.close());
     this.options.root.addEventListener("click", (event) => {
       if (event.target === this.options.root) this.close();
@@ -25,6 +33,7 @@ export class DnaExport {
   open(seedLabel        )       {
     this.options.root.classList.add("is-open");
     this.options.root.setAttribute("aria-hidden", "false");
+    this.a11y.activate();
     this.options.head.textContent = "渲染 DNA 视频中…";
     this.options.sub.textContent = "正在把你的动作打成抖音可一键投递的格式";
     this.options.qr.style.display = "none";
@@ -36,6 +45,7 @@ export class DnaExport {
   close()       {
     this.options.root.classList.remove("is-open");
     this.options.root.setAttribute("aria-hidden", "true");
+    this.a11y.deactivate();
     if (this.timer) {
       window.clearInterval(this.timer);
       this.timer = 0;

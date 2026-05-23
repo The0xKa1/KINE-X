@@ -1,5 +1,5 @@
 import { WORLD_SPACE } from "./coordinates.js";
-                                              
+                                                               
                                                      
 
                                            
@@ -112,11 +112,13 @@ export class WebCamManager {
       this.mode = "camera";
       this.video.classList.add("is-visible");
       this.bus.emit("camera:update", { active: true, mode: "camera", label: "Local camera pose stream" });
-    } catch {
-      this.active = true;
+    } catch (err) {
+      this.active = false;
       this.mode = "mock";
       this.video.classList.remove("is-visible");
-      this.bus.emit("camera:update", { active: true, mode: "mock", label: "Camera fallback: mock stream" });
+      const { kind, message } = classifyCameraError(err);
+      this.bus.emit("camera:update", { active: false, mode: "mock", label: "摄像头未开启" });
+      this.bus.emit("camera:error", { kind, message });
     }
   }
 
@@ -124,5 +126,28 @@ export class WebCamManager {
     this.video.style.transform = this.settings.mirror ? WORLD_SPACE.cameraCanvasTransform : "";
     this.video.classList.toggle("no-mirror", !this.settings.mirror);
     this.video.classList.toggle("is-cover", this.settings.fit === "cover");
+  }
+}
+
+function classifyCameraError(err         )                                             {
+  const name = err instanceof DOMException ? err.name : "";
+  switch (name) {
+    case "NotAllowedError":
+    case "SecurityError":
+      return { kind: "NotAllowed", message: "浏览器拒绝授权 · 在地址栏点 🔒 允许摄像头" };
+    case "NotFoundError":
+    case "DevicesNotFoundError":
+      return { kind: "NotFound", message: "找不到摄像头设备 · 请检查是否连接" };
+    case "OverconstrainedError":
+    case "ConstraintNotSatisfiedError":
+      return { kind: "Overconstrained", message: "当前分辨率不支持 · 请在设置里改低" };
+    case "NotReadableError":
+    case "TrackStartError":
+      return { kind: "Busy", message: "摄像头被其他程序占用 · 请关闭其它应用后重试" };
+    default:
+      return {
+        kind: "Other",
+        message: err instanceof Error ? err.message : "摄像头启动失败 · 请重试",
+      };
   }
 }

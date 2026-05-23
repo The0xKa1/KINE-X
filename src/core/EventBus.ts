@@ -1,10 +1,18 @@
 import type { PipelineUpdate, ScoreUpdate, SeedUpdate } from "../types/motion.js";
 
+export type CameraErrorKind = "NotAllowed" | "NotFound" | "Overconstrained" | "Busy" | "Other";
+
+export interface CameraErrorPayload {
+  kind: CameraErrorKind;
+  message: string;
+}
+
 export interface AppEvents {
   "score:update": ScoreUpdate;
   "pipeline:update": PipelineUpdate;
   "seed:update": SeedUpdate;
   "camera:update": { active: boolean; mode: "mock" | "camera"; label: string };
+  "camera:error": CameraErrorPayload;
 }
 
 export type AppEventName = keyof AppEvents;

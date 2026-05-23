@@ -23,6 +23,20 @@
   color: var(--invert-fg);
 }
 
+.icon-button.is-active {
+  background: var(--ink);
+  color: var(--invert-fg);
+  border-color: var(--ink);
+}
+
+.icon-button.is-active::after {
+  content: "";
+  width: 6px;
+  height: 6px;
+  background: var(--hot);
+  margin-left: 2px;
+}
+
 .primary-button {
   padding: 0 16px;
   background: var(--invert-bg);
@@ -52,13 +66,14 @@ input[type="range"] {
   width: 100%;
   appearance: none;
   -webkit-appearance: none;
-  height: 18px;
+  height: 24px;
   background: transparent;
   margin: 0;
+  cursor: pointer;
 }
 
 input[type="range"]::-webkit-slider-runnable-track {
-  height: 1px;
+  height: 3px;
   background: var(--ink);
   border: 0;
 }
@@ -66,26 +81,38 @@ input[type="range"]::-webkit-slider-runnable-track {
 input[type="range"]::-webkit-slider-thumb {
   -webkit-appearance: none;
   appearance: none;
-  width: 12px;
-  height: 12px;
+  width: 16px;
+  height: 16px;
   background: var(--ink);
-  margin-top: -6px;
+  margin-top: -7px;
   border-radius: 0;
-  border: 0;
+  border: 2px solid var(--surface);
+  box-shadow: 0 0 0 1px var(--ink);
+}
+
+input[type="range"]:hover::-webkit-slider-thumb,
+input[type="range"]:focus-visible::-webkit-slider-thumb {
+  background: var(--hot);
 }
 
 input[type="range"]::-moz-range-track {
-  height: 1px;
+  height: 3px;
   background: var(--ink);
   border: 0;
 }
 
 input[type="range"]::-moz-range-thumb {
-  width: 12px;
-  height: 12px;
+  width: 16px;
+  height: 16px;
   background: var(--ink);
-  border: 0;
+  border: 2px solid var(--surface);
   border-radius: 0;
+  box-shadow: 0 0 0 1px var(--ink);
+}
+
+input[type="range"]:hover::-moz-range-thumb,
+input[type="range"]:focus-visible::-moz-range-thumb {
+  background: var(--hot);
 }
 
 .range-field span {

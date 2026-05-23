@@ -10,6 +10,8 @@ interface AppShellOptions {
   timeSlider: HTMLInputElement;
   cameraButton: HTMLButtonElement;
   onNavMode(mode: MotionMode): void;
+  onRebuild(): void;
+  onSafety(): void;
   onViewChange(view: CameraView): void;
   onPlayChange(playing: boolean): void;
   onStressChange(enabled: boolean): void;
@@ -32,13 +34,27 @@ export class AppShell {
     this.options.timeSlider.value = String(Math.round(progress * 1000));
   }
 
+  setPlaying(playing: boolean, notify: boolean = true): void {
+    if (this.playing === playing) return;
+    this.playing = playing;
+    this.renderPlayIcon();
+    if (notify) this.options.onPlayChange(playing);
+  }
+
+  isPlaying(): boolean {
+    return this.playing;
+  }
+
   private bind(): void {
     this.options.railItems.forEach((button) => {
       button.addEventListener("click", () => {
         this.options.railItems.forEach((item) => item.classList.remove("is-active"));
         button.classList.add("is-active");
-        if (button.dataset.nav === "compare") this.options.onNavMode("stress");
-        if (button.dataset.nav === "seed") this.options.onNavMode("coach");
+        const nav = button.dataset.nav;
+        if (nav === "seed") this.options.onNavMode("coach");
+        else if (nav === "compare") this.options.onNavMode("stress");
+        else if (nav === "rebuild") this.options.onRebuild();
+        else if (nav === "score") this.options.onSafety();
       });
     });
 
@@ -51,14 +67,15 @@ export class AppShell {
     });
 
     this.options.playButton.addEventListener("click", () => {
-      this.playing = !this.playing;
-      this.renderPlayIcon();
-      this.options.onPlayChange(this.playing);
+      this.setPlaying(!this.playing);
     });
 
     this.options.stressToggle.addEventListener("change", () => this.options.onStressChange(this.options.stressToggle.checked));
     this.options.speedSlider.addEventListener("input", () => this.options.onSpeedChange(Number(this.options.speedSlider.value) / 100));
-    this.options.timeSlider.addEventListener("input", () => this.options.onScrub(Number(this.options.timeSlider.value) / 1000));
+    this.options.timeSlider.addEventListener("input", () => {
+      this.setPlaying(false);
+      this.options.onScrub(Number(this.options.timeSlider.value) / 1000);
+    });
     this.options.cameraButton.addEventListener("click", () => this.options.onCameraToggle());
   }
 

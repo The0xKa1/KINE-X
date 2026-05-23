@@ -1,9 +1,12 @@
+import { drawerStack } from "../../core/DrawerStack.js";
+
                             
                       
-                        
                        
                            
  
+
+const DRAWER_ID = "dna";
 
 export class DnaDrawer {
           options                  ;
@@ -11,24 +14,25 @@ export class DnaDrawer {
 
   constructor(options                  ) {
     this.options = options;
+    drawerStack.register({
+      id: DRAWER_ID,
+      onForceClose: () => this.close(),
+      trigger: this.options.trigger,
+    });
     this.options.trigger.addEventListener("click", () => this.toggle());
     this.options.closeButton.addEventListener("click", () => this.close());
-    this.options.backdrop.addEventListener("click", () => this.close());
-    document.addEventListener("keydown", (event) => {
-      if (event.key === "Escape" && this.isOpen) this.close();
-    });
   }
 
   open()       {
     this.isOpen = true;
     this.options.drawer.classList.add("is-open");
-    this.options.backdrop.classList.add("is-open");
+    drawerStack.open(DRAWER_ID);
   }
 
   close()       {
     this.isOpen = false;
     this.options.drawer.classList.remove("is-open");
-    this.options.backdrop.classList.remove("is-open");
+    drawerStack.close(DRAWER_ID);
   }
 
   toggle()       {

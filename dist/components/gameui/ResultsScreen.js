@@ -1,5 +1,7 @@
 import { formatCm } from "../../core/coordinates.js";
                                                        
+import { modalA11y,                      } from "../../core/modalA11y.js";
+import { prefersReducedMotion } from "../../core/motionPrefs.js";
                                                                                      
                                                                              
                                                       
@@ -43,9 +45,17 @@ export class ResultsScreen {
           rollingScore           = [];
           rollingDelta           = [];
           riskHits = 0;
+          a11y                 ;
+          lastDiagnosis                                       = null;
+          animationHandles           = [];
 
   constructor(options                      ) {
     this.options = options;
+    this.a11y = modalA11y({
+      root: this.options.root,
+      onEscape: () => this.close(),
+      initialFocus: () => this.options.closeButton               ,
+    });
     this.options.bus.on("score:update", (payload) => this.handle(payload));
     this.options.closeButton.addEventListener("click", () => this.close());
     this.options.exportButton.addEventListener("click", () => this.options.onExport());
@@ -59,6 +69,7 @@ export class ResultsScreen {
     this.rollingScore = [];
     this.rollingDelta = [];
     this.riskHits = 0;
+    this.lastDiagnosis = null;
   }
 
   open()       {
@@ -67,26 +78,63 @@ export class ResultsScreen {
     const stats = this.options.getStats();
     const beat = Math.min(99, Math.max(40, Math.round(60 + (score - 60) * 1.6)));
     const avgDelta = average(this.rollingDelta);
+    const combo = stats.bestCombo || this.latest.combo;
 
-    this.options.scoreEl.textContent = String(score);
+    this.cancelAnimations();
     this.options.titleEl.textContent = `本次动作匹配度 ${score}%`;
-    this.options.beatEl.textContent = `${beat}%`;
-    this.options.comboEl.textContent = `×${stats.bestCombo || this.latest.combo}`;
-    this.options.perfectEl.textContent = String(stats.perfectFrames);
-    this.options.deltaEl.textContent = formatCm(avgDelta);
-    this.options.riskEl.textContent = String(this.riskHits);
     this.options.medalEl.textContent = MEDALS[this.currentExercise] ?? "限定数字勋章";
 
     this.options.root.classList.add("is-open");
     this.options.root.setAttribute("aria-hidden", "false");
+    this.a11y.activate();
+
+    this.animateNumber(this.options.scoreEl, 0, score, 720, (v) => String(Math.round(v)));
+    this.animateNumber(this.options.beatEl, 0, beat, 760, (v) => `${Math.round(v)}%`);
+    this.animateNumber(this.options.comboEl, 0, combo, 640, (v) => `×${Math.round(v)}`);
+    this.animateNumber(this.options.perfectEl, 0, stats.perfectFrames, 680, (v) => String(Math.round(v)));
+    this.animateNumber(this.options.deltaEl, 0, avgDelta, 720, (v) => formatCm(v));
+    this.animateNumber(this.options.riskEl, 0, this.riskHits, 600, (v) => String(Math.round(v)));
 
     this.runDiagnosis();
   }
 
   close()       {
+    this.cancelAnimations();
     this.options.aiCoach.cancel();
     this.options.root.classList.remove("is-open");
     this.options.root.setAttribute("aria-hidden", "true");
+    this.a11y.deactivate();
+  }
+
+          animateNumber(
+    el             ,
+    from        ,
+    to        ,
+    durationMs        ,
+    format                           ,
+  )       {
+    if (prefersReducedMotion() || durationMs <= 0) {
+      el.textContent = format(to);
+      return;
+    }
+    const start = performance.now();
+    const tick = (now        ) => {
+      const t = Math.min(1, (now - start) / durationMs);
+      const eased = 1 - Math.pow(1 - t, 3);
+      const value = from + (to - from) * eased;
+      el.textContent = format(value);
+      if (t < 1) {
+        const handle = requestAnimationFrame(tick);
+        this.animationHandles.push(handle);
+      }
+    };
+    const handle = requestAnimationFrame(tick);
+    this.animationHandles.push(handle);
+  }
+
+          cancelAnimations()       {
+    for (const handle of this.animationHandles) cancelAnimationFrame(handle);
+    this.animationHandles = [];
   }
 
           runDiagnosis()       {
@@ -97,16 +145,25 @@ export class ResultsScreen {
       this.options.aiCoach.renderStatic(fallback, "no samples");
       return;
     }
+    const cacheKey = summaryCacheKey(this.currentExercise, summary);
+    if (this.lastDiagnosis && this.lastDiagnosis.key === cacheKey) {
+      this.options.aiCoach.renderStatic(this.lastDiagnosis.text, "cached");
+      return;
+    }
     const config = this.options.getLlmConfig();
     if (!config) {
       this.options.aiCoach.renderStatic(fallback);
       return;
     }
     const messages = buildDiagnosisMessages(exercise, summary, this.options.getPersona());
-    void this.options.aiCoach.renderStreaming(
-      (onDelta, signal) => streamChat(config, messages, onDelta, { signal }),
-      fallback,
-    );
+    void this.options.aiCoach
+      .renderStreaming(
+        (onDelta, signal) => streamChat(config, messages, onDelta, { signal }),
+        fallback,
+      )
+      .then((text) => {
+        if (text) this.lastDiagnosis = { key: cacheKey, text };
+      });
   }
 
           handle(payload             )       {
@@ -124,4 +181,18 @@ export class ResultsScreen {
 function average(values          )         {
   if (!values.length) return 0;
   return values.reduce((a, b) => a + b, 0) / values.length;
+}
+
+function summaryCacheKey(exerciseId            , summary                                         )         {
+  const joints = summary.joints
+    .map((j) => `${j.id}:${j.avgScore.toFixed(1)}`)
+    .join(",");
+  return [
+    exerciseId,
+    summary.frames,
+    summary.avgScore.toFixed(2),
+    summary.worstFrameScore.toFixed(2),
+    summary.worstPhase,
+    joints,
+  ].join("|");
 }

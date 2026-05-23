@@ -13,6 +13,7 @@ import { AiCoachPanel } from "./components/gameui/AiCoachPanel.js";
 import { AppShell } from "./components/layout/AppShell.js";
 import { AudioFx } from "./core/AudioFx.js";
 import { CameraOverlay } from "./core/CameraOverlay.js";
+import { drawerStack } from "./core/DrawerStack.js";
 import { EventBus } from "./core/EventBus.js";
 import { MotionFrameBuffer } from "./core/frameBuffer.js";
 import { MotionStage } from "./core/MotionStage.js";
@@ -34,10 +35,16 @@ import { loadMeshClip } from "./core/import/MeshClip.js";
 
 const dom = collectDomRefs();
 const bus = new EventBus();
+drawerStack.init(dom.drawerBackdrop);
 const frameBuffer = new MotionFrameBuffer();
 const socket = useWebSocket(frameBuffer, bus);
 const audio = new AudioFx();
 const connection = new ConnectionIndicator(dom.connectionText, dom.connectionDot);
+connection.onClick(() => {
+  if (socket.status() === "open") return;
+  connection.set("WebSocket 重连中…", "busy");
+  socket.reconnect();
+});
 
 const state                  = {
   exerciseId: "squat",
@@ -121,6 +128,7 @@ const timeline = new Timeline({
   container: dom.timelineFrames,
   label: dom.timelineLabel,
   onScrub: (nextProgress) => {
+    shell.setPlaying(false);
     state.progress = nextProgress;
     frameBuffer.reset();
     mockStream.pushFrame(performance.now());
@@ -158,6 +166,7 @@ const aiCoach = new AiCoachPanel({
   root: dom.aiCoachCard,
   textEl: dom.aiCoachText,
   statusEl: dom.aiCoachStatus,
+  onOpenSettings: () => cameraSettings.open(),
 });
 
 const resultsScreen = new ResultsScreen({
@@ -184,7 +193,6 @@ const resultsScreen = new ResultsScreen({
 
 const dnaDrawer = new DnaDrawer({
   drawer: dom.dnaDrawer,
-  backdrop: dom.drawerBackdrop,
   trigger: dom.dnaButton,
   closeButton: dom.drawerClose,
 });
@@ -196,7 +204,6 @@ const cameraSettings = new CameraSettings({
   calibration: calibrationController,
   profileStore,
   drawer: dom.cameraSettingsDrawer,
-  backdrop: dom.drawerBackdrop,
   trigger: dom.cameraSettingsButton,
   closeButton: dom.cameraSettingsClose,
   deviceSelect: dom.cameraDeviceSelect,
@@ -213,6 +220,7 @@ const cameraSettings = new CameraSettings({
   llmBaseUrl: dom.llmBaseUrl,
   llmApiKey: dom.llmApiKey,
   llmModel: dom.llmModel,
+  llmClearButton: dom.llmClear,
   personaSelect: dom.personaSelect,
   callbacks: {
     onSafeZoneChange: (visible) => cameraOverlay.setSafeZoneVisible(visible),
@@ -228,6 +236,8 @@ const calibrationOverlay = new CalibrationOverlay({
   hint: dom.calibrationHint,
   bar: dom.calibrationBar,
   skipButton: dom.calibrationSkip,
+  doneButton: dom.calibrationDone,
+  redoButton: dom.calibrationRedo,
   onSkip: () => {
     try {
       localStorage.setItem(CALIBRATION_SKIP_KEY, "1");
@@ -240,7 +250,6 @@ void calibrationOverlay;
 
 const importDrawer = new ImportDrawer({
   drawer: dom.importDrawer,
-  backdrop: dom.drawerBackdrop,
   trigger: dom.importButton,
   closeButton: dom.importClose,
   fileInput: dom.importFile,
@@ -262,11 +271,15 @@ const importDrawer = new ImportDrawer({
       motion: clip.motion,
     };
     mockStream.resetForSeed(state.exerciseId);
+    state.progress = 0;
+    shell.setPlaying(false);
+    shell.setProgress(0);
     bus.emit("seed:update", {
       exercise: exercises[state.exerciseId],
       message: `Imported · ${clip.name}`,
     });
     importDrawer.close();
+    mockStream.pushFrame(performance.now());
   },
 });
 void importDrawer;
@@ -283,6 +296,13 @@ const shell = new AppShell({
   onNavMode: (nextMode) => {
     setMode(nextMode);
     seedCarousel.setMode(nextMode);
+  },
+  onRebuild: () => setExercise(state.exerciseId, "Stage rebuild"),
+  onSafety: () => {
+    setMode("stress");
+    seedCarousel.setMode("stress");
+    dom.stressToggle.checked = true;
+    stage.setStress(true);
   },
   onViewChange: (view) => stage.setView(view),
   onPlayChange: (nextPlaying) => {
@@ -310,7 +330,15 @@ bus.on("camera:update", (payload) => {
   connection.set(payload.label, payload.mode === "camera" ? "ready" : "busy");
   const visible = payload.mode === "camera" && payload.active;
   dom.mirrorEmpty.classList.toggle("is-hidden", visible);
+  dom.mirrorEmpty.classList.remove("is-error");
+  dom.cameraRetry.hidden = true;
+  if (!visible) {
+    dom.mirrorEmptyTitle.textContent = "点击 Lens 唤起摄像头";
+    dom.mirrorEmptyHint.textContent = "AI WILL LOCK ONTO YOUR JOINTS";
+  }
   dom.mirrorTitle.textContent = visible ? "你的镜像 · LIVE" : "你的镜像";
+  dom.cameraButton.classList.toggle("is-active", visible);
+  dom.cameraButton.setAttribute("aria-pressed", String(visible));
   if (!visible) {
     cameraOverlay.clear();
     userPose.clear();
@@ -324,9 +352,22 @@ bus.on("camera:update", (payload) => {
     skipped = false;
   }
   if (!profileStore.get() && !skipped && calibrationController.getStatus().phase === "idle") {
-    // Defer a tick so the camera has a chance to push the first landmarks.
-    window.setTimeout(() => calibrationController.start(), 600);
+    calibrationController.start();
   }
+});
+
+bus.on("camera:error", (payload) => {
+  dom.mirrorEmpty.classList.remove("is-hidden");
+  dom.mirrorEmpty.classList.add("is-error");
+  dom.mirrorEmptyTitle.textContent = "摄像头无法启动";
+  dom.mirrorEmptyHint.textContent = payload.message;
+  dom.cameraRetry.hidden = false;
+});
+
+dom.cameraRetry.addEventListener("click", () => {
+  audio.enable();
+  audio.resume();
+  void webcam.toggle();
 });
 
 bus.on("seed:update", (payload) => {
@@ -347,17 +388,6 @@ bus.on("score:update", () => {
     fpsFrames = 0;
     lastFpsTick = now;
   }
-});
-
-dom.runPipelineButton.addEventListener("click", () => {
-  audio.enable();
-  audio.resume();
-  audio.seedActivate();
-  if (state.playing) audio.startBgm(currentBpm());
-  bus.emit("pipeline:update", { runIndex: 1, latencyMs: 36, status: "busy" });
-  window.setTimeout(() => {
-    bus.emit("pipeline:update", { runIndex: 2, latencyMs: 42, status: "ready" });
-  }, 540);
 });
 
 dom.finishButton.addEventListener("click", () => {

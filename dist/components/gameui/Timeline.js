@@ -1,4 +1,5 @@
                                                        
+import { prefersReducedMotion } from "../../core/motionPrefs.js";
                                                                     
 
                            
@@ -95,10 +96,11 @@ export class Timeline {
     const cRight = cLeft + container.clientWidth;
     const bLeft = button.offsetLeft;
     const bRight = bLeft + button.offsetWidth;
+    const behavior = prefersReducedMotion() ? "auto" : "smooth";
     if (bLeft < cLeft) {
-      container.scrollLeft = bLeft;
+      container.scrollTo({ left: bLeft, behavior });
     } else if (bRight > cRight) {
-      container.scrollLeft = bRight - container.clientWidth;
+      container.scrollTo({ left: bRight - container.clientWidth, behavior });
     }
   }
 }
