@@ -9,18 +9,16 @@ import { LandmarkSmoother } from "./scoring/LandmarkSmoother.js";
                                                   
                                                     
 
-const WASM_BASE = "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/wasm";
+const WASM_BASE = "./public/mediapipe/wasm";
 
 const POSE_MODEL_URLS                            = {
-  lite: "https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/float16/1/pose_landmarker_lite.task",
-  full: "https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_full/float16/1/pose_landmarker_full.task",
-  heavy: "https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_heavy/float16/1/pose_landmarker_heavy.task",
+  lite: "./public/mediapipe/models/pose_landmarker_lite.task",
+  full: "./public/mediapipe/models/pose_landmarker_full.task",
+  heavy: "./public/mediapipe/models/pose_landmarker_heavy.task",
 };
 
-const HAND_MODEL_URL =
-  "https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task";
-const FACE_MODEL_URL =
-  "https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task";
+const HAND_MODEL_URL = "./public/mediapipe/models/hand_landmarker.task";
+const FACE_MODEL_URL = "./public/mediapipe/models/face_landmarker.task";
 
 const POSE_LANDMARK_COUNT = 33;
 const HAND_LANDMARK_COUNT = 21;
@@ -103,6 +101,27 @@ export class LandmarkerController {
       if (kind === "hand") this.disposeHand();
       if (kind === "face") this.disposeFace();
     }
+  }
+
+  async ensureReady(modalities                 = ["pose", "hand", "face"])                {
+    await this.ensureVision();
+    const ready = this.vision;
+    if (!ready) return;
+    const pending                  = [];
+    for (const kind of modalities) {
+      if (!this.enabled[kind]) continue;
+      if (kind === "pose") {
+        this.ensurePose(ready);
+        if (this.pose.pending) pending.push(this.pose.pending);
+      } else if (kind === "hand") {
+        this.ensureHand(ready);
+        if (this.hand.pending) pending.push(this.hand.pending);
+      } else if (kind === "face") {
+        this.ensureFace(ready);
+        if (this.face.pending) pending.push(this.face.pending);
+      }
+    }
+    if (pending.length > 0) await Promise.all(pending);
   }
 
   detect(video                  , timestampMs        )                      {

@@ -6,6 +6,8 @@ import type {
 import type { LandmarkerController, ModalityKind, PoseModel } from "../../core/PoseLandmarkerManager.js";
 import type { CalibrationController } from "../../core/scoring/CalibrationController.js";
 import type { UserProfileStore } from "../../core/scoring/UserProfile.js";
+import type { LlmSettings } from "../../core/llm/LLMClient.js";
+import type { CoachPersona } from "../../core/llm/buildPrompt.js";
 
 export interface CameraSettingsCallbacks {
   onSafeZoneChange(visible: boolean): void;
@@ -31,6 +33,10 @@ interface CameraSettingsOptions {
   modalityFaceToggle: HTMLInputElement;
   recalibrateButton: HTMLButtonElement;
   calibrationStatusLabel: HTMLElement;
+  llmBaseUrl: HTMLInputElement;
+  llmApiKey: HTMLInputElement;
+  llmModel: HTMLInputElement;
+  personaSelect: HTMLSelectElement;
   callbacks: CameraSettingsCallbacks;
 }
 
@@ -41,6 +47,8 @@ interface PersistedSettings {
   safeZone: boolean;
   model: PoseModel;
   modalities?: Record<ModalityKind, boolean>;
+  llm?: { baseUrl: string; apiKey: string; model: string };
+  persona?: CoachPersona;
 }
 
 const RESOLUTION_PRESETS: Array<{ value: string; label: string; width: number; height: number }> = [
@@ -53,6 +61,7 @@ export class CameraSettings {
   private options: CameraSettingsOptions;
   private isOpen = false;
   private safeZone = false;
+  private persona: CoachPersona = "biomech";
 
   constructor(options: CameraSettingsOptions) {
     this.options = options;
@@ -64,6 +73,18 @@ export class CameraSettings {
     this.options.profileStore.onChange(() => this.refreshCalibrationLabel());
     this.options.calibration.onChange(() => this.refreshCalibrationLabel());
     this.options.callbacks.onSafeZoneChange(this.safeZone);
+  }
+
+  getLlmConfig(): LlmSettings | null {
+    const baseUrl = this.options.llmBaseUrl.value.trim();
+    const apiKey = this.options.llmApiKey.value.trim();
+    const model = this.options.llmModel.value.trim();
+    if (!baseUrl || !apiKey || !model) return null;
+    return { baseUrl, apiKey, model };
+  }
+
+  getPersona(): CoachPersona {
+    return this.persona;
   }
 
   open(): void {
@@ -146,6 +167,18 @@ export class CameraSettings {
       }
       this.options.calibration.start();
     });
+
+    const persistLlm = () => this.persist();
+    this.options.llmBaseUrl.addEventListener("change", persistLlm);
+    this.options.llmApiKey.addEventListener("change", persistLlm);
+    this.options.llmModel.addEventListener("change", persistLlm);
+    this.options.personaSelect.addEventListener("change", () => {
+      const value = this.options.personaSelect.value;
+      if (value === "biomech" || value === "baduanjin") {
+        this.persona = value;
+      }
+      this.persist();
+    });
   }
 
   private async refreshDevices(): Promise<void> {
@@ -198,6 +231,7 @@ export class CameraSettings {
     this.options.modalityPoseToggle.checked = this.options.landmarker.isEnabled("pose");
     this.options.modalityHandToggle.checked = this.options.landmarker.isEnabled("hand");
     this.options.modalityFaceToggle.checked = this.options.landmarker.isEnabled("face");
+    this.options.personaSelect.value = this.persona;
   }
 
   private refreshCalibrationLabel(): void {
@@ -228,6 +262,12 @@ export class CameraSettings {
         hand: this.options.landmarker.isEnabled("hand"),
         face: this.options.landmarker.isEnabled("face"),
       },
+      llm: {
+        baseUrl: this.options.llmBaseUrl.value.trim(),
+        apiKey: this.options.llmApiKey.value.trim(),
+        model: this.options.llmModel.value.trim(),
+      },
+      persona: this.persona,
     };
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
@@ -260,6 +300,14 @@ export class CameraSettings {
             this.options.landmarker.setEnabled(kind, value);
           }
         });
+      }
+      if (parsed.llm) {
+        this.options.llmBaseUrl.value = parsed.llm.baseUrl ?? "";
+        this.options.llmApiKey.value = parsed.llm.apiKey ?? "";
+        this.options.llmModel.value = parsed.llm.model ?? "";
+      }
+      if (parsed.persona === "biomech" || parsed.persona === "baduanjin") {
+        this.persona = parsed.persona;
       }
     } catch {
       // ignore corrupted state

@@ -9,6 +9,7 @@ import { DnaDrawer } from "./components/gameui/DnaDrawer.js";
 import { CameraSettings } from "./components/gameui/CameraSettings.js";
 import { CalibrationOverlay } from "./components/gameui/CalibrationOverlay.js";
 import { ImportDrawer } from "./components/gameui/ImportDrawer.js";
+import { AiCoachPanel } from "./components/gameui/AiCoachPanel.js";
 import { AppShell } from "./components/layout/AppShell.js";
 import { AudioFx } from "./core/AudioFx.js";
 import { CameraOverlay } from "./core/CameraOverlay.js";
@@ -18,6 +19,7 @@ import { MotionStage } from "./core/MotionStage.js";
 import { LandmarkerController } from "./core/PoseLandmarkerManager.js";
 import { CalibrationController } from "./core/scoring/CalibrationController.js";
 import { CoachHistory } from "./core/scoring/CoachHistory.js";
+import { SessionRecorder } from "./core/scoring/SessionRecorder.js";
 import { UserPoseSource } from "./core/scoring/UserPoseSource.js";
 import { UserProfileStore } from "./core/scoring/UserProfile.js";
 import { WebCamManager } from "./core/WebCamManager.js";
@@ -52,6 +54,8 @@ const landmarkerController = new LandmarkerController();
 const profileStore = new UserProfileStore();
 const calibrationController = new CalibrationController(userPose, profileStore);
 const coachHistory = new CoachHistory();
+const sessionRecorder = new SessionRecorder(bus);
+bus.on("seed:update", () => sessionRecorder.reset());
 
 const cameraOverlay = new CameraOverlay({
   canvas: dom.cameraOverlayCanvas,
@@ -148,6 +152,12 @@ const dnaExport = new DnaExport({
   qrCode: dom.exportQrCode,
 });
 
+const aiCoach = new AiCoachPanel({
+  root: dom.aiCoachCard,
+  textEl: dom.aiCoachText,
+  statusEl: dom.aiCoachStatus,
+});
+
 const resultsScreen = new ResultsScreen({
   bus,
   root: dom.resultsScreen,
@@ -164,6 +174,10 @@ const resultsScreen = new ResultsScreen({
   onExport: () => dnaExport.open(state.exerciseId),
   getStats: () => comboBurst.getStats(),
   exercises,
+  sessionRecorder,
+  aiCoach,
+  getLlmConfig: () => cameraSettings.getLlmConfig(),
+  getPersona: () => cameraSettings.getPersona(),
 });
 
 const dnaDrawer = new DnaDrawer({
@@ -194,6 +208,10 @@ const cameraSettings = new CameraSettings({
   modalityFaceToggle: dom.modalityFaceToggle,
   recalibrateButton: dom.recalibrateButton,
   calibrationStatusLabel: dom.calibrationStatusLabel,
+  llmBaseUrl: dom.llmBaseUrl,
+  llmApiKey: dom.llmApiKey,
+  llmModel: dom.llmModel,
+  personaSelect: dom.personaSelect,
   callbacks: {
     onSafeZoneChange: (visible) => cameraOverlay.setSafeZoneVisible(visible),
   },
@@ -313,6 +331,7 @@ bus.on("seed:update", (payload) => {
   dom.stageTitle.textContent = payload.exercise.name;
   seedCarousel.syncExercise(payload.exercise);
   timeline.setLabel(`${payload.exercise.discipline} · ${payload.exercise.target}`);
+  timeline.setClip(payload.exercise.clip ?? null);
   renderDnaList(dom.dnaList, payload.exercise);
   resultsScreen.setExercise(payload.exercise.id);
 });

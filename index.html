@@ -18,7 +18,7 @@
       {
         "imports": {
           "three": "https://esm.sh/three@0.160.0",
-          "@mediapipe/tasks-vision": "https://esm.sh/@mediapipe/tasks-vision@0.10.14"
+          "@mediapipe/tasks-vision": "./public/mediapipe/tasks-vision/vision_bundle.mjs"
         }
       }
     </script>
@@ -295,6 +295,32 @@
           <button id="recalibrateButton" type="button" class="secondary-button">站直 1 秒重新校准</button>
           <p class="settings-hint">校准会记录身高、肩宽、腿长，使打分更稳定。</p>
         </section>
+        <section class="drawer-section">
+          <div class="section-head">
+            <h3>AI COACH</h3>
+            <span>post-match diagnosis</span>
+          </div>
+          <label class="settings-field">
+            <span>Base URL</span>
+            <input id="llmBaseUrl" type="text" placeholder="https://api.openai.com/v1" autocomplete="off" spellcheck="false" />
+          </label>
+          <label class="settings-field">
+            <span>API Key</span>
+            <input id="llmApiKey" type="password" placeholder="sk-..." autocomplete="off" spellcheck="false" />
+          </label>
+          <label class="settings-field">
+            <span>Model</span>
+            <input id="llmModel" type="text" placeholder="gpt-4o-mini" autocomplete="off" spellcheck="false" />
+          </label>
+          <label class="settings-field">
+            <span>诊断 persona</span>
+            <select id="personaSelect">
+              <option value="biomech">运动生物力学专家</option>
+              <option value="baduanjin">八段锦传人</option>
+            </select>
+          </label>
+          <p class="settings-hint">仅支持 OpenAI 兼容协议（OpenAI / 通义 / 智谱 / DeepSeek / OpenRouter）。Key 仅存本地 localStorage，不要使用主账户 key。</p>
+        </section>
       </div>
     </aside>
 
@@ -429,6 +455,14 @@
             </div>
           </div>
         </div>
+
+        <section id="aiCoachCard" class="results-ai-card">
+          <header class="results-ai-head">
+            <span class="eyebrow">[ AI COACH DIAGNOSIS ]</span>
+            <span id="aiCoachStatus" class="results-ai-status">idle</span>
+          </header>
+          <p id="aiCoachText" class="results-ai-text"></p>
+        </section>
 
         <div class="results-cta">
           <span class="cta-text">一键生成你的 3D 动作分身 DNA 二创短视频，发回抖音装个杯。</span>

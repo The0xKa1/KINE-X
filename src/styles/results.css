@@ -212,3 +212,62 @@
   height: 42px;
   padding: 0 18px;
 }
+
+.results-ai-card {
+  border: var(--hairline);
+  background: var(--surface);
+  padding: 16px 18px;
+  display: grid;
+  gap: 8px;
+}
+
+.results-ai-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+}
+
+.results-ai-head .eyebrow {
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--hot);
+}
+
+.results-ai-status {
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.16em;
+  color: var(--muted);
+}
+
+.results-ai-text {
+  margin: 0;
+  font-family: var(--sans);
+  font-size: 14px;
+  line-height: 1.65;
+  color: var(--ink);
+  white-space: pre-wrap;
+  min-height: 4.6em;
+}
+
+.results-ai-text::after {
+  content: "▌";
+  margin-left: 2px;
+  color: var(--hot);
+  animation: aiCaret 1s steps(1) infinite;
+}
+
+.results-ai-text.is-done::after,
+.results-ai-text.is-error::after {
+  content: "";
+}
+
+.results-ai-text.is-error {
+  color: var(--muted);
+}
+
+@keyframes aiCaret {
+  50% { opacity: 0; }
+}

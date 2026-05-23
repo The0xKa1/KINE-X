@@ -1,6 +1,10 @@
 import { formatCm } from "../../core/coordinates.js";
                                                        
                                                                                      
+                                                                             
+                                                      
+import { buildDiagnosisMessages, buildFallbackText,                   } from "../../core/llm/buildPrompt.js";
+import { streamChat,                  } from "../../core/llm/LLMClient.js";
 
                                 
                 
@@ -18,6 +22,10 @@ import { formatCm } from "../../core/coordinates.js";
                    
                                                            
                                                 
+                                   
+                        
+                                     
+                             
  
 
 const MEDALS                             = {
@@ -71,11 +79,34 @@ export class ResultsScreen {
 
     this.options.root.classList.add("is-open");
     this.options.root.setAttribute("aria-hidden", "false");
+
+    this.runDiagnosis();
   }
 
   close()       {
+    this.options.aiCoach.cancel();
     this.options.root.classList.remove("is-open");
     this.options.root.setAttribute("aria-hidden", "true");
+  }
+
+          runDiagnosis()       {
+    const exercise = this.options.exercises[this.currentExercise];
+    const summary = this.options.sessionRecorder.snapshot();
+    const fallback = buildFallbackText(exercise, summary);
+    if (summary.frames === 0) {
+      this.options.aiCoach.renderStatic(fallback, "no samples");
+      return;
+    }
+    const config = this.options.getLlmConfig();
+    if (!config) {
+      this.options.aiCoach.renderStatic(fallback);
+      return;
+    }
+    const messages = buildDiagnosisMessages(exercise, summary, this.options.getPersona());
+    void this.options.aiCoach.renderStreaming(
+      (onDelta, signal) => streamChat(config, messages, onDelta, { signal }),
+      fallback,
+    );
   }
 
           handle(payload             )       {

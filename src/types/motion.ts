@@ -74,6 +74,7 @@ export interface CoachClip {
   frames: SkeletonPose[];
   motion: SeedMotion;
   capturedAt: number;
+  thumbnails: string[];
 }
 
 export interface ExerciseConfig {

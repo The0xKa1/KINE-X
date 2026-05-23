@@ -4,6 +4,9 @@ import { postProcessFrames } from "../../core/import/postProcess.js";
                                                                                            
                                                                                  
 
+const THUMB_WIDTH = 60;
+const THUMB_HEIGHT = 106;
+
                                
                       
                         
@@ -138,33 +141,59 @@ export class ImportDrawer {
     const seeker = new VideoSeeker(this.file);
     try {
       const meta = await seeker.load();
-      const fps = 30;
+      this.setStatus("探测帧率…");
+      const fps = await seeker.probeFps();
       const collected                             = [];
+      const thumbnails           = [];
+      const thumbCapture = createThumbCapture(THUMB_WIDTH, THUMB_HEIGHT);
 
-      this.setStatus("启动 Heavy 模型，首次约 10 秒…");
+      this.setStatus(`启动 Heavy 模型 (源 ${fps}fps)，首次约 10 秒…`);
+      await ctrl.ensureReady(["pose"]);
       let detectedCount = 0;
+      const stats = { noResult: 0, noPose: 0, shortWorld: 0, badPose: 0 };
 
       await seeker.iterate(fps, async (video, time, index, total) => {
         const tsMs = time * 1000;
         const result = ctrl.detect(video, tsMs);
-        const world = result?.pose?.world;
-        const pose = world && world.length === 33 ? landmarksToPose(world) : null;
+        let pose                      = null;
+        if (!result) {
+          stats.noResult += 1;
+        } else if (!result.pose) {
+          stats.noPose += 1;
+        } else {
+          const world = result.pose.world;
+          if (world.length !== 33) {
+            stats.shortWorld += 1;
+          } else {
+            pose = landmarksToPose(world);
+            if (!pose) stats.badPose += 1;
+          }
+        }
         collected.push(pose);
         if (pose) detectedCount += 1;
+
+        thumbnails.push(thumbCapture(video));
+
         this.setProgress(index + 1, total);
         if (index === 0) {
           this.setStatus(`解析中：0 / ${total} 帧`);
         } else if ((index & 7) === 7) {
           this.setStatus(`解析中：${index + 1} / ${total} 帧 · 命中 ${detectedCount}`);
         }
-        // yield to RAF so the rest of the UI keeps refreshing
         if ((index & 3) === 3) {
           await new Promise      ((r) => requestAnimationFrame(() => r()));
         }
       });
 
       if (detectedCount < 4) {
-        throw new Error(`只识别到 ${detectedCount} 帧人体，视频里可能没有清晰的全身入境画面`);
+        console.warn("[ImportDrawer] low detection rate", {
+          total: collected.length,
+          detectedCount,
+          stats,
+          meta,
+        });
+        const detail = `noResult=${stats.noResult} noPose=${stats.noPose} shortWorld=${stats.shortWorld} badPose=${stats.badPose}`;
+        throw new Error(`只识别到 ${detectedCount} 帧人体（${detail}），打开 DevTools 控制台查看详情`);
       }
 
       this.setStatus("时序平滑 + 居中归一…");
@@ -181,6 +210,7 @@ export class ImportDrawer {
         frames: cleaned,
         motion,
         capturedAt: Date.now(),
+        thumbnails,
       };
       this.pending = clip;
       this.setStatus(
@@ -225,4 +255,33 @@ function makeId()         {
 
 function stripExt(name        )         {
   return name.replace(/\.[^.]+$/, "");
+}
+
+function createThumbCapture(width        , height        )                                      {
+  const canvas = document.createElement("canvas");
+  canvas.width = width;
+  canvas.height = height;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) {
+    return () => "";
+  }
+  const cellRatio = width / height;
+  return (video) => {
+    const vw = video.videoWidth || width;
+    const vh = video.videoHeight || height;
+    const videoRatio = vw / vh;
+    let sx = 0;
+    let sy = 0;
+    let sw = vw;
+    let sh = vh;
+    if (videoRatio > cellRatio) {
+      sw = vh * cellRatio;
+      sx = (vw - sw) / 2;
+    } else {
+      sh = vw / cellRatio;
+      sy = (vh - sh) / 2;
+    }
+    ctx.drawImage(video, sx, sy, sw, sh, 0, 0, width, height);
+    return canvas.toDataURL("image/jpeg", 0.55);
+  };
 }

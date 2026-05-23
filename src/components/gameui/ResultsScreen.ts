@@ -1,6 +1,10 @@
 import { formatCm } from "../../core/coordinates.js";
 import type { EventBus } from "../../core/EventBus.js";
 import type { ExerciseConfig, ExerciseId, ScoreUpdate } from "../../types/motion.js";
+import type { SessionRecorder } from "../../core/scoring/SessionRecorder.js";
+import type { AiCoachPanel } from "./AiCoachPanel.js";
+import { buildDiagnosisMessages, buildFallbackText, type CoachPersona } from "../../core/llm/buildPrompt.js";
+import { streamChat, type LlmSettings } from "../../core/llm/LLMClient.js";
 
 interface ResultsScreenOptions {
   bus: EventBus;
@@ -18,6 +22,10 @@ interface ResultsScreenOptions {
   onExport(): void;
   getStats(): { bestCombo: number; perfectFrames: number };
   exercises: Record<ExerciseId, ExerciseConfig>;
+  sessionRecorder: SessionRecorder;
+  aiCoach: AiCoachPanel;
+  getLlmConfig(): LlmSettings | null;
+  getPersona(): CoachPersona;
 }
 
 const MEDALS: Record<ExerciseId, string> = {
@@ -71,11 +79,34 @@ export class ResultsScreen {
 
     this.options.root.classList.add("is-open");
     this.options.root.setAttribute("aria-hidden", "false");
+
+    this.runDiagnosis();
   }
 
   close(): void {
+    this.options.aiCoach.cancel();
     this.options.root.classList.remove("is-open");
     this.options.root.setAttribute("aria-hidden", "true");
+  }
+
+  private runDiagnosis(): void {
+    const exercise = this.options.exercises[this.currentExercise];
+    const summary = this.options.sessionRecorder.snapshot();
+    const fallback = buildFallbackText(exercise, summary);
+    if (summary.frames === 0) {
+      this.options.aiCoach.renderStatic(fallback, "no samples");
+      return;
+    }
+    const config = this.options.getLlmConfig();
+    if (!config) {
+      this.options.aiCoach.renderStatic(fallback);
+      return;
+    }
+    const messages = buildDiagnosisMessages(exercise, summary, this.options.getPersona());
+    void this.options.aiCoach.renderStreaming(
+      (onDelta, signal) => streamChat(config, messages, onDelta, { signal }),
+      fallback,
+    );
   }
 
   private handle(payload: ScoreUpdate): void {

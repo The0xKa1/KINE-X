@@ -6,6 +6,8 @@
                                                                                                          
                                                                                          
                                                                           
+                                                               
+                                                                  
 
                                           
                                            
@@ -31,6 +33,10 @@
                                        
                                        
                                       
+                               
+                              
+                             
+                                   
                                      
  
 
@@ -41,6 +47,8 @@ const STORAGE_KEY = "holomotion.cameraSettings.v1";
                     
                    
                                              
+                                                           
+                         
  
 
 const RESOLUTION_PRESETS                                                                         = [
@@ -53,6 +61,7 @@ export class CameraSettings {
           options                       ;
           isOpen = false;
           safeZone = false;
+          persona               = "biomech";
 
   constructor(options                       ) {
     this.options = options;
@@ -64,6 +73,18 @@ export class CameraSettings {
     this.options.profileStore.onChange(() => this.refreshCalibrationLabel());
     this.options.calibration.onChange(() => this.refreshCalibrationLabel());
     this.options.callbacks.onSafeZoneChange(this.safeZone);
+  }
+
+  getLlmConfig()                     {
+    const baseUrl = this.options.llmBaseUrl.value.trim();
+    const apiKey = this.options.llmApiKey.value.trim();
+    const model = this.options.llmModel.value.trim();
+    if (!baseUrl || !apiKey || !model) return null;
+    return { baseUrl, apiKey, model };
+  }
+
+  getPersona()               {
+    return this.persona;
   }
 
   open()       {
@@ -146,6 +167,18 @@ export class CameraSettings {
       }
       this.options.calibration.start();
     });
+
+    const persistLlm = () => this.persist();
+    this.options.llmBaseUrl.addEventListener("change", persistLlm);
+    this.options.llmApiKey.addEventListener("change", persistLlm);
+    this.options.llmModel.addEventListener("change", persistLlm);
+    this.options.personaSelect.addEventListener("change", () => {
+      const value = this.options.personaSelect.value;
+      if (value === "biomech" || value === "baduanjin") {
+        this.persona = value;
+      }
+      this.persist();
+    });
   }
 
           async refreshDevices()                {
@@ -198,6 +231,7 @@ export class CameraSettings {
     this.options.modalityPoseToggle.checked = this.options.landmarker.isEnabled("pose");
     this.options.modalityHandToggle.checked = this.options.landmarker.isEnabled("hand");
     this.options.modalityFaceToggle.checked = this.options.landmarker.isEnabled("face");
+    this.options.personaSelect.value = this.persona;
   }
 
           refreshCalibrationLabel()       {
@@ -228,6 +262,12 @@ export class CameraSettings {
         hand: this.options.landmarker.isEnabled("hand"),
         face: this.options.landmarker.isEnabled("face"),
       },
+      llm: {
+        baseUrl: this.options.llmBaseUrl.value.trim(),
+        apiKey: this.options.llmApiKey.value.trim(),
+        model: this.options.llmModel.value.trim(),
+      },
+      persona: this.persona,
     };
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
@@ -260,6 +300,14 @@ export class CameraSettings {
             this.options.landmarker.setEnabled(kind, value);
           }
         });
+      }
+      if (parsed.llm) {
+        this.options.llmBaseUrl.value = parsed.llm.baseUrl ?? "";
+        this.options.llmApiKey.value = parsed.llm.apiKey ?? "";
+        this.options.llmModel.value = parsed.llm.model ?? "";
+      }
+      if (parsed.persona === "biomech" || parsed.persona === "baduanjin") {
+        this.persona = parsed.persona;
       }
     } catch {
       // ignore corrupted state

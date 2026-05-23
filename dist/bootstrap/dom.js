@@ -83,6 +83,13 @@ export const $$ =                    (selector        )      =>
                                        
                                        
                                       
+                               
+                              
+                             
+                                   
+                           
+                           
+                             
 
                                   
                                 
@@ -192,6 +199,13 @@ export function collectDomRefs()          {
     modalityFaceToggle: $("#modalityFaceToggle")                    ,
     recalibrateButton: $("#recalibrateButton")                     ,
     calibrationStatusLabel: $("#calibrationStatusLabel"),
+    llmBaseUrl: $("#llmBaseUrl")                    ,
+    llmApiKey: $("#llmApiKey")                    ,
+    llmModel: $("#llmModel")                    ,
+    personaSelect: $("#personaSelect")                     ,
+    aiCoachCard: $("#aiCoachCard"),
+    aiCoachText: $("#aiCoachText"),
+    aiCoachStatus: $("#aiCoachStatus"),
 
     calibrationOverlay: $("#calibrationOverlay"),
     calibrationTitle: $("#calibrationTitle"),
