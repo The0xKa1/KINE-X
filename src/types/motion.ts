@@ -10,6 +10,11 @@ export type QuaternionTuple = [number, number, number, number];
 
 export type ExerciseId = "squat" | "deadlift" | "baduanjin" | "street" | "basketball";
 
+// Runtime-side exercise id: built-in literals OR an arbitrary string for
+// imported clips. Keep `ExerciseId` strict for `data/exercises.ts`; use
+// `RuntimeExerciseId` everywhere a user-imported seed can show up.
+export type RuntimeExerciseId = ExerciseId | string;
+
 export type MotionMode = "coach" | "mesh" | "stress";
 export type CameraView = "front" | "side" | "top";
 export type MetricRisk = "good" | "warn" | "risk";
@@ -78,7 +83,7 @@ export interface CoachClip {
 }
 
 export interface ExerciseConfig {
-  id: ExerciseId;
+  id: string;
   name: string;
   discipline: string;
   seedUrl: string;
@@ -93,7 +98,7 @@ export interface ExerciseConfig {
 export interface MotionFrame {
   frame: number;
   timestampMs: TimestampMs;
-  seedId: ExerciseId;
+  seedId: string;
   progress: number;
   score: number;
   combo: number;

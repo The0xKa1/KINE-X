@@ -12,7 +12,11 @@ interface ComboBurstOptions {
   onPerfectFrame?: () => void;
 }
 
-const PERFECT_THRESHOLD = 88;
+const PERFECT_THRESHOLD = 75;
+const PERFECT_THROTTLE_MS = 600;
+const COMBO_STEP = 2;
+const COMBO_BASELINE = 4;
+const COMBO_THROTTLE_MS = 1000;
 
 export class ComboBurst {
   private options: ComboBurstOptions;
@@ -21,10 +25,20 @@ export class ComboBurst {
   private lastComboTrigger = 0;
   private bestCombo = 0;
   private perfectFrames = 0;
+  private demoComboValue = 0;
+  private active = false;
 
   constructor(options: ComboBurstOptions) {
     this.options = options;
     this.options.bus.on("score:update", (payload) => this.handle(payload));
+    this.options.bus.on("session:state", (payload) => {
+      if (payload.phase === "active") {
+        this.reset();
+        this.active = true;
+      } else {
+        this.active = false;
+      }
+    });
   }
 
   reset(): void {
@@ -33,13 +47,33 @@ export class ComboBurst {
     this.lastComboTrigger = 0;
     this.bestCombo = 0;
     this.perfectFrames = 0;
+    this.demoComboValue = 0;
   }
 
   getStats(): { bestCombo: number; perfectFrames: number } {
     return { bestCombo: this.bestCombo, perfectFrames: this.perfectFrames };
   }
 
+  // Bypasses score/threshold logic — fires the cue stack unconditionally.
+  // Used by demo buttons to drive the show without performing the exercise.
+  triggerPerfectDemo(): void {
+    this.lastBurst = performance.now();
+    this.perfectFrames += 1;
+    this.fireBurst();
+    this.spawnConfetti(12);
+    this.options.audio.perfect();
+  }
+
+  triggerComboDemo(): void {
+    this.demoComboValue = (this.demoComboValue % 16) + 2;
+    if (this.demoComboValue > this.bestCombo) this.bestCombo = this.demoComboValue;
+    this.lastComboTrigger = performance.now();
+    this.fireCombo(this.demoComboValue);
+    this.options.audio.combo(this.demoComboValue);
+  }
+
   private handle(payload: ScoreUpdate): void {
+    if (!this.active) return;
     const now = performance.now();
     if (payload.combo > this.bestCombo) this.bestCombo = payload.combo;
     if (payload.score >= PERFECT_THRESHOLD) {
@@ -47,13 +81,17 @@ export class ComboBurst {
       this.options.onPerfectFrame?.();
     }
 
-    if (payload.score >= PERFECT_THRESHOLD && now - this.lastBurst > 1100) {
+    if (payload.score >= PERFECT_THRESHOLD && now - this.lastBurst > PERFECT_THROTTLE_MS) {
       this.lastBurst = now;
       this.fireBurst();
+      this.spawnConfetti(8);
       this.options.audio.perfect();
     }
 
-    if (payload.combo >= this.lastCombo + 4 || (payload.combo >= 8 && now - this.lastComboTrigger > 1800)) {
+    if (
+      payload.combo >= this.lastCombo + COMBO_STEP ||
+      (payload.combo >= COMBO_BASELINE && now - this.lastComboTrigger > COMBO_THROTTLE_MS)
+    ) {
       this.lastComboTrigger = now;
       this.fireCombo(payload.combo);
       this.options.audio.combo(payload.combo);
@@ -69,6 +107,22 @@ export class ComboBurst {
   private fireCombo(combo: number): void {
     this.options.combo.textContent = `COMBO ×${String(combo).padStart(2, "0")}`;
     this.replay(this.options.combo, "is-firing");
+  }
+
+  private spawnConfetti(count: number): void {
+    const layer = this.options.fxLayer;
+    for (let i = 0; i < count; i += 1) {
+      const dot = document.createElement("span");
+      dot.className = "fx-confetti";
+      const angle = (i / count) * Math.PI * 2 + Math.random() * 0.4;
+      const distance = 110 + Math.random() * 80;
+      dot.style.setProperty("--dx", `${Math.cos(angle) * distance}px`);
+      dot.style.setProperty("--dy", `${Math.sin(angle) * distance}px`);
+      dot.style.setProperty("--rot", `${Math.floor(Math.random() * 360)}deg`);
+      dot.style.setProperty("--hue", `${Math.floor(Math.random() * 60) + 20}`);
+      layer.appendChild(dot);
+      window.setTimeout(() => dot.remove(), 900);
+    }
   }
 
   private replay(element: HTMLElement, className: string): void {

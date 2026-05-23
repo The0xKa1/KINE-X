@@ -2,7 +2,7 @@ import { formatCm } from "../../core/coordinates.js";
                                                        
 import { modalA11y,                      } from "../../core/modalA11y.js";
 import { prefersReducedMotion } from "../../core/motionPrefs.js";
-                                                                                     
+                                                                         
                                                                              
                                                       
 import { buildDiagnosisMessages, buildFallbackText,                   } from "../../core/llm/buildPrompt.js";
@@ -22,15 +22,16 @@ import { streamChat,                  } from "../../core/llm/LLMClient.js";
                        
                             
                    
+                   
                                                            
-                                                
+                                            
                                    
                         
                                      
                              
  
 
-const MEDALS                             = {
+const MEDALS                         = {
   squat: "重心掌控者",
   deadlift: "脊柱守护者",
   baduanjin: "太极初窥门径",
@@ -41,7 +42,7 @@ const MEDALS                             = {
 export class ResultsScreen {
           options                      ;
           latest                     = null;
-          currentExercise             = "squat";
+          currentExercise         = "squat";
           rollingScore           = [];
           rollingDelta           = [];
           riskHits = 0;
@@ -64,7 +65,7 @@ export class ResultsScreen {
     });
   }
 
-  setExercise(id            )       {
+  setExercise(id        )       {
     this.currentExercise = id;
     this.rollingScore = [];
     this.rollingDelta = [];
@@ -99,11 +100,13 @@ export class ResultsScreen {
   }
 
   close()       {
+    if (!this.options.root.classList.contains("is-open")) return;
     this.cancelAnimations();
     this.options.aiCoach.cancel();
     this.options.root.classList.remove("is-open");
     this.options.root.setAttribute("aria-hidden", "true");
     this.a11y.deactivate();
+    this.options.onClose?.();
   }
 
           animateNumber(
@@ -183,7 +186,7 @@ function average(values          )         {
   return values.reduce((a, b) => a + b, 0) / values.length;
 }
 
-function summaryCacheKey(exerciseId            , summary                                         )         {
+function summaryCacheKey(exerciseId        , summary                                         )         {
   const joints = summary.joints
     .map((j) => `${j.id}:${j.avgScore.toFixed(1)}`)
     .join(",");

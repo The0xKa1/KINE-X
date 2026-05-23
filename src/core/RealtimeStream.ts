@@ -1,0 +1,183 @@
+import type { NormalizedLandmark } from "@mediapipe/tasks-vision";
+import { meters } from "./coordinates.js";
+import type { EventBus, SessionLifecyclePhase } from "./EventBus.js";
+import { JOINT_NAMES, sampleClip } from "./import/CoachClip.js";
+import type { CoachHistory } from "./scoring/CoachHistory.js";
+import { applyLiveScore, type ScorerContext } from "./scoring/PoseScorer.js";
+import type { SessionGate } from "./SessionGate.js";
+import type { MotionSocketController } from "../hooks/useWebSocket.js";
+import type {
+  ExerciseConfig,
+  FrameStreamPacket,
+  JointMetric,
+  MetricRisk,
+  MotionFrame,
+  MotionMode,
+  QuaternionTuple,
+  SkeletonPose,
+} from "../types/motion.js";
+
+export interface RealtimeStreamState {
+  exerciseId: string;
+  mode: MotionMode;
+  progress: number;
+  speed: number;
+  playing: boolean;
+  frame: number;
+}
+
+interface RealtimeStreamOptions {
+  bus: EventBus;
+  sessionGate: SessionGate;
+  socket: MotionSocketController;
+  scorer: ScorerContext;
+  coachHistory: CoachHistory;
+  exercises: Record<string, ExerciseConfig>;
+  state: RealtimeStreamState;
+  onProgressTick?(progress: number): void;
+  onSessionFinished?(): void;
+}
+
+const IDENTITY: QuaternionTuple = [0, 0, 0, 1];
+const MIN_PACKET_INTERVAL_MS = 30;
+
+export class RealtimeStream {
+  private options: RealtimeStreamOptions;
+  private phase: SessionLifecyclePhase;
+  private lastTickMs = 0;
+  private lastPacketMs = 0;
+  private finishFired = false;
+
+  constructor(options: RealtimeStreamOptions) {
+    this.options = options;
+    this.phase = options.sessionGate.getPhase();
+    options.bus.on("session:state", (payload) => this.onPhaseChange(payload.phase));
+    // Self-driven RAF so the coach keeps animating even when the camera is off.
+    // When the camera is on, both this loop and `CameraOverlay.onPose` call
+    // `onPoseTick`; the MIN_PACKET_INTERVAL_MS gate prevents double-pumping.
+    const loop = (now: number): void => {
+      this.onPoseTick(null, now);
+      requestAnimationFrame(loop);
+    };
+    requestAnimationFrame(loop);
+  }
+
+  // Called from CameraOverlay.onPose on every MediaPipe detect cycle.
+  onPoseTick(_world: NormalizedLandmark[] | null, nowMs: number): void {
+    if (nowMs - this.lastPacketMs < MIN_PACKET_INTERVAL_MS) return;
+    const dtMs = this.lastTickMs > 0 ? nowMs - this.lastTickMs : 33;
+    this.lastTickMs = nowMs;
+    this.lastPacketMs = nowMs;
+
+    const exercise = this.options.exercises[this.options.state.exerciseId];
+    if (!exercise.clip) return;
+
+    // Progress advances incrementally from dt so live tempo changes apply
+    // without snapping the playhead.
+    const dProgress = (dtMs / 1000) * this.options.state.speed / exercise.durationSeconds;
+    if (this.phase === "active") {
+      this.options.state.progress = Math.min(1, this.options.state.progress + dProgress);
+      this.options.state.frame += 1;
+    } else if (this.options.state.playing) {
+      this.options.state.progress = (this.options.state.progress + dProgress) % 1;
+      this.options.state.frame += 1;
+    }
+
+    this.options.onProgressTick?.(this.options.state.progress);
+
+    const seedJoints = sampleClip(exercise.clip, this.options.state.progress);
+    this.options.coachHistory.push(seedJoints);
+    const packet = buildPacket({
+      exercise,
+      state: this.options.state,
+      seedJoints,
+      timestampMs: nowMs,
+      sessionActive: this.phase === "active",
+    });
+    if (this.phase === "active") {
+      applyLiveScore(packet, this.options.scorer);
+    }
+    this.options.socket.consumePacket(packet);
+
+    if (this.phase === "active" && this.options.state.progress >= 1 && !this.finishFired) {
+      this.finishFired = true;
+      this.options.sessionGate.markFinished("system");
+      this.options.onSessionFinished?.();
+    }
+  }
+
+  setProgress(progress: number): void {
+    if (this.phase === "active") return;
+    this.options.state.progress = Math.max(0, Math.min(1, progress));
+  }
+
+  setPlaying(playing: boolean): void {
+    if (this.phase === "active") return;
+    this.options.state.playing = playing;
+  }
+
+  resetForSeed(id: string): void {
+    this.options.state.exerciseId = id;
+    this.options.state.progress = 0.1;
+    this.options.state.frame = 0;
+    this.lastTickMs = 0;
+    this.options.coachHistory.reset();
+  }
+
+  private onPhaseChange(phase: SessionLifecyclePhase): void {
+    this.phase = phase;
+    if (phase === "active") {
+      this.options.state.progress = 0;
+      this.options.state.frame = 0;
+      this.lastTickMs = 0;
+      this.finishFired = false;
+      this.options.coachHistory.reset();
+    } else if (phase === "idle" || phase === "finished") {
+      this.finishFired = false;
+    }
+  }
+}
+
+interface BuildPacketInput {
+  exercise: ExerciseConfig;
+  state: RealtimeStreamState;
+  seedJoints: SkeletonPose;
+  timestampMs: number;
+  sessionActive: boolean;
+}
+
+function buildPacket(input: BuildPacketInput): FrameStreamPacket {
+  const { exercise, state, seedJoints, timestampMs, sessionActive } = input;
+  const metrics: JointMetric[] = exercise.metrics.map((seed) => ({
+    ...seed,
+    score: seed.base,
+    angleDeltaDeg: seed.angle,
+    distanceDeltaCm: seed.distance,
+    risk: riskFor(seed.base),
+  }));
+  const baseline = Math.round(metrics.reduce((sum, m) => sum + m.score, 0) / Math.max(1, metrics.length));
+  const frame: MotionFrame = {
+    frame: state.frame,
+    timestampMs,
+    seedId: exercise.id,
+    progress: state.progress,
+    score: baseline,
+    combo: 1,
+    riskLabel: sessionActive ? "Live capture" : "Standby",
+    globalTransform: {
+      translation: meters(0, 0, 0),
+      rotation: IDENTITY,
+    },
+    seedJoints,
+    joints: seedJoints,
+    localRotations: JOINT_NAMES.map((name) => seedJoints[name].rotation),
+    metrics,
+  };
+  return { type: "FRAME_STREAM", data: frame };
+}
+
+function riskFor(score: number): MetricRisk {
+  if (score < 68) return "risk";
+  if (score < 82) return "warn";
+  return "good";
+}

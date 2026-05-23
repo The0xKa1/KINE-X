@@ -237,3 +237,46 @@ input[type="range"]:focus-visible::-moz-range-thumb {
 }
 
 .risk-badge.is-danger::before { background: var(--hot); }
+
+.round-button.is-locked,
+input[type="range"].is-locked {
+  opacity: 0.4;
+  pointer-events: none;
+  cursor: not-allowed;
+}
+
+.demo-fx {
+  display: inline-flex;
+  gap: 4px;
+  margin-left: auto;
+  padding-left: 8px;
+  border-left: var(--hairline);
+}
+
+.demo-fx-button {
+  appearance: none;
+  height: 26px;
+  min-width: 32px;
+  padding: 0 8px;
+  border: var(--hairline);
+  background: var(--surface);
+  color: var(--ink);
+  font-family: var(--mono);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: background 120ms linear, color 120ms linear;
+}
+
+.demo-fx-button:hover {
+  background: var(--ink);
+  color: var(--invert-fg);
+}
+
+.demo-fx-button.is-active {
+  background: var(--hot, #FF5500);
+  color: var(--invert-fg);
+  border-color: var(--hot, #FF5500);
+}

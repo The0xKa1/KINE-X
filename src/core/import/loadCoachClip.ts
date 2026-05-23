@@ -1,12 +1,30 @@
-import type { CoachClip, ExerciseId, JointName, SeedMotion, SkeletonPose, Vec3Meters } from "../../types/motion.js";
+import type { CoachClip, JointName, SeedMotion, SkeletonPose, Vec3Meters } from "../../types/motion.js";
 
-interface CoachClipManifestEntry {
-  exercise: ExerciseId;
+export interface CoachClipManifestEntry {
+  exercise: string;
   url: string;
+  framesDir?: string;
+  frameCount?: number;
+  framePattern?: string;
+  thumbnailCount?: number;
+}
+
+export interface FrameThumbnailMeta {
+  framesDir: string;
+  framePattern: string;
+  frameCount: number;
+  thumbnailCount?: number;
 }
 
 const COACH_CLIP_MANIFEST: CoachClipManifestEntry[] = [
-  { exercise: "squat", url: "public/coach_clips/single_leg_squat.json" },
+  {
+    exercise: "squat",
+    url: "public/coach_clips/single_leg_squat.json",
+    framesDir: "public/coach_clips/single_leg_squat_frames",
+    frameCount: 118,
+    framePattern: "frame_{i:05}.jpg",
+    thumbnailCount: 18,
+  },
 ];
 
 interface RawJoint {
@@ -56,6 +74,36 @@ export async function loadCoachClip(url: string): Promise<CoachClip> {
   }
   const raw = (await response.json()) as RawClip;
   return validateClip(raw);
+}
+
+export function buildFrameThumbnails(entry: CoachClipManifestEntry): string[] {
+  if (!entry.framesDir || !entry.frameCount || !entry.framePattern) return [];
+  return buildFrameThumbnailsFromMeta({
+    framesDir: entry.framesDir,
+    framePattern: entry.framePattern,
+    frameCount: entry.frameCount,
+    thumbnailCount: entry.thumbnailCount,
+  });
+}
+
+export function buildFrameThumbnailsFromMeta(meta: FrameThumbnailMeta): string[] {
+  const total = meta.frameCount;
+  if (total <= 0) return [];
+  const count = Math.min(meta.thumbnailCount ?? 18, total);
+  const denom = Math.max(1, count - 1);
+  const out: string[] = [];
+  for (let i = 0; i < count; i += 1) {
+    const idx = Math.round((i / denom) * (total - 1)) + 1;
+    out.push(`${meta.framesDir}/${formatFrameName(meta.framePattern, idx)}`);
+  }
+  return out;
+}
+
+function formatFrameName(pattern: string, index: number): string {
+  return pattern.replace(/\{i:(\d+)\}/g, (_, widthStr) => {
+    const width = Number(widthStr);
+    return String(index).padStart(width, "0");
+  });
 }
 
 function validateClip(raw: RawClip): CoachClip {

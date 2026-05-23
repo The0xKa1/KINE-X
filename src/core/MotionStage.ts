@@ -225,7 +225,7 @@ export class MotionStage {
     this.updateSmplxMesh(frame);
     this.renderer.render(this.scene, this.camera);
 
-    if (frame && this.cameraOverlay && this.isCameraActive()) {
+    if (this.cameraOverlay && this.isCameraActive()) {
       this.cameraOverlay.render(frame, now);
     } else if (this.cameraOverlay && !this.isCameraActive()) {
       this.cameraOverlay.clear();

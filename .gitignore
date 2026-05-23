@@ -14,6 +14,13 @@ npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 
+# Backend job outputs (per-upload artifacts; can be regenerated)
+public/coach_clips/jobs/
+
+# Python bytecode
+__pycache__/
+*.pyc
+
 # Environment
 .env
 .env.*

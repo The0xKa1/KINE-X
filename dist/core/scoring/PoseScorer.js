@@ -2,7 +2,6 @@ import { THREE,                    } from "../three-compat.js";
                                                          
              
                  
-             
                     
               
             
@@ -17,7 +16,7 @@ import { normalizeMediaPipeWorld } from "./normalize.js";
                                                          
 
                                 
-                                                
+                                            
                         
                            
                                  

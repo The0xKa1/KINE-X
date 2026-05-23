@@ -10,6 +10,11 @@
 
                                                                                       
 
+// Runtime-side exercise id: built-in literals OR an arbitrary string for
+// imported clips. Keep `ExerciseId` strict for `data/exercises.ts`; use
+// `RuntimeExerciseId` everywhere a user-imported seed can show up.
+                                                    
+
                                                      
                                                   
                                                   
@@ -78,7 +83,7 @@
  
 
                                  
-                 
+             
                
                      
                   
@@ -93,7 +98,7 @@
                               
                 
                            
-                     
+                 
                    
                 
                 

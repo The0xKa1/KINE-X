@@ -470,3 +470,19 @@
   background: var(--accent, #5C7C9E);
   transition: width 80ms linear;
 }
+
+.session-idle[data-block-reason="clip"] .session-hint::after {
+  content: "教练动作正在加载，稍候再开始。";
+  display: block;
+  margin-top: 6px;
+  color: var(--hot, #FF5500);
+  letter-spacing: 0.08em;
+}
+
+.session-idle[data-block-reason="calibration"] .session-hint::after {
+  content: "请先完成校准。";
+  display: block;
+  margin-top: 6px;
+  color: var(--hot, #FF5500);
+  letter-spacing: 0.08em;
+}

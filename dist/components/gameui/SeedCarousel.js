@@ -1,15 +1,15 @@
                                                        
 import { prefersReducedMotion } from "../../core/motionPrefs.js";
-                                                                                    
+                                                                        
 
                                
                 
                          
                         
-                                                
-                      
+                                            
+                  
                                    
-                                             
+                                         
                                        
  
 
@@ -19,12 +19,13 @@ const tagFor                         = {
   Traditional: "TRADITIONAL · 国风",
   Dance: "DANCE · 街舞精选",
   Ball: "BALL · 校园联赛",
+  Imported: "IMPORTED · 我的虚拟教练",
 };
 
 export class SeedCarousel {
           options                     ;
-          cards = new Map                               ();
-          activeId                    = null;
+          cards = new Map                           ();
+          activeId                = null;
 
   constructor(options                     ) {
     this.options = options;
@@ -32,7 +33,7 @@ export class SeedCarousel {
     this.bindModes();
   }
 
-  setActive(id            )       {
+  setActive(id        )       {
     this.activeId = id;
     this.cards.forEach((card, cardId) => {
       card.classList.toggle("is-active", cardId === id);
@@ -56,35 +57,55 @@ export class SeedCarousel {
     this.setActive(exercise.id);
   }
 
+  addSeed(id        , exercise                )       {
+    if (this.cards.has(id)) {
+      this.options.exercises[id] = exercise;
+      this.setActive(id);
+      return;
+    }
+    if (!this.options.order.includes(id)) this.options.order.push(id);
+    this.options.exercises[id] = exercise;
+    const card = this.buildCard(id, exercise);
+    this.options.container.appendChild(card);
+    this.cards.set(id, card);
+    this.setActive(id);
+  }
+
           render()       {
     this.options.container.innerHTML = "";
     this.options.order.forEach((id) => {
       const exercise = this.options.exercises[id];
-      const card = document.createElement("button");
-      card.type = "button";
-      card.className = "seed-card";
-      card.dataset.id = id;
-      card.setAttribute("role", "option");
-      const tag = tagFor[exercise.discipline] ?? exercise.discipline.toUpperCase();
-      card.innerHTML = `
-        <div class="seed-tag">${tag}</div>
-        <div class="seed-name">${exercise.name}</div>
-        <div class="seed-meta">
-          <span>${exercise.target}</span>
-          <b>${exercise.durationSeconds.toFixed(1)}s</b>
-        </div>
-      `;
-      card.addEventListener("click", () => {
-        if (this.activeId === id) return;
-        this.options.onSeedChange(id);
-        this.options.bus.emit("pipeline:update", { runIndex: 1, latencyMs: 36, status: "busy" });
-        window.setTimeout(() => {
-          this.options.bus.emit("pipeline:update", { runIndex: 2, latencyMs: 42, status: "ready" });
-        }, 460);
-      });
+      if (!exercise) return;
+      const card = this.buildCard(id, exercise);
       this.cards.set(id, card);
       this.options.container.appendChild(card);
     });
+  }
+
+          buildCard(id        , exercise                )                    {
+    const card = document.createElement("button");
+    card.type = "button";
+    card.className = "seed-card";
+    card.dataset.id = id;
+    card.setAttribute("role", "option");
+    const tag = tagFor[exercise.discipline] ?? exercise.discipline.toUpperCase();
+    card.innerHTML = `
+      <div class="seed-tag">${tag}</div>
+      <div class="seed-name">${exercise.name}</div>
+      <div class="seed-meta">
+        <span>${exercise.target}</span>
+        <b>${exercise.durationSeconds.toFixed(1)}s</b>
+      </div>
+    `;
+    card.addEventListener("click", () => {
+      if (this.activeId === id) return;
+      this.options.onSeedChange(id);
+      this.options.bus.emit("pipeline:update", { runIndex: 1, latencyMs: 36, status: "busy" });
+      window.setTimeout(() => {
+        this.options.bus.emit("pipeline:update", { runIndex: 2, latencyMs: 42, status: "ready" });
+      }, 460);
+    });
+    return card;
   }
 
           bindModes()       {

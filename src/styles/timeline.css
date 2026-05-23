@@ -116,3 +116,8 @@
   font-size: 10px;
   letter-spacing: 0.06em;
 }
+
+.timeline-frames.is-locked {
+  opacity: 0.55;
+  pointer-events: none;
+}

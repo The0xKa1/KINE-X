@@ -2,7 +2,6 @@ import { THREE, type MotionVector3 } from "../three-compat.js";
 import type { WebCamManager } from "../WebCamManager.js";
 import type {
   ExerciseConfig,
-  ExerciseId,
   FrameStreamPacket,
   JointMetric,
   JointName,
@@ -17,7 +16,7 @@ import type { UserPoseSource } from "./UserPoseSource.js";
 import type { UserProfileStore } from "./UserProfile.js";
 
 export interface ScorerContext {
-  exercises: Record<ExerciseId, ExerciseConfig>;
+  exercises: Record<string, ExerciseConfig>;
   webcam: WebCamManager;
   userPose: UserPoseSource;
   profileStore: UserProfileStore;

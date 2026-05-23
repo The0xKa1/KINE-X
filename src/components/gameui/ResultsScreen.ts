@@ -2,7 +2,7 @@ import { formatCm } from "../../core/coordinates.js";
 import type { EventBus } from "../../core/EventBus.js";
 import { modalA11y, type ModalA11yHandle } from "../../core/modalA11y.js";
 import { prefersReducedMotion } from "../../core/motionPrefs.js";
-import type { ExerciseConfig, ExerciseId, ScoreUpdate } from "../../types/motion.js";
+import type { ExerciseConfig, ScoreUpdate } from "../../types/motion.js";
 import type { SessionRecorder } from "../../core/scoring/SessionRecorder.js";
 import type { AiCoachPanel } from "./AiCoachPanel.js";
 import { buildDiagnosisMessages, buildFallbackText, type CoachPersona } from "../../core/llm/buildPrompt.js";
@@ -22,15 +22,16 @@ interface ResultsScreenOptions {
   titleEl: HTMLElement;
   exportButton: HTMLElement;
   onExport(): void;
+  onClose?(): void;
   getStats(): { bestCombo: number; perfectFrames: number };
-  exercises: Record<ExerciseId, ExerciseConfig>;
+  exercises: Record<string, ExerciseConfig>;
   sessionRecorder: SessionRecorder;
   aiCoach: AiCoachPanel;
   getLlmConfig(): LlmSettings | null;
   getPersona(): CoachPersona;
 }
 
-const MEDALS: Record<ExerciseId, string> = {
+const MEDALS: Record<string, string> = {
   squat: "重心掌控者",
   deadlift: "脊柱守护者",
   baduanjin: "太极初窥门径",
@@ -41,7 +42,7 @@ const MEDALS: Record<ExerciseId, string> = {
 export class ResultsScreen {
   private options: ResultsScreenOptions;
   private latest: ScoreUpdate | null = null;
-  private currentExercise: ExerciseId = "squat";
+  private currentExercise: string = "squat";
   private rollingScore: number[] = [];
   private rollingDelta: number[] = [];
   private riskHits = 0;
@@ -64,7 +65,7 @@ export class ResultsScreen {
     });
   }
 
-  setExercise(id: ExerciseId): void {
+  setExercise(id: string): void {
     this.currentExercise = id;
     this.rollingScore = [];
     this.rollingDelta = [];
@@ -99,11 +100,13 @@ export class ResultsScreen {
   }
 
   close(): void {
+    if (!this.options.root.classList.contains("is-open")) return;
     this.cancelAnimations();
     this.options.aiCoach.cancel();
     this.options.root.classList.remove("is-open");
     this.options.root.setAttribute("aria-hidden", "true");
     this.a11y.deactivate();
+    this.options.onClose?.();
   }
 
   private animateNumber(
@@ -183,7 +186,7 @@ function average(values: number[]): number {
   return values.reduce((a, b) => a + b, 0) / values.length;
 }
 
-function summaryCacheKey(exerciseId: ExerciseId, summary: ReturnType<SessionRecorder["snapshot"]>): string {
+function summaryCacheKey(exerciseId: string, summary: ReturnType<SessionRecorder["snapshot"]>): string {
   const joints = summary.joints
     .map((j) => `${j.id}:${j.avgScore.toFixed(1)}`)
     .join(",");

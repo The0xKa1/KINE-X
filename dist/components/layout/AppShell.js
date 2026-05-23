@@ -23,6 +23,7 @@
 export class AppShell {
           options                 ;
           playing = true;
+          locked = false;
 
   constructor(options                 ) {
     this.options = options;
@@ -43,6 +44,21 @@ export class AppShell {
 
   isPlaying()          {
     return this.playing;
+  }
+
+  setControlsLocked(locked         )       {
+    if (this.locked === locked) return;
+    this.locked = locked;
+    // Note: speed slider stays live during active — users may want to dial
+    // the coach tempo while performing.
+    this.options.playButton.disabled = locked;
+    this.options.timeSlider.disabled = locked;
+    this.options.playButton.classList.toggle("is-locked", locked);
+    this.options.timeSlider.classList.toggle("is-locked", locked);
+  }
+
+  isLocked()          {
+    return this.locked;
   }
 
           bind()       {

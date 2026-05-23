@@ -13,6 +13,7 @@
                           
                                 
                                     
+                             
  
 
 const GESTURE_PHASE_LABEL                                                  = {
@@ -34,6 +35,7 @@ export class SessionStartOverlay {
     options.bus.on("session:state", (payload) => this.applyState(payload));
     options.bus.on("camera:update", () => this.syncVisibility());
     options.bus.on("calibration:ready", () => this.syncVisibility());
+    options.bus.on("seed:update", () => this.syncVisibility());
     options.bus.on("session:gesture", (state) => this.renderGesture(state));
     this.syncVisibility();
     this.renderGesture({ phase: "no-hand", holdProgress: 0, handsCount: 0 });
@@ -59,11 +61,23 @@ export class SessionStartOverlay {
 
           showIdleIfReady()       {
     const ready = this.canStart();
+    const cameraOn = this.options.isCameraActive();
+    const calibrated = this.options.isCalibrationReady();
+    const clipReady = this.options.isClipReady();
     this.options.idleSection.hidden = false;
     this.options.countdownSection.hidden = true;
     this.options.countdownNumber.classList.remove("is-go");
     this.options.startButton.disabled = !ready;
-    this.options.root.classList.toggle("is-visible", ready);
+    this.options.idleSection.dataset.blockReason = ready
+      ? ""
+      : !cameraOn
+        ? "camera"
+        : !calibrated
+          ? "calibration"
+          : !clipReady
+            ? "clip"
+            : "";
+    this.options.root.classList.toggle("is-visible", cameraOn);
   }
 
           showCountdown(secondsLeft        )       {
@@ -84,7 +98,11 @@ export class SessionStartOverlay {
   }
 
           canStart()          {
-    return this.options.isCameraActive() && this.options.isCalibrationReady();
+    return (
+      this.options.isCameraActive() &&
+      this.options.isCalibrationReady() &&
+      this.options.isClipReady()
+    );
   }
 
           renderGesture(state                        )       {

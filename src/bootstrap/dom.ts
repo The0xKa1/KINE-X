@@ -134,6 +134,9 @@ export interface DomRefs {
   cameraButton: HTMLButtonElement;
   runPipelineButton: HTMLElement;
   finishButton: HTMLElement;
+  demoPerfectButton: HTMLButtonElement;
+  demoComboButton: HTMLButtonElement;
+  demoAutoButton: HTMLButtonElement;
 }
 
 export function collectDomRefs(): DomRefs {
@@ -264,5 +267,8 @@ export function collectDomRefs(): DomRefs {
     cameraButton: $("#cameraButton") as HTMLButtonElement,
     runPipelineButton: $("#runPipelineButton"),
     finishButton: $("#finishButton"),
+    demoPerfectButton: $("#demoPerfect") as HTMLButtonElement,
+    demoComboButton: $("#demoCombo") as HTMLButtonElement,
+    demoAutoButton: $("#demoAuto") as HTMLButtonElement,
   };
 }

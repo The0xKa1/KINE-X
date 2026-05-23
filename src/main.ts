@@ -20,6 +20,7 @@ import { MotionFrameBuffer } from "./core/frameBuffer.js";
 import { MotionStage } from "./core/MotionStage.js";
 import { OkGestureDetector } from "./core/OkGestureDetector.js";
 import { LandmarkerController } from "./core/PoseLandmarkerManager.js";
+import { RealtimeStream, type RealtimeStreamState } from "./core/RealtimeStream.js";
 import { SessionGate } from "./core/SessionGate.js";
 import { CalibrationController } from "./core/scoring/CalibrationController.js";
 import { CoachHistory } from "./core/scoring/CoachHistory.js";
@@ -27,14 +28,40 @@ import { SessionRecorder } from "./core/scoring/SessionRecorder.js";
 import { UserPoseSource } from "./core/scoring/UserPoseSource.js";
 import { UserProfileStore } from "./core/scoring/UserProfile.js";
 import { WebCamManager } from "./core/WebCamManager.js";
-import { exerciseOrder, exercises, pipeline } from "./data/exercises.js";
+import { exerciseOrder, exercises as builtinExercises, pipeline } from "./data/exercises.js";
 import { useWebSocket } from "./hooks/useWebSocket.js";
+
+const exercises: Record<string, ExerciseConfig> = { ...builtinExercises };
+const exerciseOrderList: string[] = [...exerciseOrder];
+const BACKEND_URL = resolveBackendUrl();
+
+function resolveBackendUrl(): string {
+  const STORAGE_KEY = "holomotion.backendUrl";
+  let stored: string | null = null;
+  try {
+    stored = localStorage.getItem(STORAGE_KEY);
+  } catch {
+    stored = null;
+  }
+  const fromQuery = new URLSearchParams(window.location.search).get("backend");
+  if (fromQuery) {
+    try {
+      localStorage.setItem(STORAGE_KEY, fromQuery);
+    } catch {
+      // ignore
+    }
+    return fromQuery.replace(/\/$/, "");
+  }
+  if (stored) return stored.replace(/\/$/, "");
+  const protocol = window.location.protocol || "http:";
+  const hostname = window.location.hostname || "localhost";
+  return `${protocol}//${hostname}:8765`;
+}
 import { collectDomRefs } from "./bootstrap/dom.js";
-import { MockStream, type MockStreamState } from "./bootstrap/MockStream.js";
 import { ConnectionIndicator, renderDnaList, beatsPerMinute } from "./bootstrap/uiHelpers.js";
-import { getCoachClipManifest, loadCoachClip } from "./core/import/loadCoachClip.js";
+import { buildFrameThumbnails, getCoachClipManifest, loadCoachClip } from "./core/import/loadCoachClip.js";
 import { loadMeshClip } from "./core/import/MeshClip.js";
-import type { ExerciseId, MotionMode } from "./types/motion.js";
+import type { ExerciseConfig, JointMetricSeed, MotionMode, SeedMotion } from "./types/motion.js";
 
 const dom = collectDomRefs();
 const bus = new EventBus();
@@ -49,7 +76,7 @@ connection.onClick(() => {
   socket.reconnect();
 });
 
-const state: MockStreamState = {
+const state: RealtimeStreamState = {
   exerciseId: "squat",
   mode: "coach",
   progress: 0.12,
@@ -83,12 +110,14 @@ bus.on("seed:update", () => {
 });
 
 let okGestureDetector: OkGestureDetector | null = null;
+let realtime: RealtimeStream | null = null;
 const cameraOverlay = new CameraOverlay({
   canvas: dom.cameraOverlayCanvas,
   video: dom.cameraVideo,
   landmarkerController,
   userPose,
   onHands: (hands, nowMs) => okGestureDetector?.update(hands, nowMs),
+  onPose: (world, nowMs) => realtime?.onPoseTick(world, nowMs),
 });
 const webcam = new WebCamManager(dom.cameraVideo, bus);
 
@@ -117,15 +146,16 @@ const stage = new MotionStage({
   isCameraActive: () => webcam.isActive() && webcam.getMode() === "camera",
 });
 
-const mockStream = new MockStream({
-  state,
-  exercises,
+realtime = new RealtimeStream({
+  bus,
+  sessionGate,
   socket,
-  buffer: frameBuffer,
-  webcam,
-  coachHistory,
   scorer: { exercises, webcam, userPose, profileStore, coachHistory },
+  coachHistory,
+  exercises,
+  state,
   onProgressTick: (progress) => shell.setProgress(progress),
+  onSessionFinished: () => resultsScreen.open(),
 });
 
 const scoreBoard = new ScoreBoard({
@@ -148,7 +178,7 @@ const seedCarousel = new SeedCarousel({
   container: dom.seedCarousel,
   headName: dom.seedHeadName,
   exercises,
-  order: exerciseOrder,
+  order: exerciseOrderList,
   modeButtons: dom.modeButtons,
   onSeedChange: (nextId) => setExercise(nextId, "Seed action changed"),
   onModeChange: (nextMode) => setMode(nextMode),
@@ -160,9 +190,7 @@ const timeline = new Timeline({
   label: dom.timelineLabel,
   onScrub: (nextProgress) => {
     shell.setPlaying(false);
-    state.progress = nextProgress;
-    frameBuffer.reset();
-    mockStream.pushFrame(performance.now());
+    realtime?.setProgress(nextProgress);
   },
 });
 
@@ -214,6 +242,7 @@ const resultsScreen = new ResultsScreen({
   titleEl: dom.resultsTitle,
   exportButton: dom.exportButton,
   onExport: () => dnaExport.open(state.exerciseId),
+  onClose: () => sessionGate.reset("system"),
   getStats: () => comboBurst.getStats(),
   exercises,
   sessionRecorder,
@@ -303,6 +332,7 @@ const sessionStartOverlay = new SessionStartOverlay({
   gestureBar: dom.sessionGestureBar,
   isCameraActive: () => webcam.isActive() && webcam.getMode() === "camera",
   isCalibrationReady: () => calibrationReady,
+  isClipReady: () => Boolean(exercises[state.exerciseId].clip),
 });
 void sessionStartOverlay;
 
@@ -319,25 +349,33 @@ const importDrawer = new ImportDrawer({
   progressLabel: dom.importProgressLabel,
   statusLabel: dom.importStatus,
   preview: dom.importPreview,
-  landmarkerController,
-  onApply: (clip) => {
-    const current = exercises[state.exerciseId];
-    exercises[state.exerciseId] = {
-      ...current,
-      clip,
+  backendUrl: BACKEND_URL,
+  onApply: ({ id, name, clip, meshClip, motion }) => {
+    const newId = `imported-${id}`;
+    const config: ExerciseConfig = {
+      id: newId,
+      name,
+      discipline: "Imported",
+      seedUrl: "",
       durationSeconds: clip.durationSeconds,
-      motion: clip.motion,
+      motion,
+      target: "用户导入动作",
+      params: {
+        beta: "",
+        theta: "",
+        trans: "",
+        format: "imported.coach_clip.v1",
+      },
+      metrics: pickMetricsForMotion(motion),
+      clip,
     };
-    mockStream.resetForSeed(state.exerciseId);
-    state.progress = 0;
+    exercises[newId] = config;
+    seedCarousel.addSeed(newId, config);
+    if (meshClip) stage.setMeshClip(meshClip);
+    else stage.clearMeshClip();
     shell.setPlaying(false);
-    shell.setProgress(0);
-    bus.emit("seed:update", {
-      exercise: exercises[state.exerciseId],
-      message: `Imported · ${clip.name}`,
-    });
+    setExercise(newId, `Imported · ${name}`);
     importDrawer.close();
-    mockStream.pushFrame(performance.now());
   },
 });
 void importDrawer;
@@ -364,8 +402,8 @@ const shell = new AppShell({
   },
   onViewChange: (view) => stage.setView(view),
   onPlayChange: (nextPlaying) => {
-    state.playing = nextPlaying;
-    if (state.playing) audio.startBgm(currentBpm());
+    realtime?.setPlaying(nextPlaying);
+    if (nextPlaying) audio.startBgm(currentBpm());
     else audio.stopBgm();
   },
   onStressChange: (enabled) => stage.setStress(enabled),
@@ -374,14 +412,17 @@ const shell = new AppShell({
     if (state.playing) audio.startBgm(currentBpm());
   },
   onScrub: (nextProgress) => {
-    state.progress = nextProgress;
-    mockStream.pushFrame(performance.now());
+    realtime?.setProgress(nextProgress);
   },
   onCameraToggle: () => {
     audio.enable();
     audio.resume();
     void webcam.toggle();
   },
+});
+
+bus.on("session:state", (payload) => {
+  shell.setControlsLocked(payload.phase === "active");
 });
 
 bus.on("camera:update", (payload) => {
@@ -465,6 +506,41 @@ dom.finishButton.addEventListener("click", () => {
   resultsScreen.open();
 });
 
+dom.demoPerfectButton.addEventListener("click", () => {
+  audio.enable();
+  audio.resume();
+  comboBurst.triggerPerfectDemo();
+});
+dom.demoComboButton.addEventListener("click", () => {
+  audio.enable();
+  audio.resume();
+  comboBurst.triggerComboDemo();
+});
+let demoAutoTimer = 0;
+let demoAutoTick = 0;
+dom.demoAutoButton.addEventListener("click", () => {
+  audio.enable();
+  audio.resume();
+  if (demoAutoTimer) {
+    window.clearInterval(demoAutoTimer);
+    demoAutoTimer = 0;
+    dom.demoAutoButton.classList.remove("is-active");
+    dom.demoAutoButton.setAttribute("aria-pressed", "false");
+    return;
+  }
+  dom.demoAutoButton.classList.add("is-active");
+  dom.demoAutoButton.setAttribute("aria-pressed", "true");
+  demoAutoTick = 0;
+  // Fire one immediately so the user sees feedback on click.
+  comboBurst.triggerComboDemo();
+  demoAutoTimer = window.setInterval(() => {
+    demoAutoTick += 1;
+    // Alternate combo every tick, perfect every 3 ticks (~3.6s).
+    comboBurst.triggerComboDemo();
+    if (demoAutoTick % 3 === 0) comboBurst.triggerPerfectDemo();
+  }, 1200);
+});
+
 window.addEventListener(
   "pointerdown",
   () => {
@@ -481,8 +557,7 @@ const DEFAULT_WS_URL = "ws://localhost:8000/motion";
 void stage.preload().then(async () => {
   await hydrateCoachClips();
   await hydrateMeshClip();
-  setExercise(state.exerciseId, "Mock WebSocket streaming");
-  mockStream.start();
+  setExercise(state.exerciseId, "Realtime evaluator streaming");
   stage.start();
   const wsUrl = new URLSearchParams(window.location.search).get("ws") ?? DEFAULT_WS_URL;
   socket.connect(wsUrl);
@@ -502,18 +577,20 @@ async function hydrateMeshClip(): Promise<void> {
 
 async function hydrateCoachClips(): Promise<void> {
   await Promise.all(
-    getCoachClipManifest().map(async ({ exercise, url }) => {
+    getCoachClipManifest().map(async (entry) => {
       try {
-        const clip = await loadCoachClip(url);
-        const current = exercises[exercise];
-        exercises[exercise] = {
+        const clip = await loadCoachClip(entry.url);
+        const thumbs = buildFrameThumbnails(entry);
+        if (thumbs.length > 0) clip.thumbnails = thumbs;
+        const current = exercises[entry.exercise];
+        exercises[entry.exercise] = {
           ...current,
           clip,
           durationSeconds: clip.durationSeconds,
           motion: clip.motion,
         };
       } catch (err) {
-        console.warn(`[coach-clip] skip ${exercise}:`, err);
+        console.warn(`[coach-clip] skip ${entry.exercise}:`, err);
       }
     }),
   );
@@ -525,14 +602,27 @@ function setMode(nextMode: MotionMode): void {
   seedCarousel.setMode(nextMode);
 }
 
-function setExercise(nextId: ExerciseId, message: string): void {
-  mockStream.resetForSeed(nextId);
+function setExercise(nextId: string, message: string): void {
+  realtime?.resetForSeed(nextId);
+  frameBuffer.reset();
   stage.resetForSeed();
   audio.seedActivate();
   const exercise = exercises[nextId];
+  if (!exercise) return;
+  state.exerciseId = nextId;
   connection.set(message, "busy");
   bus.emit("seed:update", { exercise, message });
   window.setTimeout(() => connection.set("Action DNA cache refreshed", "ready"), 420);
+}
+
+function pickMetricsForMotion(motion: SeedMotion): JointMetricSeed[] {
+  for (const id of exerciseOrder) {
+    const candidate = builtinExercises[id];
+    if (candidate.motion === motion) {
+      return candidate.metrics.map((m) => ({ ...m }));
+    }
+  }
+  return builtinExercises.squat.metrics.map((m) => ({ ...m }));
 }
 
 function currentBpm(): number {

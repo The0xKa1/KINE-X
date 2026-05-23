@@ -134,6 +134,9 @@ export const $$ =                    (selector        )      =>
                                   
                                  
                             
+                                       
+                                     
+                                    
  
 
 export function collectDomRefs()          {
@@ -264,5 +267,8 @@ export function collectDomRefs()          {
     cameraButton: $("#cameraButton")                     ,
     runPipelineButton: $("#runPipelineButton"),
     finishButton: $("#finishButton"),
+    demoPerfectButton: $("#demoPerfect")                     ,
+    demoComboButton: $("#demoCombo")                     ,
+    demoAutoButton: $("#demoAuto")                     ,
   };
 }

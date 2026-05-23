@@ -17,10 +17,12 @@ export class Timeline {
   private clip: CoachClip | null = null;
   private buttons: HTMLButtonElement[] = [];
   private activeIndex = -1;
+  private locked = false;
 
   constructor(options: TimelineOptions) {
     this.options = options;
     this.options.bus.on("score:update", (payload) => this.handle(payload));
+    this.options.bus.on("session:state", (payload) => this.setLocked(payload.phase === "active"));
     this.build();
   }
 
@@ -31,6 +33,12 @@ export class Timeline {
   setClip(clip: CoachClip | null): void {
     this.clip = clip;
     this.build();
+  }
+
+  setLocked(locked: boolean): void {
+    if (this.locked === locked) return;
+    this.locked = locked;
+    this.options.container.classList.toggle("is-locked", locked);
   }
 
   private handle(payload: ScoreUpdate): void {
@@ -66,7 +74,10 @@ export class Timeline {
       }
       button.className = classes.join(" ");
       button.innerHTML = `<span>${String(index + 1).padStart(2, "0")}</span>`;
-      button.addEventListener("click", () => this.options.onScrub(frameProgress));
+      button.addEventListener("click", () => {
+        if (this.locked) return;
+        this.options.onScrub(frameProgress);
+      });
       container.appendChild(button);
       this.buttons.push(button);
     }

@@ -62,6 +62,7 @@ interface CameraOverlayOptions {
   landmarkerController?: LandmarkerController;
   userPose?: UserPoseSource;
   onHands?(hands: HandResult[], nowMs: number): void;
+  onPose?(world: NormalizedLandmark[] | null, nowMs: number): void;
 }
 
 export class CameraOverlay {
@@ -71,6 +72,7 @@ export class CameraOverlay {
   private landmarkerController: LandmarkerController | null;
   private userPose: UserPoseSource | null;
   private onHands: ((hands: HandResult[], nowMs: number) => void) | null;
+  private onPose: ((world: NormalizedLandmark[] | null, nowMs: number) => void) | null;
   private safeZoneVisible = false;
 
   constructor(options: CameraOverlayOptions) {
@@ -82,6 +84,7 @@ export class CameraOverlay {
     this.landmarkerController = options.landmarkerController ?? null;
     this.userPose = options.userPose ?? null;
     this.onHands = options.onHands ?? null;
+    this.onPose = options.onPose ?? null;
     this.resize();
   }
 
@@ -102,7 +105,7 @@ export class CameraOverlay {
     this.ctx.clearRect(0, 0, rect.width, rect.height);
   }
 
-  render(_frame: RuntimeFrame, now: number): void {
+  render(_frame: RuntimeFrame | null, now: number): void {
     const rect = this.canvas.getBoundingClientRect();
     const w = rect.width;
     const h = rect.height;
@@ -167,10 +170,12 @@ export class CameraOverlay {
     const rect = this.videoDisplayRect(w, h);
     const mirror = !this.video.classList.contains("no-mirror");
 
+    let poseWorld: NormalizedLandmark[] | null = null;
     if (result.pose) {
       const landmarks = result.pose.image;
       if (landmarks.length > 0 && this.userPose && result.pose.world.length === 33) {
         this.userPose.setLatest(result.pose.world, performance.now());
+        poseWorld = result.pose.world;
       }
       this.drawPose(landmarks, rect, mirror);
     }
@@ -178,6 +183,7 @@ export class CameraOverlay {
       result.hands.forEach((hand) => this.drawHand(hand.landmarks, rect, mirror));
     }
     if (this.onHands) this.onHands(result.hands, _now);
+    if (this.onPose) this.onPose(poseWorld, _now);
     if (result.face) {
       this.drawFace(result.face, rect, mirror);
     }

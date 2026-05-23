@@ -1,12 +1,36 @@
-import { VideoSeeker } from "../../core/import/VideoSeeker.js";
-import { landmarksToPose } from "../../core/import/landmarksToPose.js";
-import { postProcessFrames } from "../../core/import/postProcess.js";
 import { drawerStack } from "../../core/DrawerStack.js";
-import type { LandmarkerController, PoseModel } from "../../core/PoseLandmarkerManager.js";
-import type { CoachClip, SeedMotion, SkeletonPose } from "../../types/motion.js";
+import { buildFrameThumbnailsFromMeta, loadCoachClip } from "../../core/import/loadCoachClip.js";
+import { loadMeshClip, type MeshClip } from "../../core/import/MeshClip.js";
+import type { CoachClip, SeedMotion } from "../../types/motion.js";
 
-const THUMB_WIDTH = 60;
-const THUMB_HEIGHT = 106;
+export interface ImportApplyPayload {
+  id: string;
+  name: string;
+  clip: CoachClip;
+  meshClip: MeshClip | null;
+  motion: SeedMotion;
+}
+
+interface ImportJobResult {
+  jobId: string;
+  coachClipUrl: string;
+  meshClipMetaUrl: string;
+  framesDir: string;
+  framePattern: string;
+  frameCount: number;
+  thumbnailCount?: number;
+  durationSeconds: number;
+  fps: number;
+  name: string;
+  motion: SeedMotion;
+  elapsedSeconds?: number;
+}
+
+interface PendingImport {
+  meta: ImportJobResult;
+  clip: CoachClip;
+  meshClip: MeshClip | null;
+}
 
 interface ImportDrawerOptions {
   drawer: HTMLElement;
@@ -21,22 +45,17 @@ interface ImportDrawerOptions {
   progressLabel: HTMLElement;
   statusLabel: HTMLElement;
   preview: HTMLVideoElement;
-  landmarkerController: LandmarkerController;
-  onApply(clip: CoachClip): void;
+  backendUrl: string;
+  onApply(payload: ImportApplyPayload): void;
 }
 
-interface RestoreState {
-  model: PoseModel;
-  pose: boolean;
-  hand: boolean;
-  face: boolean;
-}
+const SIMULATED_DURATION_MS = 50_000;
 
 export class ImportDrawer {
   private options: ImportDrawerOptions;
   private isOpen = false;
   private file: File | null = null;
-  private pending: CoachClip | null = null;
+  private pending: PendingImport | null = null;
   private busy = false;
 
   constructor(options: ImportDrawerOptions) {
@@ -101,7 +120,15 @@ export class ImportDrawer {
 
     this.options.startButton.addEventListener("click", () => void this.runImport());
     this.options.applyButton.addEventListener("click", () => {
-      if (this.pending) this.options.onApply(this.pending);
+      if (!this.pending) return;
+      const { meta, clip, meshClip } = this.pending;
+      this.options.onApply({
+        id: meta.jobId,
+        name: meta.name,
+        clip,
+        meshClip,
+        motion: meta.motion,
+      });
     });
   }
 
@@ -127,127 +154,104 @@ export class ImportDrawer {
     this.busy = true;
     this.options.startButton.disabled = true;
     this.options.applyButton.disabled = true;
-    this.setProgress(0, 0);
-    this.setStatus("加载视频中…");
+    this.setStatus(`上传到 ${this.options.backendUrl}…`);
+    this.setProgress(0.05);
 
-    const ctrl = this.options.landmarkerController;
-    const restore: RestoreState = {
-      model: ctrl.getModel(),
-      pose: ctrl.isEnabled("pose"),
-      hand: ctrl.isEnabled("hand"),
-      face: ctrl.isEnabled("face"),
-    };
-    ctrl.setModel("heavy");
-    ctrl.setEnabled("pose", true);
-    ctrl.setEnabled("hand", false);
-    ctrl.setEnabled("face", false);
+    const form = new FormData();
+    form.append("file", this.file);
+    form.append("motion", this.options.motionSelect.value || "flow");
+    form.append("name", stripExt(this.file.name));
 
-    const seeker = new VideoSeeker(this.file);
+    const stopSim = this.simulateProgress();
     try {
-      const meta = await seeker.load();
-      this.setStatus("探测帧率…");
-      const fps = await seeker.probeFps();
-      const collected: Array<SkeletonPose | null> = [];
-      const thumbnails: string[] = [];
-      const thumbCapture = createThumbCapture(THUMB_WIDTH, THUMB_HEIGHT);
+      const resp = await fetch(`${this.options.backendUrl}/import/video`, {
+        method: "POST",
+        body: form,
+      });
+      if (!resp.ok) {
+        const text = await this.readError(resp);
+        throw new Error(text);
+      }
+      const meta = (await resp.json()) as ImportJobResult;
+      this.setStatus("加载教练资源…");
+      this.setProgress(0.92);
 
-      this.setStatus(`启动 Heavy 模型 (源 ${fps}fps)，首次约 10 秒…`);
-      this.options.progressBar.classList.add("is-pulsing");
-      await ctrl.ensureReady(["pose"]);
-      this.options.progressBar.classList.remove("is-pulsing");
-      let detectedCount = 0;
-      const stats = { noResult: 0, noPose: 0, shortWorld: 0, badPose: 0 };
-
-      await seeker.iterate(fps, async (video, time, index, total) => {
-        const tsMs = time * 1000;
-        const result = ctrl.detect(video, tsMs);
-        let pose: SkeletonPose | null = null;
-        if (!result) {
-          stats.noResult += 1;
-        } else if (!result.pose) {
-          stats.noPose += 1;
-        } else {
-          const world = result.pose.world;
-          if (world.length !== 33) {
-            stats.shortWorld += 1;
-          } else {
-            pose = landmarksToPose(world);
-            if (!pose) stats.badPose += 1;
-          }
-        }
-        collected.push(pose);
-        if (pose) detectedCount += 1;
-
-        thumbnails.push(thumbCapture(video));
-
-        this.setProgress(index + 1, total);
-        if (index === 0) {
-          this.setStatus(`解析中：0 / ${total} 帧`);
-        } else if ((index & 7) === 7) {
-          this.setStatus(`解析中：${index + 1} / ${total} 帧 · 命中 ${detectedCount}`);
-        }
-        if ((index & 3) === 3) {
-          await new Promise<void>((r) => requestAnimationFrame(() => r()));
-        }
+      const clip = await loadCoachClip(meta.coachClipUrl);
+      clip.thumbnails = buildFrameThumbnailsFromMeta({
+        framesDir: meta.framesDir,
+        framePattern: meta.framePattern,
+        frameCount: meta.frameCount,
+        thumbnailCount: meta.thumbnailCount,
       });
 
-      if (detectedCount < 4) {
-        console.warn("[ImportDrawer] low detection rate", {
-          total: collected.length,
-          detectedCount,
-          stats,
-          meta,
-        });
-        if (detectedCount === 0) {
-          throw new Error("没有识别到人体 · 请确保视频里有清晰的全身画面、光线充足");
-        }
-        throw new Error(`只识别到 ${detectedCount} 帧人体 · 动作幅度可能太大或被遮挡`);
+      let meshClip: MeshClip | null = null;
+      try {
+        meshClip = await loadMeshClip(meta.meshClipMetaUrl);
+      } catch (err) {
+        console.warn("[ImportDrawer] mesh clip load failed; skeleton-only result", err);
       }
 
-      this.setStatus("时序平滑 + 居中归一…");
-      await new Promise<void>((r) => requestAnimationFrame(() => r()));
-      const cleaned = postProcessFrames(collected, fps);
-      if (cleaned.length === 0) throw new Error("帧序列为空");
-
-      const motion = (this.options.motionSelect.value || "flow") as SeedMotion;
-      const clip: CoachClip = {
-        id: makeId(),
-        name: stripExt(this.file.name),
-        fps,
-        durationSeconds: meta.durationSeconds,
-        frames: cleaned,
-        motion,
-        capturedAt: Date.now(),
-        thumbnails,
-      };
-      this.pending = clip;
-      this.setStatus(
-        `解析完成 · ${cleaned.length} 帧 / ${meta.durationSeconds.toFixed(1)}s · 命中率 ${(
-          (detectedCount / cleaned.length) *
-          100
-        ).toFixed(0)}%`,
-      );
+      this.pending = { meta, clip, meshClip };
+      this.setProgress(1);
+      const elapsed = meta.elapsedSeconds ? ` · ${meta.elapsedSeconds.toFixed(1)}s` : "";
+      this.setStatus(`就绪 · ${meta.name} · ${meta.frameCount} 帧${elapsed}`);
       this.options.applyButton.disabled = false;
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
-      console.warn("[ImportDrawer] import failed", err);
+      console.warn("[ImportDrawer] backend import failed", err);
       this.setStatus(`解析失败：${msg}`);
+      this.setProgress(0);
     } finally {
-      this.options.progressBar.classList.remove("is-pulsing");
-      seeker.dispose();
-      ctrl.setModel(restore.model);
-      ctrl.setEnabled("pose", restore.pose);
-      ctrl.setEnabled("hand", restore.hand);
-      ctrl.setEnabled("face", restore.face);
+      stopSim();
       this.options.startButton.disabled = false;
       this.busy = false;
     }
   }
 
-  private setProgress(done: number, total: number): void {
-    const pct = total === 0 ? 0 : Math.min(100, (done / total) * 100);
-    this.options.progressBar.style.width = `${pct.toFixed(1)}%`;
-    this.options.progressLabel.textContent = total === 0 ? "—" : `${done} / ${total}`;
+  private simulateProgress(): () => void {
+    const start = performance.now();
+    const target = 0.9;
+    let raf = 0;
+    const step = () => {
+      const t = Math.min(1, (performance.now() - start) / SIMULATED_DURATION_MS);
+      // Ease out so the first 50% climbs quickly, then we creep toward 90%.
+      const eased = 1 - Math.pow(1 - t, 2);
+      this.setProgress(0.05 + (target - 0.05) * eased);
+      if (t < 1 && this.busy) raf = requestAnimationFrame(step);
+    };
+    raf = requestAnimationFrame(step);
+    return () => {
+      if (raf) cancelAnimationFrame(raf);
+    };
+  }
+
+  private async readError(resp: Response): Promise<string> {
+    try {
+      const json = await resp.json();
+      if (json && typeof json === "object" && "detail" in json) {
+        const detail = (json as { detail: unknown }).detail;
+        if (typeof detail === "string") return detail;
+        if (detail && typeof detail === "object") {
+          const obj = detail as { error?: string; stage?: string };
+          return `${obj.stage ?? "pipeline"}: ${obj.error ?? "未知错误"}`;
+        }
+      }
+      return `${resp.status} ${resp.statusText}`;
+    } catch {
+      return `${resp.status} ${resp.statusText}`;
+    }
+  }
+
+  private setProgress(ratioOrDone: number, total?: number): void {
+    let ratio: number;
+    if (total === undefined) {
+      ratio = Math.max(0, Math.min(1, ratioOrDone));
+      this.options.progressLabel.textContent = ratio === 0 ? "—" : `${Math.round(ratio * 100)}%`;
+    } else {
+      ratio = total === 0 ? 0 : Math.min(1, ratioOrDone / total);
+      this.options.progressLabel.textContent = total === 0 ? "—" : `${ratioOrDone} / ${total}`;
+    }
+    this.options.progressBar.style.width = `${(ratio * 100).toFixed(1)}%`;
   }
 
   private setStatus(text: string): void {
@@ -255,42 +259,6 @@ export class ImportDrawer {
   }
 }
 
-function makeId(): string {
-  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
-    return crypto.randomUUID();
-  }
-  return `clip-${Date.now().toString(36)}-${Math.floor(Math.random() * 1e6).toString(36)}`;
-}
-
 function stripExt(name: string): string {
   return name.replace(/\.[^.]+$/, "");
-}
-
-function createThumbCapture(width: number, height: number): (video: HTMLVideoElement) => string {
-  const canvas = document.createElement("canvas");
-  canvas.width = width;
-  canvas.height = height;
-  const ctx = canvas.getContext("2d");
-  if (!ctx) {
-    return () => "";
-  }
-  const cellRatio = width / height;
-  return (video) => {
-    const vw = video.videoWidth || width;
-    const vh = video.videoHeight || height;
-    const videoRatio = vw / vh;
-    let sx = 0;
-    let sy = 0;
-    let sw = vw;
-    let sh = vh;
-    if (videoRatio > cellRatio) {
-      sw = vh * cellRatio;
-      sx = (vw - sw) / 2;
-    } else {
-      sh = vw / cellRatio;
-      sy = (vh - sh) / 2;
-    }
-    ctx.drawImage(video, sx, sy, sw, sh, 0, 0, width, height);
-    return canvas.toDataURL("image/jpeg", 0.55);
-  };
 }
