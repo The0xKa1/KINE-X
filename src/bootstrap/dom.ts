@@ -103,6 +103,14 @@ export interface DomRefs {
   calibrationDone: HTMLButtonElement;
   calibrationRedo: HTMLButtonElement;
 
+  sessionOverlay: HTMLElement;
+  sessionIdle: HTMLElement;
+  sessionCountdown: HTMLElement;
+  sessionStartButton: HTMLButtonElement;
+  sessionCountdownNumber: HTMLElement;
+  sessionGestureValue: HTMLElement;
+  sessionGestureBar: HTMLElement;
+
   importDrawer: HTMLElement;
   importButton: HTMLElement;
   importClose: HTMLElement;
@@ -224,6 +232,14 @@ export function collectDomRefs(): DomRefs {
     calibrationSkip: $("#calibrationSkip") as HTMLButtonElement,
     calibrationDone: $("#calibrationDone") as HTMLButtonElement,
     calibrationRedo: $("#calibrationRedo") as HTMLButtonElement,
+
+    sessionOverlay: $("#sessionOverlay"),
+    sessionIdle: $("#sessionIdle"),
+    sessionCountdown: $("#sessionCountdown"),
+    sessionStartButton: $("#sessionStartButton") as HTMLButtonElement,
+    sessionCountdownNumber: $("#sessionCountdownNumber"),
+    sessionGestureValue: $("#sessionGestureValue"),
+    sessionGestureBar: $("#sessionGestureBar"),
 
     importDrawer: $("#importDrawer"),
     importButton: $("#importButton"),

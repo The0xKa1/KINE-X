@@ -55,9 +55,20 @@ export class SessionRecorder {
           totalScoreSum = 0;
           frames = 0;
           worstFrameScore = 100;
+          active = false;
 
   constructor(bus          ) {
     bus.on("score:update", (payload) => this.ingest(payload));
+    bus.on("session:state", (payload) => {
+      if (payload.phase === "active") {
+        this.reset();
+        this.active = true;
+      } else if (payload.phase === "finished" || payload.phase === "idle") {
+        this.active = false;
+      } else {
+        this.active = false;
+      }
+    });
   }
 
   reset()       {
@@ -71,6 +82,7 @@ export class SessionRecorder {
   }
 
   ingest(payload             )       {
+    if (!this.active) return;
     this.frames += 1;
     this.totalScoreSum += payload.score;
     if (payload.score < this.worstFrameScore) this.worstFrameScore = payload.score;

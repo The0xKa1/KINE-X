@@ -1,5 +1,5 @@
                                                        
-                                                                       
+                                                                                   
                                                                   
                                                                   
 
@@ -61,6 +61,7 @@ const FACE_FEATURE_POINTS           = [1, 33, 263, 61, 291, 199, 159, 386];
                            
                                               
                             
+                                                     
  
 
 export class CameraOverlay {
@@ -69,6 +70,7 @@ export class CameraOverlay {
           video                         ;
           landmarkerController                             ;
           userPose                       ;
+          onHands                                                       ;
           safeZoneVisible = false;
 
   constructor(options                      ) {
@@ -79,6 +81,7 @@ export class CameraOverlay {
     this.video = options.video ?? null;
     this.landmarkerController = options.landmarkerController ?? null;
     this.userPose = options.userPose ?? null;
+    this.onHands = options.onHands ?? null;
     this.resize();
   }
 
@@ -174,6 +177,7 @@ export class CameraOverlay {
     if (result.hands.length > 0) {
       result.hands.forEach((hand) => this.drawHand(hand.landmarks, rect, mirror));
     }
+    if (this.onHands) this.onHands(result.hands, _now);
     if (result.face) {
       this.drawFace(result.face, rect, mirror);
     }

@@ -7,12 +7,56 @@ export interface CameraErrorPayload {
   message: string;
 }
 
+export type SessionLifecyclePhase = "idle" | "countdown" | "active" | "finished";
+
+export interface SessionStatePayload {
+  phase: SessionLifecyclePhase;
+  countdownSecondsLeft?: number;
+  source?: "button" | "gesture" | "system";
+}
+
+export type GestureRecognizerPhase =
+  | "disabled"
+  | "no-hand"
+  | "wrong-pose"
+  | "holding"
+  | "fired"
+  | "cooldown";
+
+export interface GestureMetrics {
+  okPinch: number;
+  midExt: number;
+  ringExt: number;
+  pinkyExt: number;
+  indexExt: number;
+  wristY: number;
+  failedCheck:
+    | "ok-pinch"
+    | "mid-ext"
+    | "ring-ext"
+    | "pinky-ext"
+    | "index-ext"
+    | "wrist-low"
+    | "palm-zero"
+    | null;
+}
+
+export interface GestureProgressPayload {
+  phase: GestureRecognizerPhase;
+  holdProgress: number;
+  handsCount: number;
+  metrics?: GestureMetrics;
+}
+
 export interface AppEvents {
   "score:update": ScoreUpdate;
   "pipeline:update": PipelineUpdate;
   "seed:update": SeedUpdate;
   "camera:update": { active: boolean; mode: "mock" | "camera"; label: string };
   "camera:error": CameraErrorPayload;
+  "session:state": SessionStatePayload;
+  "session:gesture": GestureProgressPayload;
+  "calibration:ready": { reason: "done" | "skip" | "profile" | "reset" };
 }
 
 export type AppEventName = keyof AppEvents;

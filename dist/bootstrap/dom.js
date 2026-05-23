@@ -103,6 +103,14 @@ export const $$ =                    (selector        )      =>
                                      
                                      
 
+                              
+                           
+                                
+                                        
+                                      
+                                   
+                                 
+
                             
                             
                            
@@ -224,6 +232,14 @@ export function collectDomRefs()          {
     calibrationSkip: $("#calibrationSkip")                     ,
     calibrationDone: $("#calibrationDone")                     ,
     calibrationRedo: $("#calibrationRedo")                     ,
+
+    sessionOverlay: $("#sessionOverlay"),
+    sessionIdle: $("#sessionIdle"),
+    sessionCountdown: $("#sessionCountdown"),
+    sessionStartButton: $("#sessionStartButton")                     ,
+    sessionCountdownNumber: $("#sessionCountdownNumber"),
+    sessionGestureValue: $("#sessionGestureValue"),
+    sessionGestureBar: $("#sessionGestureBar"),
 
     importDrawer: $("#importDrawer"),
     importButton: $("#importButton"),

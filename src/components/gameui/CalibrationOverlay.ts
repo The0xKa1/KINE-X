@@ -10,6 +10,7 @@ interface CalibrationOverlayOptions {
   doneButton: HTMLButtonElement;
   redoButton: HTMLButtonElement;
   onSkip(): void;
+  onDismiss?(reason: "skip" | "done"): void;
 }
 
 export class CalibrationOverlay {
@@ -21,9 +22,11 @@ export class CalibrationOverlay {
       this.options.controller.cancel();
       this.options.onSkip();
       this.hide();
+      this.options.onDismiss?.("skip");
     });
     this.options.doneButton.addEventListener("click", () => {
       this.hide();
+      this.options.onDismiss?.("done");
     });
     this.options.redoButton.addEventListener("click", () => {
       this.options.controller.start();

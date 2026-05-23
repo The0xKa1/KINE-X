@@ -144,6 +144,28 @@
                 <div id="fxBurst" class="fx-burst">PERFECT</div>
                 <div id="fxCombo" class="fx-combo">COMBO ×01</div>
               </div>
+
+              <div id="sessionOverlay" class="session-overlay" aria-live="polite" aria-atomic="true">
+                <div id="sessionIdle" class="session-idle">
+                  <span class="session-eyebrow">04 · READY CHECK</span>
+                  <strong>准备好就开始</strong>
+                  <span class="session-hint">校准就位后点击开始，或对镜头比 OK 手势保持 0.6s。</span>
+                  <button id="sessionStartButton" class="session-start" type="button">开 始</button>
+                  <div id="sessionGesture" class="session-gesture">
+                    <div class="session-gesture-row">
+                      <span class="session-gesture-label">手势</span>
+                      <span id="sessionGestureValue" class="session-gesture-value">等待手</span>
+                    </div>
+                    <div class="session-gesture-bar"><i id="sessionGestureBar"></i></div>
+                  </div>
+                </div>
+                <div id="sessionCountdown" class="session-countdown" hidden>
+                  <span class="session-eyebrow">GET SET</span>
+                  <strong>即将开始评估</strong>
+                  <span id="sessionCountdownNumber" class="session-countdown-number">3</span>
+                  <span class="session-hint">保持姿势</span>
+                </div>
+              </div>
             </div>
 
             <div class="bay-playbar">

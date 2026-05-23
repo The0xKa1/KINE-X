@@ -10,6 +10,7 @@ import { CameraSettings } from "./components/gameui/CameraSettings.js";
 import { CalibrationOverlay } from "./components/gameui/CalibrationOverlay.js";
 import { ImportDrawer } from "./components/gameui/ImportDrawer.js";
 import { AiCoachPanel } from "./components/gameui/AiCoachPanel.js";
+import { SessionStartOverlay } from "./components/gameui/SessionStartOverlay.js";
 import { AppShell } from "./components/layout/AppShell.js";
 import { AudioFx } from "./core/AudioFx.js";
 import { CameraOverlay } from "./core/CameraOverlay.js";
@@ -17,7 +18,9 @@ import { drawerStack } from "./core/DrawerStack.js";
 import { EventBus } from "./core/EventBus.js";
 import { MotionFrameBuffer } from "./core/frameBuffer.js";
 import { MotionStage } from "./core/MotionStage.js";
+import { OkGestureDetector } from "./core/OkGestureDetector.js";
 import { LandmarkerController } from "./core/PoseLandmarkerManager.js";
+import { SessionGate } from "./core/SessionGate.js";
 import { CalibrationController } from "./core/scoring/CalibrationController.js";
 import { CoachHistory } from "./core/scoring/CoachHistory.js";
 import { SessionRecorder } from "./core/scoring/SessionRecorder.js";
@@ -64,15 +67,43 @@ const profileStore = new UserProfileStore();
 const calibrationController = new CalibrationController(userPose, profileStore);
 const coachHistory = new CoachHistory();
 const sessionRecorder = new SessionRecorder(bus);
-bus.on("seed:update", () => sessionRecorder.reset());
+const sessionGate = new SessionGate({ bus });
+const CALIBRATION_SKIP_KEY = "holomotion.calibrationSkipped.v1";
+function readCalibrationSkipped()          {
+  try {
+    return localStorage.getItem(CALIBRATION_SKIP_KEY) === "1";
+  } catch {
+    return false;
+  }
+}
+let calibrationReady = Boolean(profileStore.get()) || readCalibrationSkipped();
+bus.on("seed:update", () => {
+  sessionRecorder.reset();
+  sessionGate.reset("system");
+});
 
+let okGestureDetector                           = null;
 const cameraOverlay = new CameraOverlay({
   canvas: dom.cameraOverlayCanvas,
   video: dom.cameraVideo,
   landmarkerController,
   userPose,
+  onHands: (hands, nowMs) => okGestureDetector?.update(hands, nowMs),
 });
 const webcam = new WebCamManager(dom.cameraVideo, bus);
+
+okGestureDetector = new OkGestureDetector({
+  onFire: () => {
+    if (sessionGate.getPhase() !== "idle") return;
+    sessionGate.beginCountdown("gesture");
+  },
+  isEligible: () =>
+    sessionGate.getPhase() === "idle" &&
+    calibrationReady &&
+    webcam.isActive() &&
+    webcam.getMode() === "camera",
+  onProgress: (state) => bus.emit("session:gesture", state),
+});
 
 const stage = new MotionStage({
   canvas: dom.motionCanvas,
@@ -228,7 +259,6 @@ const cameraSettings = new CameraSettings({
 });
 void cameraSettings;
 
-const CALIBRATION_SKIP_KEY = "holomotion.calibrationSkipped.v1";
 const calibrationOverlay = new CalibrationOverlay({
   controller: calibrationController,
   root: dom.calibrationOverlay,
@@ -245,8 +275,36 @@ const calibrationOverlay = new CalibrationOverlay({
       // ignore
     }
   },
+  onDismiss: (reason) => {
+    calibrationReady = true;
+    bus.emit("calibration:ready", { reason: reason === "skip" ? "skip" : "done" });
+  },
 });
 void calibrationOverlay;
+
+calibrationController.onChange((status) => {
+  if (status.phase === "waiting" || status.phase === "sampling") {
+    if (calibrationReady) {
+      calibrationReady = false;
+      bus.emit("calibration:ready", { reason: "reset" });
+    }
+  }
+});
+
+const sessionStartOverlay = new SessionStartOverlay({
+  bus,
+  gate: sessionGate,
+  root: dom.sessionOverlay,
+  idleSection: dom.sessionIdle,
+  countdownSection: dom.sessionCountdown,
+  startButton: dom.sessionStartButton,
+  countdownNumber: dom.sessionCountdownNumber,
+  gestureValue: dom.sessionGestureValue,
+  gestureBar: dom.sessionGestureBar,
+  isCameraActive: () => webcam.isActive() && webcam.getMode() === "camera",
+  isCalibrationReady: () => calibrationReady,
+});
+void sessionStartOverlay;
 
 const importDrawer = new ImportDrawer({
   drawer: dom.importDrawer,
@@ -343,16 +401,28 @@ bus.on("camera:update", (payload) => {
     cameraOverlay.clear();
     userPose.clear();
     calibrationController.cancel();
+    sessionGate.reset("system");
+    calibrationReady = Boolean(profileStore.get()) || readCalibrationSkipped();
     return;
   }
+  // Pre-warm pose + hand modalities so the gesture detector starts producing
+  // results within the first second after the camera turns on.
+  landmarkerController.setEnabled("hand", true);
+  landmarkerController.setEnabled("pose", true);
+  void landmarkerController.ensureReady(["pose", "hand"]);
   let skipped = false;
   try {
     skipped = localStorage.getItem(CALIBRATION_SKIP_KEY) === "1";
   } catch {
     skipped = false;
   }
-  if (!profileStore.get() && !skipped && calibrationController.getStatus().phase === "idle") {
+  const hasProfile = Boolean(profileStore.get());
+  if (!hasProfile && !skipped && calibrationController.getStatus().phase === "idle") {
+    calibrationReady = false;
     calibrationController.start();
+  } else {
+    calibrationReady = true;
+    bus.emit("calibration:ready", { reason: hasProfile ? "profile" : "skip" });
   }
 });
 
@@ -391,6 +461,7 @@ bus.on("score:update", () => {
 });
 
 dom.finishButton.addEventListener("click", () => {
+  sessionGate.markFinished("button");
   resultsScreen.open();
 });
 

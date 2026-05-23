@@ -1,5 +1,5 @@
 import type { RuntimeFrame } from "../types/motion.js";
-import type { LandmarkerController } from "./PoseLandmarkerManager.js";
+import type { HandResult, LandmarkerController } from "./PoseLandmarkerManager.js";
 import type { UserPoseSource } from "./scoring/UserPoseSource.js";
 import type { NormalizedLandmark } from "@mediapipe/tasks-vision";
 
@@ -61,6 +61,7 @@ interface CameraOverlayOptions {
   video?: HTMLVideoElement;
   landmarkerController?: LandmarkerController;
   userPose?: UserPoseSource;
+  onHands?(hands: HandResult[], nowMs: number): void;
 }
 
 export class CameraOverlay {
@@ -69,6 +70,7 @@ export class CameraOverlay {
   private video: HTMLVideoElement | null;
   private landmarkerController: LandmarkerController | null;
   private userPose: UserPoseSource | null;
+  private onHands: ((hands: HandResult[], nowMs: number) => void) | null;
   private safeZoneVisible = false;
 
   constructor(options: CameraOverlayOptions) {
@@ -79,6 +81,7 @@ export class CameraOverlay {
     this.video = options.video ?? null;
     this.landmarkerController = options.landmarkerController ?? null;
     this.userPose = options.userPose ?? null;
+    this.onHands = options.onHands ?? null;
     this.resize();
   }
 
@@ -174,6 +177,7 @@ export class CameraOverlay {
     if (result.hands.length > 0) {
       result.hands.forEach((hand) => this.drawHand(hand.landmarks, rect, mirror));
     }
+    if (this.onHands) this.onHands(result.hands, _now);
     if (result.face) {
       this.drawFace(result.face, rect, mirror);
     }
