@@ -86,10 +86,6 @@ export const $$ =                    (selector        )      =>
                                        
                                        
                                       
-                               
-                              
-                             
-                              
                                    
                            
                            
@@ -219,10 +215,6 @@ export function collectDomRefs()          {
     modalityFaceToggle: $("#modalityFaceToggle")                    ,
     recalibrateButton: $("#recalibrateButton")                     ,
     calibrationStatusLabel: $("#calibrationStatusLabel"),
-    llmBaseUrl: $("#llmBaseUrl")                    ,
-    llmApiKey: $("#llmApiKey")                    ,
-    llmModel: $("#llmModel")                    ,
-    llmClear: $("#llmClear")                     ,
     personaSelect: $("#personaSelect")                     ,
     aiCoachCard: $("#aiCoachCard"),
     aiCoachText: $("#aiCoachText"),

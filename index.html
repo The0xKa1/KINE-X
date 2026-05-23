@@ -333,26 +333,13 @@
             <span>post-match diagnosis</span>
           </div>
           <label class="settings-field">
-            <span>Base URL</span>
-            <input id="llmBaseUrl" type="text" placeholder="https://api.openai.com/v1" autocomplete="off" spellcheck="false" />
-          </label>
-          <label class="settings-field">
-            <span>API Key</span>
-            <input id="llmApiKey" type="password" placeholder="sk-..." autocomplete="off" spellcheck="false" />
-          </label>
-          <label class="settings-field">
-            <span>Model</span>
-            <input id="llmModel" type="text" placeholder="gpt-4o-mini" autocomplete="off" spellcheck="false" />
-          </label>
-          <label class="settings-field">
             <span>诊断 persona</span>
             <select id="personaSelect">
               <option value="biomech">运动生物力学专家</option>
               <option value="baduanjin">八段锦传人</option>
             </select>
           </label>
-          <button id="llmClear" type="button" class="secondary-button">清除本机 API Key</button>
-          <p class="settings-hint">仅支持 OpenAI 兼容协议（OpenAI / 通义 / 智谱 / DeepSeek / OpenRouter）。Key 仅存本地 localStorage，不要使用主账户 key。</p>
+          <p class="settings-hint">LLM 凭据由本地 server 进程托管 (<code>server/.env</code>)，浏览器不再保存 API Key。</p>
         </section>
       </div>
     </aside>

@@ -86,10 +86,6 @@ export interface DomRefs {
   modalityFaceToggle: HTMLInputElement;
   recalibrateButton: HTMLButtonElement;
   calibrationStatusLabel: HTMLElement;
-  llmBaseUrl: HTMLInputElement;
-  llmApiKey: HTMLInputElement;
-  llmModel: HTMLInputElement;
-  llmClear: HTMLButtonElement;
   personaSelect: HTMLSelectElement;
   aiCoachCard: HTMLElement;
   aiCoachText: HTMLElement;
@@ -219,10 +215,6 @@ export function collectDomRefs(): DomRefs {
     modalityFaceToggle: $("#modalityFaceToggle") as HTMLInputElement,
     recalibrateButton: $("#recalibrateButton") as HTMLButtonElement,
     calibrationStatusLabel: $("#calibrationStatusLabel"),
-    llmBaseUrl: $("#llmBaseUrl") as HTMLInputElement,
-    llmApiKey: $("#llmApiKey") as HTMLInputElement,
-    llmModel: $("#llmModel") as HTMLInputElement,
-    llmClear: $("#llmClear") as HTMLButtonElement,
     personaSelect: $("#personaSelect") as HTMLSelectElement,
     aiCoachCard: $("#aiCoachCard"),
     aiCoachText: $("#aiCoachText"),

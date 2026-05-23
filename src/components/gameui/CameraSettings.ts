@@ -6,7 +6,6 @@ import type {
 import type { LandmarkerController, ModalityKind, PoseModel } from "../../core/PoseLandmarkerManager.js";
 import type { CalibrationController } from "../../core/scoring/CalibrationController.js";
 import type { UserProfileStore } from "../../core/scoring/UserProfile.js";
-import type { LlmSettings } from "../../core/llm/LLMClient.js";
 import type { CoachPersona } from "../../core/llm/buildPrompt.js";
 import { drawerStack } from "../../core/DrawerStack.js";
 
@@ -33,10 +32,6 @@ interface CameraSettingsOptions {
   modalityFaceToggle: HTMLInputElement;
   recalibrateButton: HTMLButtonElement;
   calibrationStatusLabel: HTMLElement;
-  llmBaseUrl: HTMLInputElement;
-  llmApiKey: HTMLInputElement;
-  llmModel: HTMLInputElement;
-  llmClearButton: HTMLButtonElement;
   personaSelect: HTMLSelectElement;
   callbacks: CameraSettingsCallbacks;
 }
@@ -48,7 +43,6 @@ interface PersistedSettings {
   safeZone: boolean;
   model: PoseModel;
   modalities?: Record<ModalityKind, boolean>;
-  llm?: { baseUrl: string; apiKey: string; model: string };
   persona?: CoachPersona;
 }
 
@@ -79,14 +73,6 @@ export class CameraSettings {
     this.options.profileStore.onChange(() => this.refreshCalibrationLabel());
     this.options.calibration.onChange(() => this.refreshCalibrationLabel());
     this.options.callbacks.onSafeZoneChange(this.safeZone);
-  }
-
-  getLlmConfig(): LlmSettings | null {
-    const baseUrl = this.options.llmBaseUrl.value.trim();
-    const apiKey = this.options.llmApiKey.value.trim();
-    const model = this.options.llmModel.value.trim();
-    if (!baseUrl || !apiKey || !model) return null;
-    return { baseUrl, apiKey, model };
   }
 
   getPersona(): CoachPersona {
@@ -170,11 +156,6 @@ export class CameraSettings {
       this.options.calibration.start();
     });
 
-    const persistLlm = () => this.persist();
-    this.options.llmBaseUrl.addEventListener("change", persistLlm);
-    this.options.llmApiKey.addEventListener("change", persistLlm);
-    this.options.llmModel.addEventListener("change", persistLlm);
-    this.options.llmClearButton.addEventListener("click", () => this.clearLlmKey());
     this.options.personaSelect.addEventListener("change", () => {
       const value = this.options.personaSelect.value;
       if (value === "biomech" || value === "baduanjin") {
@@ -255,20 +236,6 @@ export class CameraSettings {
     this.options.calibrationStatusLabel.textContent = `身高 ${profile.heightMeters.toFixed(2)}m`;
   }
 
-  private clearLlmKey(): void {
-    this.options.llmBaseUrl.value = "";
-    this.options.llmApiKey.value = "";
-    this.options.llmModel.value = "";
-    this.persist();
-    const original = this.options.llmClearButton.textContent;
-    this.options.llmClearButton.textContent = "已清除 ✓";
-    this.options.llmClearButton.disabled = true;
-    window.setTimeout(() => {
-      this.options.llmClearButton.textContent = original;
-      this.options.llmClearButton.disabled = false;
-    }, 1400);
-  }
-
   private persist(): void {
     const payload: PersistedSettings = {
       settings: this.options.webcam.getSettings(),
@@ -278,11 +245,6 @@ export class CameraSettings {
         pose: this.options.landmarker.isEnabled("pose"),
         hand: this.options.landmarker.isEnabled("hand"),
         face: this.options.landmarker.isEnabled("face"),
-      },
-      llm: {
-        baseUrl: this.options.llmBaseUrl.value.trim(),
-        apiKey: this.options.llmApiKey.value.trim(),
-        model: this.options.llmModel.value.trim(),
       },
       persona: this.persona,
     };
@@ -317,11 +279,6 @@ export class CameraSettings {
             this.options.landmarker.setEnabled(kind, value);
           }
         });
-      }
-      if (parsed.llm) {
-        this.options.llmBaseUrl.value = parsed.llm.baseUrl ?? "";
-        this.options.llmApiKey.value = parsed.llm.apiKey ?? "";
-        this.options.llmModel.value = parsed.llm.model ?? "";
       }
       if (parsed.persona === "biomech" || parsed.persona === "baduanjin") {
         this.persona = parsed.persona;

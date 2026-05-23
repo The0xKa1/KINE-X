@@ -276,10 +276,6 @@ const cameraSettings = new CameraSettings({
   modalityFaceToggle: dom.modalityFaceToggle,
   recalibrateButton: dom.recalibrateButton,
   calibrationStatusLabel: dom.calibrationStatusLabel,
-  llmBaseUrl: dom.llmBaseUrl,
-  llmApiKey: dom.llmApiKey,
-  llmModel: dom.llmModel,
-  llmClearButton: dom.llmClear,
   personaSelect: dom.personaSelect,
   callbacks: {
     onSafeZoneChange: (visible) => cameraOverlay.setSafeZoneVisible(visible),
