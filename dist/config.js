@@ -1,6 +1,26 @@
 export const API_BASE_URL = (() => {
-  const override = new URLSearchParams(window.location.search).get("api");
-  if (override) return override.replace(/\/$/, "");
-  if (window.location.port === "5173") return "http://localhost:8766";
-  return "";
+  const STORAGE_KEY = "holomotion.apiBaseUrl";
+  const trim = (raw        ) => raw.replace(/\/$/, "");
+
+  const fromQuery = new URLSearchParams(window.location.search).get("api");
+  if (fromQuery) {
+    try {
+      localStorage.setItem(STORAGE_KEY, fromQuery);
+    } catch {
+      // ignore — localStorage may be disabled
+    }
+    return trim(fromQuery);
+  }
+
+  let stored                = null;
+  try {
+    stored = localStorage.getItem(STORAGE_KEY);
+  } catch {
+    stored = null;
+  }
+  if (stored) return trim(stored);
+
+  const protocol = window.location.protocol || "http:";
+  const hostname = window.location.hostname || "localhost";
+  return `${protocol}//${hostname}:8766`;
 })();

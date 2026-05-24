@@ -12,10 +12,10 @@
                               
  
 
-const PERFECT_THRESHOLD = 75;
+const PERFECT_THRESHOLD = 80;
 const PERFECT_THROTTLE_MS = 600;
 const COMBO_STEP = 2;
-const COMBO_BASELINE = 4;
+const COMBO_BASELINE = 5;
 const COMBO_THROTTLE_MS = 1000;
 
 export class ComboBurst {

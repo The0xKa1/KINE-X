@@ -1,6 +1,7 @@
 """FastAPI service: video upload → SMPLX mesh + CoachClip + frame thumbs."""
 from __future__ import annotations
 
+import json
 import logging
 import shutil
 import tempfile
@@ -75,6 +76,57 @@ def healthz() -> dict:
         "device": getattr(app.state, "estimator_device", None),
         "loadedAt": getattr(app.state, "estimator_loaded_at", None),
     }
+
+
+@app.get("/import/jobs")
+def list_import_jobs() -> JSONResponse:
+    """List previously-completed import jobs so the frontend can re-hydrate
+    its seed carousel after a refresh.
+
+    A "complete" job is a directory under PUBLIC_JOBS_DIR that contains both
+    `mesh.meta.json` and `coach.json`. Partial jobs (e.g. SAM inference
+    crashed mid-run) are silently skipped.
+
+    Response shape mirrors POST /import/video so the frontend can reuse the
+    same loadCoachClip / loadMeshClip / addSeed path.
+    """
+    jobs: list[dict] = []
+    jobs_root = config.PUBLIC_JOBS_DIR
+    if not jobs_root.exists():
+        return JSONResponse({"jobs": jobs})
+
+    for job_dir in sorted(jobs_root.iterdir()):
+        if not job_dir.is_dir():
+            continue
+        mesh_meta = job_dir / "mesh.meta.json"
+        coach_json = job_dir / "coach.json"
+        if not (mesh_meta.exists() and coach_json.exists()):
+            continue
+        try:
+            with mesh_meta.open("r", encoding="utf-8") as fh:
+                meta = json.load(fh)
+        except (OSError, json.JSONDecodeError):
+            continue
+        frames_dir = job_dir / "frames"
+        frame_count = int(meta.get("frameCount") or 0)
+        if frame_count <= 0 and frames_dir.is_dir():
+            frame_count = sum(1 for _ in frames_dir.glob("frame_*.jpg"))
+        if frame_count <= 0:
+            continue
+        jobs.append({
+            "jobId": job_dir.name,
+            "coachClipUrl": config.relative_to_repo(coach_json),
+            "meshClipMetaUrl": config.relative_to_repo(mesh_meta),
+            "framesDir": config.relative_to_repo(frames_dir),
+            "framePattern": "frame_{i:05}.jpg",
+            "frameCount": frame_count,
+            "thumbnailCount": min(config.DEFAULT_THUMBNAIL_COUNT, frame_count),
+            "durationSeconds": float(meta.get("durationSeconds") or 0.0),
+            "fps": int(meta.get("fps") or config.DEFAULT_TARGET_FPS),
+            "name": str(meta.get("name") or job_dir.name),
+            "motion": str(meta.get("motion") or "squat"),
+        })
+    return JSONResponse({"jobs": jobs})
 
 
 @app.post("/import/video")

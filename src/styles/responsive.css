@@ -32,11 +32,4 @@
   .dna-drawer { width: 100vw; }
   .score-orbit { width: 96px; height: 76px; }
   .score-orbit span { font-size: 32px; }
-  .coaching-tip {
-    left: 16px !important;
-    right: 16px;
-    top: auto !important;
-    bottom: 16px;
-    max-width: none;
-  }
 }

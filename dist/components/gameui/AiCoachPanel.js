@@ -5,6 +5,8 @@
                               
  
 
+import { renderMarkdown } from "../../core/llm/renderMarkdown.js";
+
                      
                                    
                       
@@ -13,6 +15,7 @@
 export class AiCoachPanel {
           options                     ;
           controller                         = null;
+          rawText = "";
 
   constructor(options                     ) {
     this.options = options;
@@ -21,7 +24,8 @@ export class AiCoachPanel {
 
   reset()       {
     this.cancel();
-    this.options.textEl.textContent = "";
+    this.rawText = "";
+    this.options.textEl.replaceChildren();
     this.options.textEl.classList.remove("is-done", "is-error");
     this.clearStatus();
     this.setStatus("idle");
@@ -29,7 +33,8 @@ export class AiCoachPanel {
 
   renderStatic(text        , statusLabel         = "offline sample")       {
     this.cancel();
-    this.options.textEl.textContent = text;
+    this.rawText = text;
+    this.options.textEl.innerHTML = renderMarkdown(text);
     this.options.textEl.classList.add("is-done");
     this.options.textEl.classList.remove("is-error");
     this.clearStatus();
@@ -38,7 +43,8 @@ export class AiCoachPanel {
 
   async renderStreaming(runner              , fallbackText        )                  {
     this.cancel();
-    this.options.textEl.textContent = "";
+    this.rawText = "";
+    this.options.textEl.replaceChildren();
     this.options.textEl.classList.remove("is-done", "is-error");
     this.clearStatus();
     this.setStatus("diagnosing");
@@ -50,25 +56,31 @@ export class AiCoachPanel {
       let received = 0;
       const finalText = await runner((delta) => {
         if (controller.signal.aborted) return;
-        this.options.textEl.textContent = (this.options.textEl.textContent ?? "") + delta;
+        const el = this.options.textEl;
+        const stickToBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 16;
+        this.rawText += delta;
+        el.innerHTML = renderMarkdown(this.rawText);
         received += delta.length;
+        if (stickToBottom) el.scrollTop = el.scrollHeight;
       }, controller.signal);
 
       if (controller.signal.aborted) return "";
       if (received === 0) {
-        this.options.textEl.textContent = fallbackText;
+        this.rawText = fallbackText;
+        this.options.textEl.innerHTML = renderMarkdown(fallbackText);
         this.options.textEl.classList.add("is-done");
         this.setStatus("empty · fallback");
         return fallbackText;
       }
       this.options.textEl.classList.add("is-done");
       this.setStatus("ready");
-      return finalText || this.options.textEl.textContent || "";
+      return finalText || this.rawText || "";
     } catch (err) {
       if (controller.signal.aborted) return "";
       const msg = err instanceof Error ? err.message : String(err);
       console.warn("[AiCoachPanel] stream failed", err);
-      this.options.textEl.textContent = fallbackText;
+      this.rawText = fallbackText;
+      this.options.textEl.innerHTML = renderMarkdown(fallbackText);
       this.options.textEl.classList.add("is-done", "is-error");
       this.renderErrorStatus(msg);
       return "";

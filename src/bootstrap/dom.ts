@@ -43,7 +43,6 @@ export interface DomRefs {
   fxFlash: HTMLElement;
   fxBurst: HTMLElement;
   fxCombo: HTMLElement;
-  coachingTip: HTMLElement;
   mirrorStage: HTMLElement;
 
   resultsScreen: HTMLElement;
@@ -131,11 +130,9 @@ export interface DomRefs {
   speedSlider: HTMLInputElement;
   timeSlider: HTMLInputElement;
   cameraButton: HTMLButtonElement;
-  runPipelineButton: HTMLElement;
   finishButton: HTMLElement;
   demoPerfectButton: HTMLButtonElement;
   demoComboButton: HTMLButtonElement;
-  demoAutoButton: HTMLButtonElement;
 }
 
 export function collectDomRefs(): DomRefs {
@@ -175,7 +172,6 @@ export function collectDomRefs(): DomRefs {
     fxFlash: $("#fxFlash"),
     fxBurst: $("#fxBurst"),
     fxCombo: $("#fxCombo"),
-    coachingTip: $("#coachingTip"),
     mirrorStage: $("#mirrorStage"),
 
     resultsScreen: $("#resultsScreen"),
@@ -263,10 +259,8 @@ export function collectDomRefs(): DomRefs {
     speedSlider: $("#speedSlider") as HTMLInputElement,
     timeSlider: $("#timeSlider") as HTMLInputElement,
     cameraButton: $("#cameraButton") as HTMLButtonElement,
-    runPipelineButton: $("#runPipelineButton"),
     finishButton: $("#finishButton"),
     demoPerfectButton: $("#demoPerfect") as HTMLButtonElement,
     demoComboButton: $("#demoCombo") as HTMLButtonElement,
-    demoAutoButton: $("#demoAuto") as HTMLButtonElement,
   };
 }

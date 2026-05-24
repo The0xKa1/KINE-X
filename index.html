@@ -83,10 +83,6 @@
               </svg>
               <span>Import</span>
             </button>
-            <button id="runPipelineButton" class="primary-button" type="button" hidden>
-              <svg aria-hidden="true" viewBox="0 0 24 24"><path d="m6 4 12 8-12 8V4Z" /></svg>
-              一键起势
-            </button>
           </div>
         </header>
 
@@ -125,8 +121,6 @@
 
               <div class="hud hud-tl"><span>FPS</span><strong id="fpsLabel">—</strong></div>
               <div class="hud hud-bl"><span>Δ</span><strong id="deltaLabel">—</strong></div>
-
-              <div id="coachingTip" class="coaching-tip"></div>
 
               <div id="calibrationOverlay" class="calibration-overlay" aria-live="polite" aria-atomic="true">
                 <strong id="calibrationTitle">校准中</strong>
@@ -183,7 +177,6 @@
               <div class="demo-fx" role="group" aria-label="演示触发">
                 <button id="demoPerfect" type="button" class="demo-fx-button" title="演示触发 PERFECT">P</button>
                 <button id="demoCombo" type="button" class="demo-fx-button" title="演示触发 COMBO">C</button>
-                <button id="demoAuto" type="button" class="demo-fx-button" title="演示自动循环（P+C）" aria-pressed="false">AUTO</button>
               </div>
             </div>
           </section>

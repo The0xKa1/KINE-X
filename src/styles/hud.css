@@ -78,25 +78,3 @@
   text-transform: uppercase;
   color: var(--muted);
 }
-
-.coaching-tip {
-  position: absolute;
-  z-index: 4;
-  max-width: 220px;
-  padding: 8px 10px 8px 12px;
-  border: var(--hairline);
-  border-left: 4px solid var(--hot);
-  background: var(--surface);
-  color: var(--ink);
-  font-family: var(--mono);
-  font-size: 11px;
-  line-height: 1.4;
-  pointer-events: none;
-  opacity: 0;
-  transform: translate(-50%, -50%);
-  transition: opacity 140ms linear;
-}
-
-.coaching-tip.is-visible {
-  opacity: 1;
-}

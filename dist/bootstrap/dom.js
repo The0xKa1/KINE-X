@@ -44,7 +44,6 @@ export const $$ =                    (selector        )      =>
                        
                        
                            
-                           
 
                              
                             
@@ -131,11 +130,9 @@ export const $$ =                    (selector        )      =>
                                 
                                
                                   
-                                 
                             
                                        
                                      
-                                    
  
 
 export function collectDomRefs()          {
@@ -175,7 +172,6 @@ export function collectDomRefs()          {
     fxFlash: $("#fxFlash"),
     fxBurst: $("#fxBurst"),
     fxCombo: $("#fxCombo"),
-    coachingTip: $("#coachingTip"),
     mirrorStage: $("#mirrorStage"),
 
     resultsScreen: $("#resultsScreen"),
@@ -263,10 +259,8 @@ export function collectDomRefs()          {
     speedSlider: $("#speedSlider")                    ,
     timeSlider: $("#timeSlider")                    ,
     cameraButton: $("#cameraButton")                     ,
-    runPipelineButton: $("#runPipelineButton"),
     finishButton: $("#finishButton"),
     demoPerfectButton: $("#demoPerfect")                     ,
     demoComboButton: $("#demoCombo")                     ,
-    demoAutoButton: $("#demoAuto")                     ,
   };
 }

@@ -98,7 +98,7 @@ export function applyLiveScore(packet: FrameStreamPacket, ctx: ScorerContext): v
 
   if (weightSum === 0) return;
   frame.score = Math.round(scoreSum / weightSum);
-  frame.combo = clamp(Math.floor((frame.score - 62) / 3), 1, 18);
+  frame.combo = clamp(Math.floor((frame.score - 65) / 3), 1, 18);
   frame.riskLabel =
     !worst || worst.risk === "good"
       ? "Clean alignment"

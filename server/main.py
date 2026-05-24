@@ -30,10 +30,7 @@ LLM_MODEL = os.environ.get("LLM_MODEL", "")
 
 ALLOWED_ORIGINS = [
     origin.strip()
-    for origin in os.environ.get(
-        "HOLOMOTION_CORS_ORIGINS",
-        "http://localhost:5173,http://127.0.0.1:5173",
-    ).split(",")
+    for origin in os.environ.get("HOLOMOTION_CORS_ORIGINS", "").split(",")
     if origin.strip()
 ]
 
@@ -48,12 +45,24 @@ CHAT_TIMEOUT_S = 60.0
 
 
 app = FastAPI(title="HoloMotion LLM Proxy", version="0.1.0")
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=ALLOWED_ORIGINS,
-    allow_methods=["POST", "GET", "OPTIONS"],
-    allow_headers=["Content-Type"],
-)
+if ALLOWED_ORIGINS:
+    # Explicit allow-list — useful in production / when you want to tighten things.
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=ALLOWED_ORIGINS,
+        allow_methods=["POST", "GET", "OPTIONS"],
+        allow_headers=["Content-Type"],
+    )
+else:
+    # Dev default: any http(s) origin (regex matches the Origin header pattern).
+    # No credentials are exchanged so this is safe enough for a single-developer
+    # dev box. Set HOLOMOTION_CORS_ORIGINS in .env to lock it down.
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origin_regex=r"^https?://[^/]+$",
+        allow_methods=["POST", "GET", "OPTIONS"],
+        allow_headers=["Content-Type"],
+    )
 
 
 class SampledFrame(BaseModel):

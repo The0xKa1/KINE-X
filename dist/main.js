@@ -2,12 +2,11 @@ import { ScoreBoard } from "./components/gameui/ScoreBoard.js";
 import { Timeline } from "./components/gameui/Timeline.js";
 import { SeedCarousel } from "./components/gameui/SeedCarousel.js";
 import { ComboBurst } from "./components/gameui/ComboBurst.js";
-import { CoachingTip } from "./components/gameui/CoachingTip.js";
+import { CalibrationOverlay } from "./components/gameui/CalibrationOverlay.js";
 import { ResultsScreen } from "./components/gameui/ResultsScreen.js";
 import { DnaExport } from "./components/gameui/DnaExport.js";
 import { DnaDrawer } from "./components/gameui/DnaDrawer.js";
 import { CameraSettings } from "./components/gameui/CameraSettings.js";
-import { CalibrationOverlay } from "./components/gameui/CalibrationOverlay.js";
 import { ImportDrawer } from "./components/gameui/ImportDrawer.js";
 import { AiCoachPanel } from "./components/gameui/AiCoachPanel.js";
 import { SessionStartOverlay } from "./components/gameui/SessionStartOverlay.js";
@@ -33,6 +32,8 @@ import { useWebSocket } from "./hooks/useWebSocket.js";
 
 const exercises                                 = { ...builtinExercises };
 const exerciseOrderList           = [...exerciseOrder];
+const meshClipBySeed = new Map                  ();
+let defaultMeshClip                  = null;
 const BACKEND_URL = resolveBackendUrl();
 
 function resolveBackendUrl()         {
@@ -59,8 +60,8 @@ function resolveBackendUrl()         {
 }
 import { collectDomRefs } from "./bootstrap/dom.js";
 import { ConnectionIndicator, renderDnaList, beatsPerMinute } from "./bootstrap/uiHelpers.js";
-import { buildFrameThumbnails, getCoachClipManifest, loadCoachClip } from "./core/import/loadCoachClip.js";
-import { loadMeshClip } from "./core/import/MeshClip.js";
+import { buildFrameThumbnails, buildFrameThumbnailsFromMeta, getCoachClipManifest, loadCoachClip } from "./core/import/loadCoachClip.js";
+import { loadMeshClip,               } from "./core/import/MeshClip.js";
                                                                                                  
 
 const dom = collectDomRefs();
@@ -203,12 +204,6 @@ const comboBurst = new ComboBurst({
   audio,
 });
 
-const coachingTip = new CoachingTip({
-  bus,
-  bubble: dom.coachingTip,
-  stage: dom.mirrorStage,
-});
-void coachingTip;
 
 const dnaExport = new DnaExport({
   root: dom.dnaExport,
@@ -369,8 +364,8 @@ const importDrawer = new ImportDrawer({
     };
     exercises[newId] = config;
     seedCarousel.addSeed(newId, config);
-    if (meshClip) stage.setMeshClip(meshClip);
-    else stage.clearMeshClip();
+    if (meshClip) meshClipBySeed.set(newId, meshClip);
+    else meshClipBySeed.delete(newId);
     shell.setPlaying(false);
     setExercise(newId, `Imported · ${name}`);
     importDrawer.close();
@@ -514,30 +509,6 @@ dom.demoComboButton.addEventListener("click", () => {
   audio.resume();
   comboBurst.triggerComboDemo();
 });
-let demoAutoTimer = 0;
-let demoAutoTick = 0;
-dom.demoAutoButton.addEventListener("click", () => {
-  audio.enable();
-  audio.resume();
-  if (demoAutoTimer) {
-    window.clearInterval(demoAutoTimer);
-    demoAutoTimer = 0;
-    dom.demoAutoButton.classList.remove("is-active");
-    dom.demoAutoButton.setAttribute("aria-pressed", "false");
-    return;
-  }
-  dom.demoAutoButton.classList.add("is-active");
-  dom.demoAutoButton.setAttribute("aria-pressed", "true");
-  demoAutoTick = 0;
-  // Fire one immediately so the user sees feedback on click.
-  comboBurst.triggerComboDemo();
-  demoAutoTimer = window.setInterval(() => {
-    demoAutoTick += 1;
-    // Alternate combo every tick, perfect every 3 ticks (~3.6s).
-    comboBurst.triggerComboDemo();
-    if (demoAutoTick % 3 === 0) comboBurst.triggerPerfectDemo();
-  }, 1200);
-});
 
 window.addEventListener(
   "pointerdown",
@@ -559,12 +530,15 @@ void stage.preload().then(async () => {
   stage.start();
   const wsUrl = new URLSearchParams(window.location.search).get("ws") ?? DEFAULT_WS_URL;
   socket.connect(wsUrl);
+  // Fire-and-forget so a slow/unreachable backend (port-forward without :8765)
+  // doesn't block stage.start() — imported seeds drop into the carousel later.
+  void hydrateImportedJobs();
 });
 
 async function hydrateMeshClip()                {
   try {
     const clip = await loadMeshClip("public/coach_clips/single_leg_squat.mesh.meta.json");
-    stage.setMeshClip(clip);
+    defaultMeshClip = clip;
     console.info(
       `[mesh-clip] loaded ${clip.meta.frameCount} frames · ${clip.meta.vertexCount} verts · ${clip.meta.faceCount} faces`,
     );
@@ -594,6 +568,79 @@ async function hydrateCoachClips()                {
   );
 }
 
+                        
+                
+                       
+                          
+                    
+                       
+                     
+                          
+                          
+              
+               
+                     
+ 
+
+async function hydrateImportedJobs()                {
+  let payload                          ;
+  try {
+    // 4s timeout — if the backend isn't reachable (e.g. port-forward without
+    // :8765) we want to drop the work, not block the carousel forever.
+    const ctrl = new AbortController();
+    const timer = window.setTimeout(() => ctrl.abort(), 4000);
+    const resp = await fetch(`${BACKEND_URL}/import/jobs`, { signal: ctrl.signal });
+    window.clearTimeout(timer);
+    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+    payload = (await resp.json())                            ;
+  } catch (err) {
+    console.warn("[imported-jobs] skip:", err);
+    return;
+  }
+  await Promise.all(payload.jobs.map((job) => hydrateOneJob(job)));
+}
+
+async function hydrateOneJob(job              )                {
+  try {
+    const [clip, meshClip] = await Promise.all([
+      loadCoachClip(job.coachClipUrl),
+      loadMeshClip(job.meshClipMetaUrl).catch((err) => {
+        console.warn(`[imported-jobs] mesh skip ${job.jobId}:`, err);
+        return null;
+      }),
+    ]);
+    clip.thumbnails = buildFrameThumbnailsFromMeta({
+      framesDir: job.framesDir,
+      framePattern: job.framePattern,
+      frameCount: job.frameCount,
+      thumbnailCount: job.thumbnailCount,
+    });
+    const newId = `imported-${job.jobId}`;
+    const config                 = {
+      id: newId,
+      name: job.name,
+      discipline: "Imported",
+      seedUrl: "",
+      durationSeconds: clip.durationSeconds,
+      motion: job.motion,
+      target: "用户导入动作",
+      params: {
+        beta: "",
+        theta: "",
+        trans: "",
+        format: "imported.coach_clip.v1",
+      },
+      metrics: pickMetricsForMotion(job.motion),
+      clip,
+    };
+    exercises[newId] = config;
+    seedCarousel.addSeed(newId, config);
+    if (meshClip) meshClipBySeed.set(newId, meshClip);
+  } catch (err) {
+    console.warn(`[imported-jobs] skip ${job.jobId}:`, err);
+  }
+}
+
 function setMode(nextMode            )       {
   state.mode = nextMode;
   stage.setMode(nextMode);
@@ -608,9 +655,23 @@ function setExercise(nextId        , message        )       {
   const exercise = exercises[nextId];
   if (!exercise) return;
   state.exerciseId = nextId;
+  applyMeshForSeed(nextId);
   connection.set(message, "busy");
   bus.emit("seed:update", { exercise, message });
   window.setTimeout(() => connection.set("Action DNA cache refreshed", "ready"), 420);
+}
+
+function applyMeshForSeed(seedId        )       {
+  const override = meshClipBySeed.get(seedId);
+  if (override) {
+    stage.setMeshClip(override);
+    return;
+  }
+  if (defaultMeshClip) {
+    stage.setMeshClip(defaultMeshClip);
+    return;
+  }
+  stage.clearMeshClip();
 }
 
 function pickMetricsForMotion(motion            )                    {
