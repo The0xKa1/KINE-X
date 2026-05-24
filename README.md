@@ -1,5 +1,14 @@
 # HoloMotion
 
+[![TypeScript](https://img.shields.io/badge/TypeScript-5-3178C6?logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
+[![Three.js](https://img.shields.io/badge/Three.js-r160-000000?logo=threedotjs&logoColor=white)](https://threejs.org/)
+[![MediaPipe](https://img.shields.io/badge/MediaPipe-Tasks_Vision-4285F4?logo=google&logoColor=white)](https://developers.google.com/mediapipe)
+[![FastAPI](https://img.shields.io/badge/FastAPI-0.110+-009688?logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com/)
+[![Python](https://img.shields.io/badge/Python-3.10+-3776AB?logo=python&logoColor=white)](https://www.python.org/)
+[![Node.js](https://img.shields.io/badge/Node.js-22+-339933?logo=node.js&logoColor=white)](https://nodejs.org/)
+[![SAM 3D Body](https://img.shields.io/badge/SAM_3D_Body-SMPL--X-FF6F00)](https://github.com/facebookresearch/sam)
+[![Status](https://img.shields.io/badge/status-prototype-orange)](#)
+
 > 把一段短视频动作，转成可交互、可跟练、可评分的实时 AI 运动教练。
 
 HoloMotion 是一个面向运动教学、健身跟练和黑客松现场演示的 Web 原型系统。用户可以导入标准动作视频，系统将其转化为 Action DNA、3D 骨骼轨迹与可播放的虚拟教练；练习者打开摄像头后，浏览器端实时提取身体关键点，与标准动作进行逐帧对齐、评分和风险提示，并在训练结束后生成 AI 教练点评。
@@ -20,31 +29,25 @@ HoloMotion 是一个面向运动教学、健身跟练和黑客松现场演示的
 
 ## 演示视频
 
-下面的片段来自本地演示录屏，已剪成 720p 级别的 README 预览素材。支持 HTML video 的渲染器可以直接播放；如果 GitHub 页面没有内联播放，点击备用链接即可打开 mp4。
+下面三段是从本地演示录屏抽出的 5–6 秒循环预览（GIF，480p / 12fps），README 中直接内联播放。完整 720p mp4 在每段预览下方的链接里。
 
 ### MLLM 动作分片
 
-<video src="docs/demo/01-mllm-segmentation.mp4" poster="docs/demo/01-mllm-segmentation-poster.png" controls muted playsinline width="100%"></video>
+<img src="docs/demo/01-mllm-segmentation.gif" alt="MLLM 动作分片" width="560">
 
-对上传视频做关键帧采样与多模态理解，输出可选择的动作片段。
-
-备用链接：[打开视频](docs/demo/01-mllm-segmentation.mp4)
+对上传视频做关键帧采样与多模态理解，输出可选择的动作片段。完整版：[01-mllm-segmentation.mp4](docs/demo/01-mllm-segmentation.mp4)
 
 ### 视频上传与 3D 重建
 
-<video src="docs/demo/02-video-to-3d-reconstruction.mp4" poster="docs/demo/02-video-to-3d-reconstruction-poster.png" controls muted playsinline width="100%"></video>
+<img src="docs/demo/02-video-to-3d-reconstruction.gif" alt="视频上传与 3D 重建" width="560">
 
-将选中片段送入 SAM 3D Body 导入后端，生成新的 CoachClip / MeshClip 并加入动作种子。
-
-备用链接：[打开视频](docs/demo/02-video-to-3d-reconstruction.mp4)
+将选中片段送入 SAM 3D Body 导入后端，生成新的 CoachClip / MeshClip 并加入动作种子。完整版：[02-video-to-3d-reconstruction.mp4](docs/demo/02-video-to-3d-reconstruction.mp4)
 
 ### 深蹲实时跟练
 
-<video src="docs/demo/03-squat-live-coaching.mp4" poster="docs/demo/03-squat-live-coaching-poster.png" controls muted playsinline width="100%"></video>
+<img src="docs/demo/03-squat-live-coaching.gif" alt="深蹲实时跟练" width="560">
 
-展示摄像头跟练、倒计时启动、3D 标准动作、实时 SYNC 分数与动作反馈。
-
-备用链接：[打开视频](docs/demo/03-squat-live-coaching.mp4)
+展示摄像头跟练、倒计时启动、3D 标准动作、实时 SYNC 分数与动作反馈。完整版：[03-squat-live-coaching.mp4](docs/demo/03-squat-live-coaching.mp4)
 
 ## 系统架构
 
