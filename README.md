@@ -1,5 +1,7 @@
 # HoloMotion
 
+[![Award](https://img.shields.io/badge/🏆_抖音AI创变计划-长三角TOP高校站黑客松_二等奖-FF1744?style=for-the-badge)](#)
+
 [![TypeScript](https://img.shields.io/badge/TypeScript-5-3178C6?logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
 [![Three.js](https://img.shields.io/badge/Three.js-r160-000000?logo=threedotjs&logoColor=white)](https://threejs.org/)
 [![MediaPipe](https://img.shields.io/badge/MediaPipe-Tasks_Vision-4285F4?logo=google&logoColor=white)](https://developers.google.com/mediapipe)
@@ -11,21 +13,20 @@
 
 > 把一段短视频动作，转成可交互、可跟练、可评分的实时 AI 运动教练。
 
+<table>
+<tr>
+<td width="70%" valign="top">
+
 HoloMotion 是一个面向运动教学、健身跟练和黑客松现场演示的 Web 原型系统。用户可以导入标准动作视频，系统将其转化为 Action DNA、3D 骨骼轨迹与可播放的虚拟教练；练习者打开摄像头后，浏览器端实时提取身体关键点，与标准动作进行逐帧对齐、评分和风险提示，并在训练结束后生成 AI 教练点评。
 
 项目重点不是“播放一个视频”，而是把视频里的动作结构化为可计算的运动序列，让用户能旋转观察、慢放拆解、实时比对，并获得关节级反馈。
 
-![HoloMotion visual design reference](docs/design.png)
-
-## 核心亮点
-
-- **短视频生成虚拟教练**：上传 mp4 / webm 后，后端可通过 SAM 3D Body 生成 `coach.json`、SMPL-X mesh 与逐帧缩略图，前端直接加载为新的动作种子。
-- **浏览器端实时姿态估计**：MediaPipe Pose / Hand / Face 资产随仓库离线提供，运行时不依赖 CDN 即可完成本地检测。
-- **动作级实时评分**：摄像头采集用户姿态，按关节角度、骨骼方向、3D 距离和动作历史窗口做匹配，输出综合同步分、Combo 与风险关节。
-- **可交互 3D 动作舞台**：标准动作在右侧全息舞台中播放，支持 front / side / top 视角、拖拽旋转、滚轮缩放和时间轴 scrub。
-- **标定与延迟容忍**：T-pose 标定用于适配不同身高体型；CoachHistory 滑动窗口吸收用户比教练慢半拍的自然反应延迟。
-- **AI 教练总结**：训练结束后将 SessionSummary 交给 OpenAI-compatible LLM 代理，流式输出中文动作反馈。
-- **前后端解耦**：高频帧进入 `MotionFrameBuffer`，渲染层由 RAF 主动拉取；低频 UI 事件走 `EventBus`，方便替换真实 WebSocket 后端。
+</td>
+<td width="30%" valign="top">
+  <img src="docs/design.png" alt="HoloMotion visual design reference">
+</td>
+</tr>
+</table>
 
 ## 演示视频
 
@@ -48,6 +49,16 @@ HoloMotion 是一个面向运动教学、健身跟练和黑客松现场演示的
 <img src="docs/demo/03-squat-live-coaching.gif" alt="深蹲实时跟练" width="560">
 
 展示摄像头跟练、倒计时启动、3D 标准动作、实时 SYNC 分数与动作反馈。完整版：[03-squat-live-coaching.mp4](docs/demo/03-squat-live-coaching.mp4)
+
+## 核心亮点
+
+- **短视频生成虚拟教练**：上传 mp4 / webm 后，后端可通过 SAM 3D Body 生成 `coach.json`、SMPL-X mesh 与逐帧缩略图，前端直接加载为新的动作种子。
+- **浏览器端实时姿态估计**：MediaPipe Pose / Hand / Face 资产随仓库离线提供，运行时不依赖 CDN 即可完成本地检测。
+- **动作级实时评分**：摄像头采集用户姿态，按关节角度、骨骼方向、3D 距离和动作历史窗口做匹配，输出综合同步分、Combo 与风险关节。
+- **可交互 3D 动作舞台**：标准动作在右侧全息舞台中播放，支持 front / side / top 视角、拖拽旋转、滚轮缩放和时间轴 scrub。
+- **标定与延迟容忍**：T-pose 标定用于适配不同身高体型；CoachHistory 滑动窗口吸收用户比教练慢半拍的自然反应延迟。
+- **AI 教练总结**：训练结束后将 SessionSummary 交给 OpenAI-compatible LLM 代理，流式输出中文动作反馈。
+- **前后端解耦**：高频帧进入 `MotionFrameBuffer`，渲染层由 RAF 主动拉取；低频 UI 事件走 `EventBus`，方便替换真实 WebSocket 后端。
 
 ## 系统架构
 
@@ -250,7 +261,6 @@ npm run check
 - 将 `MotionFrame` 固化为 OpenAPI / JSON Schema 文档
 - 为更多动作类型补充专业评分权重与风险规则
 - 增加训练计划、课程内容与多 Session 趋势分析
-- 补充 GitHub README demo 视频、答辩短片与产品截图
 
 ## 为什么是 HoloMotion
 
