@@ -1,6 +1,6 @@
 # HoloMotion
 
-[![Award](https://img.shields.io/badge/🏆_抖音AI创变计划-长三角TOP高校站黑客松_二等奖-FF1744?style=for-the-badge)](#)
+[![Award](https://img.shields.io/badge/🏆_抖音AI创变计划-长三角TOP高校站黑客松_赛道二_二等奖-FF1744?style=for-the-badge)](#)
 
 [![TypeScript](https://img.shields.io/badge/TypeScript-5-3178C6?logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
 [![Three.js](https://img.shields.io/badge/Three.js-r160-000000?logo=threedotjs&logoColor=white)](https://threejs.org/)
@@ -11,7 +11,9 @@
 [![SAM 3D Body](https://img.shields.io/badge/SAM_3D_Body-SMPL--X-FF6F00)](https://github.com/facebookresearch/sam)
 [![Status](https://img.shields.io/badge/status-prototype-orange)](#)
 
-> 把一段短视频动作，转成可交互、可跟练、可评分的实时 AI 运动教练。
+## 状态说明
+
+> **由于大区赛阶段更换赛道，本作品暂不继续打磨。**
 
 <table>
 <tr>
@@ -19,7 +21,7 @@
 
 HoloMotion 是一个面向运动教学、健身跟练和黑客松现场演示的 Web 原型系统。用户可以导入标准动作视频，系统将其转化为 Action DNA、3D 骨骼轨迹与可播放的虚拟教练；练习者打开摄像头后，浏览器端实时提取身体关键点，与标准动作进行逐帧对齐、评分和风险提示，并在训练结束后生成 AI 教练点评。
 
-项目重点不是“播放一个视频”，而是把视频里的动作结构化为可计算的运动序列，让用户能旋转观察、慢放拆解、实时比对，并获得关节级反馈。
+把视频里的动作结构化为可计算的运动序列，让用户能旋转观察、慢放拆解、实时比对，并获得关节级反馈。
 
 </td>
 <td width="30%" valign="top">
