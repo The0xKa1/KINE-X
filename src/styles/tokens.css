@@ -1,18 +1,23 @@
 :root {
   color-scheme: light;
-  --bg: #f4f4f2;
-  --surface: #ffffff;
+  --bg: #e9e4d8;
+  --paper: #f7f1e5;
+  --surface: var(--paper);
   --ink: #111111;
   --ink-soft: #2a2a2a;
-  --muted: #6b6b6b;
+  --muted: #615c53;
   --rule: #111111;
-  --rule-soft: rgba(17, 17, 17, 0.18);
-  --cool: #5c7c9e;
-  --hot: #ff5500;
+  --rule-soft: rgba(17, 17, 17, 0.22);
+  --line-soft: rgba(17, 17, 17, 0.12);
+  --cool: #111111;
+  --hot: #ff4d00;
   --invert-bg: #111111;
   --invert-fg: #ffffff;
-  --hairline: 1px solid var(--rule);
-  --sans: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Helvetica Neue", Arial, sans-serif;
+  --hairline: 2px solid var(--rule);
+  --heavy-rule: 5px solid var(--rule);
+  --slant: -7deg;
+  --sans: "Noto Sans SC", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Helvetica Neue", Arial, sans-serif;
+  --display: "Archivo Black", "Noto Sans SC", ui-sans-serif, sans-serif;
   --mono: "JetBrains Mono", ui-monospace, "SFMono-Regular", Menlo, Consolas, "Liberation Mono", monospace;
   font-family: var(--sans);
 }

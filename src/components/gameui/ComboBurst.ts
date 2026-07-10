@@ -60,7 +60,7 @@ export class ComboBurst {
     this.lastBurst = performance.now();
     this.perfectFrames += 1;
     this.fireBurst();
-    this.spawnConfetti(12);
+    this.spawnShards(8);
     this.options.audio.perfect();
   }
 
@@ -84,7 +84,7 @@ export class ComboBurst {
     if (payload.score >= PERFECT_THRESHOLD && now - this.lastBurst > PERFECT_THROTTLE_MS) {
       this.lastBurst = now;
       this.fireBurst();
-      this.spawnConfetti(8);
+      this.spawnShards(6);
       this.options.audio.perfect();
     }
 
@@ -109,17 +109,16 @@ export class ComboBurst {
     this.replay(this.options.combo, "is-firing");
   }
 
-  private spawnConfetti(count: number): void {
+  private spawnShards(count: number): void {
     const layer = this.options.fxLayer;
     for (let i = 0; i < count; i += 1) {
       const dot = document.createElement("span");
-      dot.className = "fx-confetti";
+      dot.className = "fx-shard";
       const angle = (i / count) * Math.PI * 2 + Math.random() * 0.4;
       const distance = 110 + Math.random() * 80;
       dot.style.setProperty("--dx", `${Math.cos(angle) * distance}px`);
       dot.style.setProperty("--dy", `${Math.sin(angle) * distance}px`);
-      dot.style.setProperty("--rot", `${Math.floor(Math.random() * 360)}deg`);
-      dot.style.setProperty("--hue", `${Math.floor(Math.random() * 60) + 20}`);
+      dot.style.setProperty("--rot", `${Math.floor(Math.random() * 80) - 40}deg`);
       layer.appendChild(dot);
       window.setTimeout(() => dot.remove(), 900);
     }
