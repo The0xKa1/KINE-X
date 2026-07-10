@@ -37,7 +37,7 @@ let defaultMeshClip: MeshClip | null = null;
 const BACKEND_URL = resolveBackendUrl();
 
 function resolveBackendUrl(): string {
-  const STORAGE_KEY = "holomotion.backendUrl";
+  const STORAGE_KEY = "kinex.backendUrl";
   let stored: string | null = null;
   try {
     stored = localStorage.getItem(STORAGE_KEY);
@@ -96,7 +96,7 @@ const calibrationController = new CalibrationController(userPose, profileStore);
 const coachHistory = new CoachHistory();
 const sessionRecorder = new SessionRecorder(bus);
 const sessionGate = new SessionGate({ bus });
-const CALIBRATION_SKIP_KEY = "holomotion.calibrationSkipped.v1";
+const CALIBRATION_SKIP_KEY = "kinex.calibrationSkipped.v1";
 function readCalibrationSkipped(): boolean {
   try {
     return localStorage.getItem(CALIBRATION_SKIP_KEY) === "1";

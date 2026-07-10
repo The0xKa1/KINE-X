@@ -36,7 +36,7 @@ interface CameraSettingsOptions {
   callbacks: CameraSettingsCallbacks;
 }
 
-const STORAGE_KEY = "holomotion.cameraSettings.v1";
+const STORAGE_KEY = "kinex.cameraSettings.v1";
 
 interface PersistedSettings {
   settings: WebCamSettings;

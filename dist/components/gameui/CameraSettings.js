@@ -36,7 +36,7 @@ import { drawerStack } from "../../core/DrawerStack.js";
                                      
  
 
-const STORAGE_KEY = "holomotion.cameraSettings.v1";
+const STORAGE_KEY = "kinex.cameraSettings.v1";
 
                              
                            

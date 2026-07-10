@@ -1,4 +1,4 @@
-"""HoloMotion LLM proxy backend.
+"""KINE//X LLM proxy backend.
 
 Holds the LLM credentials (LLM_BASE_URL / LLM_API_KEY / LLM_MODEL) so the
 browser never sees them. Exposes two endpoints that mirror what the
@@ -30,12 +30,12 @@ LLM_MODEL = os.environ.get("LLM_MODEL", "")
 
 ALLOWED_ORIGINS = [
     origin.strip()
-    for origin in os.environ.get("HOLOMOTION_CORS_ORIGINS", "").split(",")
+    for origin in os.environ.get("KINEX_CORS_ORIGINS", "").split(",")
     if origin.strip()
 ]
 
 SEGMENT_SYSTEM_PROMPT = (
-    "你是 HoloMotion 的运动视频分析引擎。只输出 JSON，不要输出 Markdown。"
+    "你是 KINE//X 的运动视频分析引擎。只输出 JSON，不要输出 Markdown。"
     "用户会按时间顺序给你若干张关键帧，每张都标有时间戳（秒）。"
     "你需要根据动作变化把视频切分成若干段，每段对应一个完整动作单元，并给出元数据。"
 )
@@ -44,7 +44,7 @@ SEGMENT_TIMEOUT_S = 300.0
 CHAT_TIMEOUT_S = 60.0
 
 
-app = FastAPI(title="HoloMotion LLM Proxy", version="0.1.0")
+app = FastAPI(title="KINE//X LLM Proxy", version="0.1.0")
 if ALLOWED_ORIGINS:
     # Explicit allow-list — useful in production / when you want to tighten things.
     app.add_middleware(
@@ -56,7 +56,7 @@ if ALLOWED_ORIGINS:
 else:
     # Dev default: any http(s) origin (regex matches the Origin header pattern).
     # No credentials are exchanged so this is safe enough for a single-developer
-    # dev box. Set HOLOMOTION_CORS_ORIGINS in .env to lock it down.
+    # dev box. Set KINEX_CORS_ORIGINS in .env to lock it down.
     app.add_middleware(
         CORSMiddleware,
         allow_origin_regex=r"^https?://[^/]+$",

@@ -21,7 +21,7 @@
     
  
 
-const STORAGE_KEY = "holomotion.userProfile.v1";
+const STORAGE_KEY = "kinex.userProfile.v1";
 
 export class UserProfileStore {
           profile                     = null;

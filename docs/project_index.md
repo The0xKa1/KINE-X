@@ -2,7 +2,7 @@
 
 ## 定位
 
-HoloMotion / Phi-Momentum 的项目结构索引。
+KINE//X 的项目结构索引。
 不记录开发流水。
 只保留稳定结构和维护规则。
 

@@ -1,4 +1,4 @@
-"""Bake stacked SAM 3D Body MHR vertices into a HoloMotion mesh clip.
+"""Bake stacked SAM 3D Body MHR vertices into a KINE//X mesh clip.
 
 Mirrors sam_3d_body/bake_smplx_mesh_clip.py but exposes `run(...)` for use as
 a library and parameterises all paths.
@@ -117,7 +117,7 @@ def run(
         "vertexDtype": "float32",
         "faceDtype": "uint32",
         "source": "sam-3d-body + mhr2smplx barycentric",
-        "format": "holomotion.mesh_clip.v1",
+        "format": "kinex.mesh_clip.v1",
         "unit": "meters",
         "handedness": "right-hand",
     }

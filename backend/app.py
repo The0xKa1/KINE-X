@@ -17,7 +17,7 @@ from fastapi.responses import JSONResponse
 
 from . import config, pipeline
 
-logger = logging.getLogger("holomotion.backend")
+logger = logging.getLogger("kinex.backend")
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(name)s: %(message)s")
 
 VALID_MOTIONS = {"squat", "hinge", "flow", "bounce", "throw"}
@@ -60,7 +60,7 @@ def _cuda_available() -> bool:
         return False
 
 
-app = FastAPI(title="HoloMotion import service", lifespan=lifespan)
+app = FastAPI(title="KINE//X import service", lifespan=lifespan)
 app.add_middleware(
     CORSMiddleware,
     allow_origin_regex=r"^https?://(localhost|127\.0\.0\.1)(:\d+)?$",
@@ -150,7 +150,7 @@ async def import_video(
     job_id = f"{time.strftime('%Y%m%d-%H%M%S')}-{uuid.uuid4().hex[:6]}"
     suffix = Path(file.filename or "upload.mp4").suffix or ".mp4"
 
-    with tempfile.TemporaryDirectory(prefix="holomotion-upload-") as tmpdir:
+    with tempfile.TemporaryDirectory(prefix="kinex-upload-") as tmpdir:
         upload_path = Path(tmpdir) / f"input{suffix}"
         with upload_path.open("wb") as fh:
             shutil.copyfileobj(file.file, fh)

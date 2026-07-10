@@ -1,4 +1,4 @@
-"""Export a HoloMotion CoachClip JSON from a stacked SAM 3D Body npz.
+"""Export a KINE//X CoachClip JSON from a stacked SAM 3D Body npz.
 
 Mirrors sam_3d_body/export_coach_clip.py but exposes `run(...)` for use as a
 library and parameterises paths + seed metadata.
@@ -192,7 +192,7 @@ def run(
             "appliedScale": round(applied_scale, 6),
             "pelvisXZMean": pelvis_mean.tolist(),
             "frameCount": len(frames),
-            "format": "holomotion.coach_clip.v1",
+            "format": "kinex.coach_clip.v1",
             "unit": "meters",
             "handedness": "right-hand",
         },

@@ -1,4 +1,4 @@
-# HoloMotion
+# KINE//X
 
 [![Award](https://img.shields.io/badge/🏆_抖音AI创变计划-长三角TOP高校站黑客松_赛道二_二等奖-FF1744?style=for-the-badge)](#)
 
@@ -19,13 +19,13 @@
 <tr>
 <td width="70%" valign="top">
 
-HoloMotion 是一个面向运动教学、健身跟练和黑客松现场演示的 Web 原型系统。用户可以导入标准动作视频，系统将其转化为 Action DNA、3D 骨骼轨迹与可播放的虚拟教练；练习者打开摄像头后，浏览器端实时提取身体关键点，与标准动作进行逐帧对齐、评分和风险提示，并在训练结束后生成 AI 教练点评。
+KINE//X 是一个面向运动教学、健身跟练和黑客松现场演示的 Web 原型系统。用户可以导入标准动作视频，系统将其转化为 Action DNA、3D 骨骼轨迹与可播放的虚拟教练；练习者打开摄像头后，浏览器端实时提取身体关键点，与标准动作进行逐帧对齐、评分和风险提示，并在训练结束后生成 AI 教练点评。
 
 把视频里的动作结构化为可计算的运动序列，让用户能旋转观察、慢放拆解、实时比对，并获得关节级反馈。
 
 </td>
 <td width="30%" valign="top">
-  <img src="docs/design.png" alt="HoloMotion visual design reference">
+  <img src="docs/design.png" alt="KINE//X visual design reference">
 </td>
 </tr>
 </table>
@@ -68,7 +68,7 @@ HoloMotion 是一个面向运动教学、健身跟练和黑客松现场演示的
 flowchart LR
   A["标准动作视频"] --> B["Import Backend :8765<br/>SAM 3D Body / SMPL-X"]
   B --> C["CoachClip + MeshClip<br/>coach.json / mesh.bin / thumbnails"]
-  C --> D["HoloMotion Frontend<br/>TypeScript + Canvas / Three.js"]
+  C --> D["KINE//X Frontend<br/>TypeScript + Canvas / Three.js"]
   E["用户摄像头"] --> F["MediaPipe Tasks Vision<br/>Pose / Hand / Face"]
   F --> G["PoseScorer<br/>关节角度 / 骨骼方向 / 3D 距离"]
   D --> G
@@ -148,7 +148,7 @@ npm run server
 
 ### 3. 启动 SAM 3D Body 导入后端
 
-视频导入服务位于 `backend/`，用于把上传视频转为 HoloMotion 可消费的动作资源。该服务需要本机已准备好 SAM 3D Body、MHR、SMPL-X 相关模型资产。
+视频导入服务位于 `backend/`，用于把上传视频转为 KINE//X 可消费的动作资源。该服务需要本机已准备好 SAM 3D Body、MHR、SMPL-X 相关模型资产。
 
 ```bash
 # 根据你的 Python / CUDA / 模型路径环境调整
@@ -264,13 +264,13 @@ npm run check
 - 为更多动作类型补充专业评分权重与风险规则
 - 增加训练计划、课程内容与多 Session 趋势分析
 
-## 为什么是 HoloMotion
+## 为什么是 KINE//X
 
-传统运动视频只能“看”，HoloMotion 想把它变成可以计算、可以比较、可以反馈的动作对象。它适合用来展示：
+传统运动视频只能“看”，KINE//X 想把它变成可以计算、可以比较、可以反馈的动作对象。它适合用来展示：
 
 - AI 如何把短视频内容转化为结构化动作数据
 - 浏览器端如何完成低延迟姿态估计和实时评分
 - 运动教学如何从单向观看升级为交互式训练
 - 前端如何在没有重模型实时推理压力的情况下，承接一个可扩展的 3D / AI 体验
 
-HoloMotion 当前仍是原型，但它已经具备完整演示闭环：导入标准动作、生成虚拟教练、开启摄像头跟练、实时评分、结算复盘与 AI 教练反馈。
+KINE//X 当前仍是原型，但它已经具备完整演示闭环：导入标准动作、生成虚拟教练、开启摄像头跟练、实时评分、结算复盘与 AI 教练反馈。

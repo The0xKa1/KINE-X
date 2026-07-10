@@ -1,4 +1,4 @@
-# HoloMotion LLM Proxy Backend
+# KINE//X LLM Proxy Backend
 
 A tiny FastAPI service that holds the LLM credentials so the browser never
 sees them. The frontend used to read `baseUrl` / `apiKey` / `model` from a
@@ -35,7 +35,7 @@ npm run dev                          # frontend on :5173
 | `LLM_BASE_URL`            | yes      | e.g. `https://api.openai-next.com`        |
 | `LLM_API_KEY`             | yes      | bearer token                              |
 | `LLM_MODEL`               | yes      | e.g. `gpt-5.5`                            |
-| `HOLOMOTION_CORS_ORIGINS` | no       | comma list; defaults to localhost:5173    |
+| `KINEX_CORS_ORIGINS` | no       | comma list; defaults to localhost:5173    |
 
 The `.env` file is sourced by the `npm run server` script (`set -a; source
 .env; set +a`). No python-dotenv dependency.
@@ -49,7 +49,7 @@ curl -s http://localhost:8766/api/health | jq
 # streaming chat (small request, fast feedback)
 curl -N -X POST http://localhost:8766/api/chat-stream \
   -H "Content-Type: application/json" \
-  -d '{"messages":[{"role":"user","content":"用一句话介绍 HoloMotion"}],"max_tokens":80,"temperature":0.6}'
+  -d '{"messages":[{"role":"user","content":"用一句话介绍 KINE//X"}],"max_tokens":80,"temperature":0.6}'
 ```
 
 You should see `data: {...}` SSE lines ending with `data: [DONE]`.

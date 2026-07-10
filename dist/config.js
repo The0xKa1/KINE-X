@@ -1,5 +1,5 @@
 export const API_BASE_URL = (() => {
-  const STORAGE_KEY = "holomotion.apiBaseUrl";
+  const STORAGE_KEY = "kinex.apiBaseUrl";
   const trim = (raw        ) => raw.replace(/\/$/, "");
 
   const fromQuery = new URLSearchParams(window.location.search).get("api");

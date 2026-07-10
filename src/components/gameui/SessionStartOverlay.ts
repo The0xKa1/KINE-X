@@ -117,7 +117,7 @@ export class SessionStartOverlay {
     const pct = Math.round(state.holdProgress * 100);
     this.options.gestureBar.style.setProperty("--value", `${pct}%`);
     if (typeof window !== "undefined") {
-      (window as unknown as { __holomotionGesture?: GestureProgressPayload }).__holomotionGesture = state;
+      (window as unknown as { __kinexGesture?: GestureProgressPayload }).__kinexGesture = state;
     }
   }
 }

@@ -155,7 +155,7 @@ def main():
         "vertexDtype": "float32",
         "faceDtype": "uint32",
         "source": "sam-3d-body + mhr2smplx barycentric",
-        "format": "holomotion.mesh_clip.v1",
+        "format": "kinex.mesh_clip.v1",
         "unit": "meters",
         "handedness": "right-hand",
     }

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Export a HoloMotion CoachClip JSON from a stacked SAM 3D Body smpl_data.npz.
+"""Export a KINE//X CoachClip JSON from a stacked SAM 3D Body smpl_data.npz.
 
 The NPZ is the per-video aggregate produced by sam/output/scripts/pack_smpl_like_data.py.
 We map mhr70 keypoints to the 17-joint skeleton the frontend renders, convert MHR
@@ -244,7 +244,7 @@ def main() -> None:
             "appliedScale": round(applied_scale, 6),
             "pelvisXZMean": pelvis_mean.tolist(),
             "frameCount": len(frames),
-            "format": "holomotion.coach_clip.v1",
+            "format": "kinex.coach_clip.v1",
             "unit": "meters",
             "handedness": "right-hand",
         },

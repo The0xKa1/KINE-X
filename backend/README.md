@@ -1,6 +1,6 @@
-# HoloMotion Import Backend
+# KINE//X Import Backend
 
-FastAPI service that turns an uploaded short video into a HoloMotion seed
+FastAPI service that turns an uploaded short video into a KINE//X seed
 (`coach.json` + `mesh.{bin,faces.bin,meta.json}` + frame jpgs) using SAM 3D Body
 inference and the existing MHR→SMPLX baker.
 
@@ -81,7 +81,7 @@ query string — it's cached to `localStorage` afterward:
 http://<frontend-host>:<frontend-port>/?backend=http://localhost:18765
 ```
 
-Clear it via DevTools → Application → Local Storage → remove `holomotion.backendUrl`.
+Clear it via DevTools → Application → Local Storage → remove `kinex.backendUrl`.
 
 CORS is permissive for any `http(s)://localhost(:port)` or `http(s)://127.0.0.1(:port)`.
 
