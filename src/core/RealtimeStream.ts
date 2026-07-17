@@ -3,7 +3,7 @@ import { meters } from "./coordinates.js";
 import type { EventBus, SessionLifecyclePhase } from "./EventBus.js";
 import { JOINT_NAMES, sampleClip } from "./import/CoachClip.js";
 import type { CoachHistory } from "./scoring/CoachHistory.js";
-import { applyLiveScore, type ScorerContext } from "./scoring/PoseScorer.js";
+import { applyLiveScore, resetScoreStreak, type ScorerContext } from "./scoring/PoseScorer.js";
 import type { SessionGate } from "./SessionGate.js";
 import type { MotionSocketController } from "../hooks/useWebSocket.js";
 import type {
@@ -122,6 +122,7 @@ export class RealtimeStream {
     this.options.state.frame = 0;
     this.lastTickMs = 0;
     this.options.coachHistory.reset();
+    resetScoreStreak();
   }
 
   private onPhaseChange(phase: SessionLifecyclePhase): void {
@@ -132,6 +133,7 @@ export class RealtimeStream {
       this.lastTickMs = 0;
       this.finishFired = false;
       this.options.coachHistory.reset();
+      resetScoreStreak();
     } else if (phase === "idle" || phase === "finished") {
       this.finishFired = false;
     }

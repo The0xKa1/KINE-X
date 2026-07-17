@@ -62,7 +62,7 @@ const FACE_LANDMARK_COUNT = 478;
 
 export class LandmarkerController {
           model            = "lite";
-          enabled                                = { pose: true, hand: true, face: true };
+          enabled                                = { pose: true, hand: true, face: false };
           vision                                                                                                                   = null;
           visionPending                       = null;
           visionRetryAt = 0;

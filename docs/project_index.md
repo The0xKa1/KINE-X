@@ -187,6 +187,8 @@ KINE//X 的项目结构索引。
 `docs/goal.md`：最终目标。
 `docs/curren.md`：当前事实状态。
 `docs/review.md`：复赛评审报告与打磨工作清单（P0/P1/P2 + 答辩叙事）。
+`docs/motion-frame.schema.json`：`FRAME_STREAM` 数据包的 JSON Schema。
+`docs/server-workflow.md`：AutoDL 服务器开发与演示 Cheatsheet。
 `docs/idea.md`：原始构思与三层架构草稿（历史文档）。
 `docs/demo/`：README 内联的演示 GIF 与完整 mp4。
 

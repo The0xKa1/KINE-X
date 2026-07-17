@@ -207,7 +207,7 @@ http://localhost:5173/?backend=http://localhost:8765
 
 ## 运动数据契约
 
-前后端对齐的核心数据包是 `FRAME_STREAM`。所有 3D 坐标单位均为米，坐标系为右手系，旋转统一使用 `[x, y, z, w]` 四元数。
+前后端对齐的核心数据包是 `FRAME_STREAM`。所有 3D 坐标单位均为米，坐标系为右手系，旋转统一使用 `[x, y, z, w]` 四元数。机器可校验的 JSON Schema 见 [`docs/motion-frame.schema.json`](docs/motion-frame.schema.json)。
 
 ```json
 {

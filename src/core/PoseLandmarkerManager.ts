@@ -62,7 +62,7 @@ interface FaceSlot {
 
 export class LandmarkerController {
   private model: PoseModel = "lite";
-  private enabled: Record<ModalityKind, boolean> = { pose: true, hand: true, face: true };
+  private enabled: Record<ModalityKind, boolean> = { pose: true, hand: true, face: false };
   private vision: { module: VisionModule; fileset: Awaited<ReturnType<VisionModule["FilesetResolver"]["forVisionTasks"]>> } | null = null;
   private visionPending: Promise<void> | null = null;
   private visionRetryAt = 0;

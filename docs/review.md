@@ -37,19 +37,19 @@
 
 ### P1 · 涨分点
 
-- [ ] **预导入 2–3 条真实短视频入库**（hinge / flow / bounce 各一，产物提交进 `public/coach_clips/`）→ 内容宽度 1→4。依赖 GPU 导入后端（AutoDL 环境）。
-- [ ] **MLLM 语义沉淀**：选中 segment 后用 `actionLabel` 自动填种子名、按语义预选 motion（`src/core/import/ImportFlow.ts`、`data/exercises.ts`）。
-- [ ] **LLM 教练多轮追问**：报告页加输入框，SessionSummary 作 context 续接对话（`ReportPage.ts`、`AiCoachPanel.ts`；server `/api/chat-stream` 已通用）。
-- [ ] **中文风险标签进主舱**：riskLabel 已随 `score:update` 广播，SYNC 巨数区下方加 badge 订阅（`index.html` + `ScoreBoard.ts`）。
-- [ ] **指标名对齐真实测量**："膝盖内扣"→"膝关节屈伸"等（`data/exercises.ts` 的 name 字段；当前测的是屈伸角，测不出额状面内扣）。
+- [~] **预导入 2–3 条真实短视频入库**（hinge / flow / bounce 各一，产物提交进 `public/coach_clips/`）→ 内容宽度 1→4。依赖 GPU 导入后端（AutoDL 环境）。**进展**：已将 AutoDL 导入的 UGC squat（118 帧 + SMPL-X mesh + 帧图）rsync 回本地并内置为第二张种子卡 `ugc-squat`（commit d5ea929）；再补 1–2 条非 squat 类型即完成。
+- [x] **MLLM 语义沉淀**：选中 segment 后用 `actionLabel` 自动填种子名、按语义预选 motion（`src/core/import/ImportFlow.ts`、`data/exercises.ts`）。
+- [x] **LLM 教练多轮追问**：报告页加输入框，SessionSummary 作 context 续接对话（`ReportPage.ts`、`AiCoachPanel.ts`；server `/api/chat-stream` 已通用）。
+- [x] **中文风险标签进主舱**：riskLabel 已随 `score:update` 广播，SYNC 巨数区下方加 badge 订阅（`index.html` + `ScoreBoard.ts`）。
+- [x] **指标名对齐真实测量**："膝盖内扣"→"膝关节屈伸"等（`data/exercises.ts` 的 name 字段；当前测的是屈伸角，测不出额状面内扣）。
 
 ### P2 · 锦上添花
 
-- [ ] **Combo 改真连击**：连续 score≥80 的帧数计 combo（`PoseScorer.ts` 或 `ComboBurst.ts`）。
-- [ ] **MotionFrame 固化 JSON Schema**（`docs/` + README 引用）。
-- [ ] **DnaExport 接真产物**：MediaRecorder 录 `MotionStage` canvas 成 webm，二维码指向真实文件。
-- [ ] **导入后端异步化**：`run_in_executor` + 任务轮询，导入进度条从模拟变真实（`backend/app.py`、`ImportFlow.ts`）。
-- [ ] **Face 模态默认关闭或给说法**（478 点目前纯装饰，白占推理资源）。
+- [x] **Combo 改真连击**：连续 score≥80 的帧数计 combo（`PoseScorer.ts` 或 `ComboBurst.ts`）。
+- [x] **MotionFrame 固化 JSON Schema**（`docs/` + README 引用）。→ `docs/motion-frame.schema.json`
+- [x] **DnaExport 接真产物**：MediaRecorder 录 `MotionStage` canvas 成 webm，二维码指向真实文件。**实现调整**：MediaRecorder 录舞台 canvas 直出 webm + 页内预览 + 下载按钮（无公网地址可挂二维码，改为真实可下载产物）。
+- [x] **导入后端异步化**：`run_in_executor` + 任务轮询，导入进度条从模拟变真实（`backend/app.py`、`ImportFlow.ts`）。**实现**:`run_in_executor` 放开事件循环（已同步服务器）。
+- [x] **Face 模态默认关闭或给说法**（478 点目前纯装饰，白占推理资源）。
 
 ### 答辩叙事（零成本，PPT / 讲稿层）
 

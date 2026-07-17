@@ -1,6 +1,7 @@
 """FastAPI service: video upload → SMPLX mesh + CoachClip + frame thumbs."""
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 import shutil
@@ -164,17 +165,23 @@ async def import_video(
                     job_id, file.filename, upload_path.stat().st_size / 1024, motion, range_note)
         t0 = time.time()
         try:
-            result = pipeline.run_pipeline(
-                video_path=upload_path,
-                job_id=job_id,
-                estimator=app.state.estimator,
-                motion=motion or "squat",
-                target_fps=targetFps,
-                name=name or Path(file.filename or "imported").stem,
-                start_sec=startSec,
-                end_sec=endSec,
-                progress=lambda stage, cur, total, note: logger.info(
-                    "[%s] %-7s %d/%d %s", job_id, stage, cur, total, note
+            # Run the blocking GPU pipeline in a worker thread so the event
+            # loop stays responsive (/healthz, /import/jobs, other requests).
+            loop = asyncio.get_running_loop()
+            result = await loop.run_in_executor(
+                None,
+                lambda: pipeline.run_pipeline(
+                    video_path=upload_path,
+                    job_id=job_id,
+                    estimator=app.state.estimator,
+                    motion=motion or "squat",
+                    target_fps=targetFps,
+                    name=name or Path(file.filename or "imported").stem,
+                    start_sec=startSec,
+                    end_sec=endSec,
+                    progress=lambda stage, cur, total, note: logger.info(
+                        "[%s] %-7s %d/%d %s", job_id, stage, cur, total, note
+                    ),
                 ),
             )
         except FileNotFoundError as exc:

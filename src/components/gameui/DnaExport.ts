@@ -7,15 +7,26 @@ interface DnaExportOptions {
   label: HTMLElement;
   head: HTMLElement;
   sub: HTMLElement;
-  qr: HTMLElement;
-  qrCode: HTMLElement;
+  result: HTMLElement;
+  video: HTMLVideoElement;
+  download: HTMLAnchorElement;
+  /** The live 3D stage canvas — the clip is recorded straight off it. */
+  stageCanvas: HTMLCanvasElement;
+  getSeedLabel: () => string;
 }
 
+const RECORD_MS = 4000;
+
+/**
+ * Records the live 3D stage into a real webm clip via MediaRecorder —
+ * replaces the old fake progress + fake QR with an actual deliverable.
+ */
 export class DnaExport {
   private options: DnaExportOptions;
-  private timer = 0;
-  private rendered = false;
   private a11y: ModalA11yHandle;
+  private recorder: MediaRecorder | null = null;
+  private progressRaf = 0;
+  private blobUrl: string | null = null;
 
   constructor(options: DnaExportOptions) {
     this.options = options;
@@ -30,80 +41,95 @@ export class DnaExport {
     });
   }
 
-  open(seedLabel: string): void {
+  open(): void {
     this.options.root.classList.add("is-open");
     this.options.root.setAttribute("aria-hidden", "false");
     this.a11y.activate();
-    this.options.head.textContent = "渲染 DNA 视频中…";
-    this.options.sub.textContent = "正在把你的动作打成抖音可一键投递的格式";
-    this.options.qr.style.display = "none";
+    this.options.result.style.display = "none";
     this.options.bar.style.width = "0%";
     this.options.label.textContent = "0%";
-    this.runProgress(seedLabel);
+    this.revokeBlob();
+
+    const canvas = this.options.stageCanvas;
+    const canRecord =
+      typeof MediaRecorder !== "undefined" && typeof canvas.captureStream === "function";
+    if (!canRecord) {
+      this.options.head.textContent = "当前浏览器不支持视频录制";
+      this.options.sub.textContent = "请使用最新版 Chrome / Edge / Safari 再试";
+      return;
+    }
+
+    this.options.head.textContent = "正在录制你的 3D 动作…";
+    this.options.sub.textContent = `录制舞台 ${RECORD_MS / 1000} 秒 · webm 直出`;
+    this.startRecording(canvas);
   }
 
   close(): void {
     this.options.root.classList.remove("is-open");
     this.options.root.setAttribute("aria-hidden", "true");
     this.a11y.deactivate();
-    if (this.timer) {
-      window.clearInterval(this.timer);
-      this.timer = 0;
-    }
+    this.stopRecording();
+    this.revokeBlob();
   }
 
-  private runProgress(seedLabel: string): void {
-    if (this.timer) window.clearInterval(this.timer);
-    let progress = 0;
-    this.timer = window.setInterval(() => {
-      const step = 4 + Math.random() * 8;
-      progress = Math.min(100, progress + step);
-      this.options.bar.style.width = `${progress}%`;
-      this.options.label.textContent = `${Math.floor(progress)}%`;
-      if (progress >= 100) {
-        window.clearInterval(this.timer);
-        this.timer = 0;
-        this.showQr(seedLabel);
+  private startRecording(canvas: HTMLCanvasElement): void {
+    const stream = canvas.captureStream(30);
+    const mimeType = ["video/webm;codecs=vp9", "video/webm;codecs=vp8", "video/webm"].find((t) =>
+      MediaRecorder.isTypeSupported(t),
+    );
+    const recorder = new MediaRecorder(stream, mimeType ? { mimeType } : undefined);
+    this.recorder = recorder;
+    const chunks: Blob[] = [];
+    recorder.ondataavailable = (event) => {
+      if (event.data.size > 0) chunks.push(event.data);
+    };
+    recorder.onstop = () => {
+      const blob = new Blob(chunks, { type: "video/webm" });
+      this.blobUrl = URL.createObjectURL(blob);
+      const label = this.options.getSeedLabel();
+      this.options.video.src = this.blobUrl;
+      this.options.download.href = this.blobUrl;
+      this.options.download.download = `kinex-dna-${label}.webm`;
+      this.options.head.textContent = "已生成 · 3D 动作视频";
+      this.options.sub.textContent = `seed#${label} · ${(blob.size / 1024 / 1024).toFixed(1)} MB · 可直接投递`;
+      this.options.result.style.display = "grid";
+    };
+
+    const startedAt = performance.now();
+    const tick = () => {
+      const elapsed = performance.now() - startedAt;
+      const pct = Math.min(100, (elapsed / RECORD_MS) * 100);
+      this.options.bar.style.width = `${pct}%`;
+      this.options.label.textContent = `${Math.floor(pct)}%`;
+      if (elapsed < RECORD_MS && this.recorder) {
+        this.progressRaf = requestAnimationFrame(tick);
+      } else {
+        this.stopRecording();
       }
-    }, 80);
+    };
+    recorder.start(250);
+    this.progressRaf = requestAnimationFrame(tick);
   }
 
-  private showQr(seedLabel: string): void {
-    this.options.head.textContent = "已生成 · 抖音扫码即看";
-    this.options.sub.textContent = `seed#${seedLabel} · 你的 3D 分身已就位`;
-    this.options.qr.style.display = "grid";
-    if (!this.rendered) {
-      this.renderFakeQr();
-      this.rendered = true;
+  private stopRecording(): void {
+    if (this.progressRaf) {
+      cancelAnimationFrame(this.progressRaf);
+      this.progressRaf = 0;
+    }
+    if (this.recorder) {
+      try {
+        if (this.recorder.state !== "inactive") this.recorder.stop();
+      } catch {
+        // already stopped
+      }
+      this.recorder = null;
     }
   }
 
-  private renderFakeQr(): void {
-    this.options.qrCode.innerHTML = "";
-    const seedPattern = [
-      "1111111000111111",
-      "1000001011000001",
-      "1011101001011101",
-      "1011101010011101",
-      "1011101001011101",
-      "1000001010000001",
-      "1111111010101111",
-      "0000000100000000",
-      "1011010110011010",
-      "1100101001100101",
-      "0010110011001100",
-      "1101001100110011",
-      "0000000110100110",
-      "1111111011011001",
-      "1000001000110011",
-      "1011101011001100",
-    ];
-    seedPattern.forEach((row) => {
-      [...row].forEach((cell) => {
-        const dot = document.createElement("i");
-        if (cell === "0") dot.classList.add("off");
-        this.options.qrCode.appendChild(dot);
-      });
-    });
+  private revokeBlob(): void {
+    if (this.blobUrl) {
+      URL.revokeObjectURL(this.blobUrl);
+      this.blobUrl = null;
+    }
   }
 }

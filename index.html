@@ -349,7 +349,7 @@
             <span>双手识别（21 × 2 关键点）</span>
           </label>
           <label class="settings-toggle">
-            <input id="modalityFaceToggle" type="checkbox" checked />
+            <input id="modalityFaceToggle" type="checkbox" />
             <span>面部识别（478 点 face mesh）</span>
           </label>
           <p class="settings-hint">关闭可减少模型下载与每帧推理开销。切换模型会重新加载推理任务，可能短暂掉帧。</p>
@@ -488,13 +488,13 @@
     <!-- Export modal -->
     <div id="dnaExport" class="dna-export" role="dialog" aria-modal="true" aria-hidden="true">
       <div class="dna-export-card">
-        <h3 id="exportHead">渲染 DNA 视频中…</h3>
-        <p id="exportSub">正在把你的动作打成抖音可一键投递的格式</p>
+        <h3 id="exportHead">正在录制你的 3D 动作…</h3>
+        <p id="exportSub">录制舞台 4 秒 · webm 直出</p>
         <div class="dna-progress"><i id="exportBar"></i></div>
         <div class="dna-progress-label" id="exportLabel">0%</div>
-        <div id="exportQr" class="dna-qr" style="display: none;">
-          <div class="dna-qr-code" id="exportQrCode"></div>
-          <small>使用抖音扫一扫 · seed#deep-squat</small>
+        <div id="exportResult" class="dna-export-result" style="display: none;">
+          <video id="exportVideo" class="dna-export-video" muted loop autoplay playsinline></video>
+          <a id="exportDownload" class="primary-button" download>下载 webm 视频</a>
         </div>
         <button id="exportClose" class="secondary-button" type="button">关闭</button>
       </div>

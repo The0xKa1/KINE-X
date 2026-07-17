@@ -77,8 +77,9 @@ export const $$ =                    (selector        )      =>
                            
                           
                          
-                        
                             
+                                
+                                    
 
                          
                               
@@ -206,8 +207,9 @@ export function collectDomRefs()          {
     exportLabel: $("#exportLabel"),
     exportHead: $("#exportHead"),
     exportSub: $("#exportSub"),
-    exportQr: $("#exportQr"),
-    exportQrCode: $("#exportQrCode"),
+    exportResult: $("#exportResult"),
+    exportVideo: $("#exportVideo")                    ,
+    exportDownload: $("#exportDownload")                     ,
 
     dnaDrawer: $("#dnaDrawer"),
     drawerBackdrop: $("#drawerBackdrop"),

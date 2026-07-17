@@ -236,8 +236,11 @@ const dnaExport = new DnaExport({
   label: dom.exportLabel,
   head: dom.exportHead,
   sub: dom.exportSub,
-  qr: dom.exportQr,
-  qrCode: dom.exportQrCode,
+  result: dom.exportResult,
+  video: dom.exportVideo,
+  download: dom.exportDownload,
+  stageCanvas: dom.motionCanvas,
+  getSeedLabel: () => state.exerciseId,
 });
 
 const aiCoach = new AiCoachPanel({
@@ -261,7 +264,7 @@ const resultsScreen = new ResultsScreen({
   medalEl: dom.medalName,
   titleEl: dom.resultsTitle,
   exportButton: dom.exportButton,
-  onExport: () => dnaExport.open(state.exerciseId),
+  onExport: () => dnaExport.open(),
   onClose: () => sessionGate.reset("system"),
   getStats: () => comboBurst.getStats(),
   exercises,

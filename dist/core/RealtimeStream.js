@@ -3,7 +3,7 @@ import { meters } from "./coordinates.js";
                                                                      
 import { JOINT_NAMES, sampleClip } from "./import/CoachClip.js";
                                                               
-import { applyLiveScore,                    } from "./scoring/PoseScorer.js";
+import { applyLiveScore, resetScoreStreak,                    } from "./scoring/PoseScorer.js";
                                                     
                                                                        
              
@@ -122,6 +122,7 @@ export class RealtimeStream {
     this.options.state.frame = 0;
     this.lastTickMs = 0;
     this.options.coachHistory.reset();
+    resetScoreStreak();
   }
 
           onPhaseChange(phase                       )       {
@@ -132,6 +133,7 @@ export class RealtimeStream {
       this.lastTickMs = 0;
       this.finishFired = false;
       this.options.coachHistory.reset();
+      resetScoreStreak();
     } else if (phase === "idle" || phase === "finished") {
       this.finishFired = false;
     }

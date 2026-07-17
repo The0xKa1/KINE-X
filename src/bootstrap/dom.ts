@@ -77,8 +77,9 @@ export interface DomRefs {
   exportLabel: HTMLElement;
   exportHead: HTMLElement;
   exportSub: HTMLElement;
-  exportQr: HTMLElement;
-  exportQrCode: HTMLElement;
+  exportResult: HTMLElement;
+  exportVideo: HTMLVideoElement;
+  exportDownload: HTMLAnchorElement;
 
   dnaDrawer: HTMLElement;
   drawerBackdrop: HTMLElement;
@@ -206,8 +207,9 @@ export function collectDomRefs(): DomRefs {
     exportLabel: $("#exportLabel"),
     exportHead: $("#exportHead"),
     exportSub: $("#exportSub"),
-    exportQr: $("#exportQr"),
-    exportQrCode: $("#exportQrCode"),
+    exportResult: $("#exportResult"),
+    exportVideo: $("#exportVideo") as HTMLVideoElement,
+    exportDownload: $("#exportDownload") as HTMLAnchorElement,
 
     dnaDrawer: $("#dnaDrawer"),
     drawerBackdrop: $("#drawerBackdrop"),

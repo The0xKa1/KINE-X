@@ -35,6 +35,15 @@ const BONE_LENGTH_BAD_TOLERANCE = 2;
 const USER_TMP = new THREE.Vector3();
 const COACH_TMP = new THREE.Vector3();
 
+// Combo = consecutive frames at or above the PERFECT line, not a score reskin.
+const COMBO_SCORE_THRESHOLD = 80;
+let scoreStreak = 0;
+
+/** Called on session start / seed switch so streaks don't leak across rounds. */
+export function resetScoreStreak(): void {
+  scoreStreak = 0;
+}
+
 type Buckets = Record<string, { sum: number; n: number }>;
 
 interface BucketSnapshot {
@@ -129,7 +138,9 @@ export function applyLiveScore(packet: FrameStreamPacket, ctx: ScorerContext): v
 
   if (weightSum === 0) return;
   frame.score = Math.round(scoreSum / weightSum);
-  frame.combo = clamp(Math.floor((frame.score - 65) / 3), 1, 18);
+  if (frame.score >= COMBO_SCORE_THRESHOLD) scoreStreak += 1;
+  else scoreStreak = 0;
+  frame.combo = clamp(scoreStreak, 1, 18);
   frame.riskLabel =
     !worst || worst.risk === "good"
       ? "对齐良好"
