@@ -11,10 +11,6 @@
 [![SAM 3D Body](https://img.shields.io/badge/SAM_3D_Body-SMPL--X-FF6F00)](https://github.com/facebookresearch/sam)
 [![Status](https://img.shields.io/badge/status-prototype-orange)](#)
 
-## 状态说明
-
-> **由于大区赛阶段更换赛道，本作品暂不继续打磨。**
-
 <table>
 <tr>
 <td width="70%" valign="top">
@@ -82,12 +78,13 @@ flowchart LR
 
 | 模块 | 当前状态 |
 | --- | --- |
-| 前端 UI / 动作舞台 / 时间轴 | 已可演示 |
+| 前端 UI / 动作舞台 / 时间轴 | 已可演示，hash 路由四页（动作库 / 训练舱 / 报告 / 创作） |
 | MediaPipe Pose / Hand / Face | 已本地离线运行 |
 | 视频导入为 CoachClip | 已可用：可选 MLLM 分段，上传 SAM3D 后端逐帧重建 |
 | SAM 3D Body 导入后端 | 已接入，需要本机模型资产与 Python 环境 |
 | 用户标定与实时评分 | 已可用，摄像头开启后参与评分 |
 | Session 结果页与 AI 教练 | 已可用，LLM 代理需配置环境变量 |
+| Session 历史存档 | 已可用，localStorage 保留最近 20 场，驱动报告页与动作库统计 |
 | WebSocket 外部帧流 | 接口已预留，当前前端可用本地 RealtimeStream / mock 兜底演示 |
 
 ## 技术栈
