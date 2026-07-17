@@ -18,6 +18,7 @@ export interface DomRefs {
   tlLat: HTMLElement;
   tlDelta: HTMLElement;
   fpsLabel: HTMLElement;
+  stageRisk: HTMLElement;
   mirrorEmpty: HTMLElement;
   mirrorEmptyTitle: HTMLElement;
   mirrorEmptyHint: HTMLElement;
@@ -146,6 +147,7 @@ export function collectDomRefs(): DomRefs {
     tlLat: $("#tlLat"),
     tlDelta: $("#tlDelta"),
     fpsLabel: $("#fpsLabel"),
+    stageRisk: $("#stageRisk"),
     mirrorEmpty: $("#mirrorEmpty"),
     mirrorEmptyTitle: $("#mirrorEmptyTitle"),
     mirrorEmptyHint: $("#mirrorEmptyHint"),

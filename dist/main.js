@@ -186,6 +186,7 @@ const scoreBoard = new ScoreBoard({
   scoreValue: dom.scoreValue,
   comboLabel: dom.comboLabel,
   riskBadge: dom.riskBadge,
+  stageRisk: dom.stageRisk,
   frameLabel: dom.frameLabel,
   deltaLabel: dom.deltaLabel,
   pipelineLatency: dom.pipelineLatency,
@@ -354,7 +355,7 @@ void sessionStartOverlay;
 const createPage = new CreatePage({
   el: dom.pageCreate,
   backendUrl: BACKEND_URL,
-  onApply: ({ id, name, clip, meshClip, motion }) => {
+  onApply: ({ id, name, clip, meshClip, motion, hint }) => {
     const newId = `imported-${id}`;
     const config                 = {
       id: newId,
@@ -363,7 +364,7 @@ const createPage = new CreatePage({
       seedUrl: "",
       durationSeconds: clip.durationSeconds,
       motion,
-      target: "用户导入动作",
+      target: hint ?? "用户导入动作",
       params: {
         beta: "",
         theta: "",

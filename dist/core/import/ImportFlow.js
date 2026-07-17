@@ -18,6 +18,8 @@ const SEGMENT_THUMB_MAX_WIDTH = 160;
                   
                             
                      
+                                                                      
+                            
  
 
                              
@@ -135,6 +137,7 @@ export class ImportFlow {
         clip,
         meshClip,
         motion: meta.motion,
+        hint: buildHint(this.selectedSegment),
       });
     });
   }
@@ -301,6 +304,10 @@ export class ImportFlow {
           selectSegment(segment                  )       {
     this.selectedSegment = segment;
     this.renderSegments(this.resourceStore.all());
+    // Let the MLLM's understanding flow downstream: pre-fill the motion type
+    // so the backend + scoring templates inherit it.
+    const inferred = inferMotionFromSegment(segment);
+    if (inferred) this.options.motionSelect.value = inferred;
     const range = `${segment.startSec.toFixed(1)}s → ${segment.endSec.toFixed(1)}s`;
     this.setStatus(`已选段 ${segment.actionLabel} (${range})`);
   }
@@ -322,7 +329,8 @@ export class ImportFlow {
     const form = new FormData();
     form.append("file", this.file);
     form.append("motion", this.options.motionSelect.value || "flow");
-    form.append("name", stripExt(this.file.name));
+    // Prefer the MLLM's action label over the raw filename for the seed name.
+    form.append("name", segment?.actionLabel || segment?.name || stripExt(this.file.name));
     if (segment) {
       form.append("startSec", segment.startSec.toFixed(3));
       form.append("endSec", segment.endSec.toFixed(3));
@@ -430,4 +438,26 @@ export class ImportFlow {
 
 function stripExt(name        )         {
   return name.replace(/\.[^.]+$/, "");
+}
+
+/** Maps the MLLM's semantic labels onto our scoring motion categories. */
+function inferMotionFromSegment(segment                  )                    {
+  const text = `${segment.actionLabel} ${segment.name} ${segment.notes}`.toLowerCase();
+  if (/投掷|投篮|出手|throw|shoot/.test(text)) return "throw";
+  if (/跳跃|跳绳|跳操|bounce|jump/.test(text)) return "bounce";
+  if (/硬拉|髋铰|俯身划船|deadlift|hinge/.test(text)) return "hinge";
+  if (/深蹲|下蹲|蹲起|squat/.test(text)) return "squat";
+  if (/八段锦|太极|瑜伽|舞蹈|flow|yoga|taichi/.test(text)) return "flow";
+  return null;
+}
+
+/** Builds the user-facing coaching hint from MLLM segment metadata. */
+function buildHint(segment                         )                     {
+  if (!segment) return undefined;
+  const parts           = [];
+  const difficulty = segment.metadata["难度"];
+  const focus = segment.metadata["核心受力部位"];
+  if (difficulty) parts.push(`难度${difficulty}`);
+  if (focus) parts.push(focus);
+  return parts.length > 0 ? parts.join(" · ") : undefined;
 }

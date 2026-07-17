@@ -9,6 +9,7 @@ interface ScoreBoardOptions {
   scoreValue: HTMLElement;
   comboLabel: HTMLElement;
   riskBadge: HTMLElement;
+  stageRisk?: HTMLElement;
   frameLabel: HTMLElement;
   deltaLabel: HTMLElement;
   pipelineLatency: HTMLElement;
@@ -100,6 +101,12 @@ export class ScoreBoard {
     badge.textContent = payload.riskLabel;
     badge.classList.toggle("is-warning", worst?.risk === "warn");
     badge.classList.toggle("is-danger", worst?.risk === "risk");
+    const stage = this.options.stageRisk;
+    if (stage) {
+      stage.textContent = payload.riskLabel;
+      stage.classList.toggle("is-warn", worst?.risk === "warn");
+      stage.classList.toggle("is-risk", worst?.risk === "risk");
+    }
   }
 }
 

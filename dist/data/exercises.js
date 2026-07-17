@@ -6,16 +6,16 @@
 // `name` is user-facing copy (Chinese); `id` stays stable for stress mapping.
 export const MOTION_METRIC_TEMPLATES                                        = {
   squat: [
-    { id: "knee", name: "膝盖内扣", base: 90, variance: 9, angle: 6, distance: 8 },
+    { id: "knee", name: "膝关节屈伸", base: 90, variance: 9, angle: 6, distance: 8 },
     { id: "hip", name: "髋部深度", base: 86, variance: 7, angle: 9, distance: 12 },
     { id: "spine", name: "腰椎稳定", base: 78, variance: 12, angle: 14, distance: 18 },
-    { id: "ankle", name: "踝关节负荷", base: 84, variance: 8, angle: 8, distance: 10 },
+    { id: "ankle", name: "踝关节姿态", base: 84, variance: 8, angle: 8, distance: 10 },
   ],
   hinge: [
     { id: "spine", name: "腰椎稳定", base: 76, variance: 14, angle: 17, distance: 20 },
     { id: "hip", name: "髋铰链", base: 88, variance: 8, angle: 7, distance: 11 },
     { id: "shoulder", name: "杠铃轨迹", base: 82, variance: 9, angle: 10, distance: 13 },
-    { id: "knee", name: "膝盖前冲", base: 86, variance: 6, angle: 5, distance: 9 },
+    { id: "knee", name: "膝部屈曲", base: 86, variance: 6, angle: 5, distance: 9 },
   ],
   flow: [
     { id: "shoulder", name: "肩臂弧线", base: 91, variance: 5, angle: 5, distance: 7 },

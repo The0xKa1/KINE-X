@@ -1,7 +1,8 @@
                                                  
 import { formatCm } from "../../core/coordinates.js";
 import { buildDiagnosisMessages, buildFallbackText,                   } from "../../core/llm/buildPrompt.js";
-import { streamChat } from "../../core/llm/LLMClient.js";
+import { streamChat,                  } from "../../core/llm/LLMClient.js";
+import { renderMarkdown } from "../../core/llm/renderMarkdown.js";
 import { AiCoachPanel } from "../gameui/AiCoachPanel.js";
                                                                                             
                                                                           
@@ -31,6 +32,11 @@ export class ReportPage                 {
           options                   ;
           coach                      = null;
           diagnosisCache = new Map                ();
+          chatBase                       = null;
+          chatHistory                = [];
+          chatBusy = false;
+          chatAbort                         = null;
+          diagnosisText = "";
 
   constructor(options                   ) {
     this.options = options;
@@ -46,11 +52,19 @@ export class ReportPage                 {
 
   leave()       {
     this.coach?.cancel();
+    this.chatAbort?.abort();
+    this.chatAbort = null;
   }
 
           render(session                        )       {
     this.coach?.cancel();
     this.coach = null;
+    this.chatAbort?.abort();
+    this.chatAbort = null;
+    this.chatBase = null;
+    this.chatHistory = [];
+    this.chatBusy = false;
+    this.diagnosisText = "";
     if (!session) {
       this.el.innerHTML = `
         <div class="page-placeholder">
@@ -165,6 +179,11 @@ export class ReportPage                 {
             <span id="reportAiStatus" class="results-ai-status">idle</span>
           </header>
           <p id="reportAiText" class="results-ai-text"></p>
+          <div id="reportChatThread" class="report-chat-thread"></div>
+          <div class="report-chat-input">
+            <input id="reportChatInput" type="text" placeholder="追问你的教练：这个关节该怎么练？" autocomplete="off" />
+            <button id="reportChatSend" class="secondary-button" type="button">发送</button>
+          </div>
         </section>
       </div>
     `;
@@ -175,25 +194,105 @@ export class ReportPage                 {
       this.coach = new AiCoachPanel({ root: this.el, textEl, statusEl });
       this.runDiagnosis(session, this.coach);
     }
+    this.bindChat(session);
   }
 
           runDiagnosis(session                 , coach              )       {
+    const exercise = this.options.exercises[session.exerciseId];
+    if (exercise) {
+      this.chatBase = buildDiagnosisMessages(exercise, session.summary, this.options.getPersona());
+    }
     const cached = this.diagnosisCache.get(session.id);
     if (cached) {
+      this.diagnosisText = cached;
       coach.renderStatic(cached, "cached");
       return;
     }
-    const exercise = this.options.exercises[session.exerciseId];
     if (!exercise || session.summary.frames === 0) {
       coach.renderStatic("本次训练数据不足，先完成一场完整跟练。", "no samples");
       return;
     }
     const fallback = buildFallbackText(exercise, session.summary);
-    const messages = buildDiagnosisMessages(exercise, session.summary, this.options.getPersona());
     void coach
-      .renderStreaming((onDelta, signal) => streamChat(messages, onDelta, { signal }), fallback)
+      .renderStreaming(
+        (onDelta, signal) => streamChat(this.chatBase ?? [], onDelta, { signal }),
+        fallback,
+      )
       .then((text) => {
-        if (text) this.diagnosisCache.set(session.id, text);
+        if (text) {
+          this.diagnosisCache.set(session.id, text);
+          this.diagnosisText = text;
+        }
       });
+  }
+
+          bindChat(session                 )       {
+    const input = this.el.querySelector                  ("#reportChatInput");
+    const send = this.el.querySelector                   ("#reportChatSend");
+    if (!input || !send) return;
+    const fire = () => {
+      const question = input.value.trim();
+      if (!question) return;
+      input.value = "";
+      void this.sendChat(session, question);
+    };
+    send.addEventListener("click", fire);
+    input.addEventListener("keydown", (event) => {
+      if (event.key === "Enter") fire();
+    });
+  }
+
+          async sendChat(session                 , question        )                {
+    if (this.chatBusy) return;
+    const thread = this.el.querySelector             ("#reportChatThread");
+    if (!thread) return;
+    this.chatBusy = true;
+    this.chatAbort?.abort();
+    const controller = new AbortController();
+    this.chatAbort = controller;
+
+    const userRow = document.createElement("div");
+    userRow.className = "report-chat-row is-user";
+    userRow.textContent = question;
+    thread.appendChild(userRow);
+    const botRow = document.createElement("div");
+    botRow.className = "report-chat-row is-bot";
+    thread.appendChild(botRow);
+    thread.scrollTop = thread.scrollHeight;
+
+    if (!this.chatBase) {
+      botRow.textContent = "教练暂时缺少上下文，先完成一场训练再追问。";
+      this.chatBusy = false;
+      return;
+    }
+
+    const messages                = [
+      ...this.chatBase,
+      ...(this.diagnosisText ? [{ role: "assistant", content: this.diagnosisText }               ] : []),
+      ...this.chatHistory,
+      { role: "user", content: question },
+    ];
+
+    let answer = "";
+    try {
+      answer = await streamChat(
+        messages,
+        (delta) => {
+          answer += delta;
+          botRow.innerHTML = renderMarkdown(answer);
+          thread.scrollTop = thread.scrollHeight;
+        },
+        { signal: controller.signal },
+      );
+    } catch {
+      if (!controller.signal.aborted) {
+        botRow.textContent = "教练暂时不可用（LLM 代理未连接）。";
+      }
+    }
+    if (answer) {
+      this.chatHistory.push({ role: "user", content: question });
+      this.chatHistory.push({ role: "assistant", content: answer });
+    }
+    this.chatBusy = false;
   }
 }

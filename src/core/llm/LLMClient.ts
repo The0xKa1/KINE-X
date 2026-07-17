@@ -1,7 +1,7 @@
 import { API_BASE_URL } from "../../config.js";
 
 export interface ChatMessage {
-  role: "system" | "user";
+  role: "system" | "user" | "assistant";
   content: string;
 }
 

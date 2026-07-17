@@ -18,6 +18,7 @@ export const $$ =                    (selector        )      =>
                      
                        
                         
+                         
                            
                                 
                                
@@ -146,6 +147,7 @@ export function collectDomRefs()          {
     tlLat: $("#tlLat"),
     tlDelta: $("#tlDelta"),
     fpsLabel: $("#fpsLabel"),
+    stageRisk: $("#stageRisk"),
     mirrorEmpty: $("#mirrorEmpty"),
     mirrorEmptyTitle: $("#mirrorEmptyTitle"),
     mirrorEmptyHint: $("#mirrorEmptyHint"),

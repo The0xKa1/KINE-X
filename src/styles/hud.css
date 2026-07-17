@@ -45,6 +45,32 @@
   letter-spacing: -0.04em;
 }
 
+/* Risk label badge pinned under the combo HUD in the stage bay. */
+.stage-risk {
+  position: absolute;
+  right: 14px;
+  top: 60px;
+  z-index: 3;
+  padding: 6px 10px;
+  border: 2px solid var(--ink);
+  background: var(--paper);
+  font-family: var(--mono-cjk);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  color: var(--ink);
+}
+
+.stage-risk.is-warn {
+  background: var(--hot);
+  color: var(--ink);
+}
+
+.stage-risk.is-risk {
+  background: var(--ink);
+  color: var(--hot);
+}
+
 /* Telemetry data strip — live mono readouts pinned to the stage bay. */
 .telemetry {
   position: absolute;

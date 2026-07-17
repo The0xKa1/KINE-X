@@ -242,3 +242,56 @@
     border-bottom: var(--heavy-rule);
   }
 }
+
+/* Follow-up coach chat on the report page */
+.report-chat-thread {
+  display: grid;
+  gap: 8px;
+  max-height: 320px;
+  overflow-y: auto;
+  padding: 10px 0 0;
+}
+
+.report-chat-row {
+  max-width: 85%;
+  padding: 8px 12px;
+  border: 2px solid var(--ink);
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.report-chat-row.is-user {
+  justify-self: end;
+  background: var(--ink);
+  color: var(--paper);
+}
+
+.report-chat-row.is-bot {
+  justify-self: start;
+  background: var(--paper);
+  color: var(--ink);
+}
+
+.report-chat-input {
+  display: flex;
+  gap: 8px;
+  margin-top: 12px;
+  border-top: 1px solid var(--rule-soft);
+  padding-top: 12px;
+}
+
+.report-chat-input input {
+  flex: 1;
+  height: 36px;
+  padding: 0 12px;
+  border: var(--hairline);
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--sans);
+  font-size: 13px;
+}
+
+.report-chat-input input:focus-visible {
+  outline: 2px solid var(--ink);
+  outline-offset: 1px;
+}
