@@ -39,8 +39,38 @@ const COACH_TMP = new THREE.Vector3();
 
                           
                    
+                                                                                       
+                     
+                                                                                   
+                    
                     
  
+
+// Distance-error sampling points: MediaPipe anchor on the user side, 17-joint
+// name on the coach side. spine is proxied by the chest point.
+const METRIC_DISTANCE_POINTS                                                            = {
+  knee: [
+    { mp: 25, joint: "lKnee" },
+    { mp: 26, joint: "rKnee" },
+  ],
+  hip: [
+    { mp: 23, joint: "lHip" },
+    { mp: 24, joint: "rHip" },
+  ],
+  ankle: [
+    { mp: 27, joint: "lAnkle" },
+    { mp: 28, joint: "rAnkle" },
+  ],
+  shoulder: [
+    { mp: 11, joint: "lShoulder" },
+    { mp: 12, joint: "rShoulder" },
+  ],
+  wrist: [
+    { mp: 15, joint: "lWrist" },
+    { mp: 16, joint: "rWrist" },
+  ],
+  spine: [{ mp: "midShoulders", joint: "chest" }],
+};
 
 export function applyLiveScore(packet                   , ctx               )       {
   if (packet.type !== "FRAME_STREAM") return;
@@ -88,9 +118,10 @@ export function applyLiveScore(packet                   , ctx               )   
     const newScore = Math.round(bucket.sum / bucket.n);
     m.score = newScore;
     m.risk = riskFor(newScore);
-    const miss = 100 - newScore;
-    m.angleDeltaDeg = m.angle + miss * 0.16;
-    m.distanceDeltaCm = m.distance + miss * 0.22;
+    const angleErr = best.angleErrs[m.id];
+    m.angleDeltaDeg = angleErr && angleErr.n > 0 ? Math.round((angleErr.sum / angleErr.n) * 10) / 10 : 0;
+    const distErr = best.distErrs[m.id];
+    m.distanceDeltaCm = distErr && distErr.n > 0 ? Math.round((distErr.sum / distErr.n) * 1000) / 10 : 0;
     weightSum += m.base;
     scoreSum += newScore * m.base;
     if (!worst || newScore < worst.score) worst = m;
@@ -121,6 +152,8 @@ function computeBuckets(
   if (!userMidHips || !userMidShoulders) return null;
 
   const buckets          = {};
+  const angleErrs          = {};
+  const distErrs          = {};
 
   for (const bone of SCORING_BONES) {
     const u = userBoneVec(aligned, userMidHips, userMidShoulders, bone.mpFrom, bone.mpTo);
@@ -141,6 +174,26 @@ function computeBuckets(
     const delta = Math.abs(userAngle - coachAngle);
     const angleScore = clamp(100 - delta * ANGLE_PENALTY_PER_DEG, 0, 100);
     pushBucket(buckets, spec.metricId, angleScore);
+    pushBucket(angleErrs, spec.metricId, delta);
+  }
+
+  // Real distance error: per-metric joint offset relative to each side's own
+  // root (user midHips vs coach pelvis), in meters.
+  const coachPelvis = seed.pelvis?.position;
+  if (coachPelvis) {
+    for (const m of exercise.metrics) {
+      const points = METRIC_DISTANCE_POINTS[m.id];
+      if (!points) continue;
+      for (const { mp, joint } of points) {
+        const userP = resolveUserAnchor(aligned, userMidHips, userMidShoulders, mp);
+        const coachP = seed[joint]?.position;
+        if (!userP || !coachP) continue;
+        const dx = userP.x - userMidHips.x - (coachP[0] - coachPelvis[0]);
+        const dy = userP.y - userMidHips.y - (coachP[1] - coachPelvis[1]);
+        const dz = userP.z - userMidHips.z - (coachP[2] - coachPelvis[2]);
+        pushBucket(distErrs, m.id, Math.hypot(dx, dy, dz));
+      }
+    }
   }
 
   // Aggregate using metric.base as weight so "important" metrics dominate.
@@ -154,7 +207,7 @@ function computeBuckets(
     scoreSum += metricScore * m.base;
   }
   if (weightSum === 0) return null;
-  return { buckets, aggregate: scoreSum / weightSum };
+  return { buckets, angleErrs, distErrs, aggregate: scoreSum / weightSum };
 }
 
 function countBadBones(vecs                 , cal                        )         {

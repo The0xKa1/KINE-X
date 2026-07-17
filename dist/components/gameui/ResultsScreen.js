@@ -75,7 +75,13 @@ export class ResultsScreen {
     if (!this.latest) return;
     const score = Math.round(this.latest.score);
     const stats = this.options.getStats();
-    const beat = Math.min(99, Math.max(40, Math.round(60 + (score - 60) * 1.6)));
+    // Percentile against this device's own session history for this exercise
+    // (-1 when this is the first recorded session).
+    const history = this.options.sessionArchive.forExercise(this.currentExercise);
+    const beat =
+      history.length > 0
+        ? Math.round((history.filter((s) => s.score < score).length / history.length) * 100)
+        : -1;
     const avgDelta = average(this.rollingDelta);
     const combo = stats.bestCombo || this.latest.combo;
 
@@ -89,7 +95,7 @@ export class ResultsScreen {
       exerciseName: this.options.exercises[this.currentExercise]?.name ?? this.currentExercise,
       finishedAt: Date.now(),
       score,
-      beat,
+      beat: Math.max(0, beat),
       bestCombo: combo,
       perfectFrames: stats.perfectFrames,
       avgDelta,
@@ -103,7 +109,8 @@ export class ResultsScreen {
     this.a11y.activate();
 
     this.animateNumber(this.options.scoreEl, 0, score, 720, (v) => String(Math.round(v)));
-    this.animateNumber(this.options.beatEl, 0, beat, 760, (v) => `${Math.round(v)}%`);
+    if (beat < 0) this.options.beatEl.textContent = "—";
+    else this.animateNumber(this.options.beatEl, 0, beat, 760, (v) => `${Math.round(v)}%`);
     this.animateNumber(this.options.comboEl, 0, combo, 640, (v) => `×${Math.round(v)}`);
     this.animateNumber(this.options.perfectEl, 0, stats.perfectFrames, 680, (v) => String(Math.round(v)));
     this.animateNumber(this.options.deltaEl, 0, avgDelta, 720, (v) => formatCm(v));

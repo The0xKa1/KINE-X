@@ -68,6 +68,12 @@ export class ReportPage                 {
     const { summary } = session;
     const date = new Date(session.finishedAt);
     const dateLabel = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")} ${String(date.getHours()).padStart(2, "0")}:${String(date.getMinutes()).padStart(2, "0")}`;
+    // Percentile recomputed from the archive so older entries stay accurate.
+    const others = this.options.archive.forExercise(session.exerciseId).filter((s) => s.id !== session.id);
+    const beatText =
+      others.length > 0
+        ? `超过你历史 <b>${Math.round((others.filter((s) => s.score < session.score).length / others.length) * 100)}%</b> 的训练场次`
+        : "你的第一场正式记录";
 
     const phaseRows = PHASES.map(({ key, label }) => {
       const value = summary.phaseAvgScores[key];
@@ -122,7 +128,7 @@ export class ReportPage                 {
           <div class="report-score-card">
             <div class="report-score-big">${session.score}</div>
             <div class="report-score-label">SYNC SCORE</div>
-            <div class="report-score-beat">击败了全球 <b>${session.beat}%</b> 的数字练习者</div>
+            <div class="report-score-beat">${beatText}</div>
             <div class="report-medal">
               <span class="report-medal-stamp">印</span>
               <div><span>UNLOCKED MEDAL</span><b>${session.medalName}</b></div>

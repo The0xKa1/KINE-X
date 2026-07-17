@@ -65,6 +65,9 @@ export class LandmarkerController {
           enabled                                = { pose: true, hand: true, face: true };
           vision                                                                                                                   = null;
           visionPending                       = null;
+          visionRetryAt = 0;
+          retryAt                               = { pose: 0, hand: 0, face: 0 };
+          onError                                                                        ;
           pose           = {
     landmarker: null,
     pending: null,
@@ -78,6 +81,16 @@ export class LandmarkerController {
     smoother: new LandmarkSmoother(FACE_LANDMARK_COUNT),
   };
           lastTs = -1;
+
+  constructor(options                                                                         ) {
+    this.onError = options?.onError;
+  }
+
+  /** Clears the init-failure throttles so the next ensure retries immediately. */
+  resetRetries()       {
+    this.visionRetryAt = 0;
+    this.retryAt = { pose: 0, hand: 0, face: 0 };
+  }
 
   getModel()            {
     return this.model;
@@ -182,6 +195,7 @@ export class LandmarkerController {
           async ensureVision()                {
     if (this.vision) return;
     if (this.visionPending) return this.visionPending;
+    if (performance.now() < this.visionRetryAt) return;
     this.visionPending = (async () => {
       try {
         const module = await import("@mediapipe/tasks-vision");
@@ -189,6 +203,12 @@ export class LandmarkerController {
         this.vision = { module, fileset };
       } catch (error) {
         console.warn("[LandmarkerController] vision init failed", error);
+        this.visionRetryAt = performance.now() + 3000;
+        this.onError?.("vision", errorMessage(error));
+      } finally {
+        // Clear the cached promise so a later ensure can retry (throttled),
+        // instead of caching the failure forever.
+        this.visionPending = null;
       }
     })();
     return this.visionPending;
@@ -196,6 +216,7 @@ export class LandmarkerController {
 
           ensurePose(ready                                 )       {
     if (this.pose.landmarker || this.pose.pending) return;
+    if (performance.now() < this.retryAt.pose) return;
     this.pose.pending = (async () => {
       try {
         const landmarker = await ready.module.PoseLandmarker.createFromOptions(ready.fileset, {
@@ -213,6 +234,8 @@ export class LandmarkerController {
         }
       } catch (error) {
         console.warn("[LandmarkerController] pose init failed", error);
+        this.retryAt.pose = performance.now() + 3000;
+        this.onError?.("pose", errorMessage(error));
       } finally {
         this.pose.pending = null;
       }
@@ -221,6 +244,7 @@ export class LandmarkerController {
 
           ensureHand(ready                                 )       {
     if (this.hand.landmarker || this.hand.pending) return;
+    if (performance.now() < this.retryAt.hand) return;
     this.hand.pending = (async () => {
       try {
         const landmarker = await ready.module.HandLandmarker.createFromOptions(ready.fileset, {
@@ -238,6 +262,8 @@ export class LandmarkerController {
         }
       } catch (error) {
         console.warn("[LandmarkerController] hand init failed", error);
+        this.retryAt.hand = performance.now() + 3000;
+        this.onError?.("hand", errorMessage(error));
       } finally {
         this.hand.pending = null;
       }
@@ -246,6 +272,7 @@ export class LandmarkerController {
 
           ensureFace(ready                                 )       {
     if (this.face.landmarker || this.face.pending) return;
+    if (performance.now() < this.retryAt.face) return;
     this.face.pending = (async () => {
       try {
         const landmarker = await ready.module.FaceLandmarker.createFromOptions(ready.fileset, {
@@ -263,6 +290,8 @@ export class LandmarkerController {
         }
       } catch (error) {
         console.warn("[LandmarkerController] face init failed", error);
+        this.retryAt.face = performance.now() + 3000;
+        this.onError?.("face", errorMessage(error));
       } finally {
         this.face.pending = null;
       }
@@ -289,3 +318,7 @@ export class LandmarkerController {
 }
 
 export { HAND_LANDMARK_COUNT, POSE_LANDMARK_COUNT, FACE_LANDMARK_COUNT };
+
+function errorMessage(error         )         {
+  return error instanceof Error ? error.message : String(error);
+}

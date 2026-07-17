@@ -102,10 +102,6 @@ export class SeedCarousel {
     card.addEventListener("click", () => {
       if (this.activeId === id) return;
       this.options.onSeedChange(id);
-      this.options.bus.emit("pipeline:update", { runIndex: 1, latencyMs: 36, status: "busy" });
-      window.setTimeout(() => {
-        this.options.bus.emit("pipeline:update", { runIndex: 2, latencyMs: 42, status: "ready" });
-      }, 460);
     });
     return card;
   }

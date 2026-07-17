@@ -98,10 +98,12 @@ export class MotionStage {
           lastTickMs = 0;
           stressScratch = new THREE.Color(STRESS_COLOR);
 
-          renderer                                          ;
-          scene                                  ;
-          camera                                              ;
-          skeletonGroup                                  ;
+          renderer                                           ;
+          scene                                   ;
+          camera                                               ;
+          skeletonGroup                                   ;
+  /** Set when the WebGL context can't be created — stage degrades gracefully. */
+          webglFailed = false;
           boneMeshes                           = {};
           jointMeshes                                        = {};
           skeletonRotations                    ;
@@ -121,7 +123,20 @@ export class MotionStage {
     this.interactions = new StageInteractions(options.canvas, this.cameraState);
     this.skeletonRotations = Array.from({ length: 24 }, () => new THREE.Quaternion());
 
-    this.renderer = new THREE.WebGLRenderer({ canvas: this.canvas, antialias: true, alpha: true });
+    try {
+      this.renderer = new THREE.WebGLRenderer({ canvas: this.canvas, antialias: true, alpha: true });
+    } catch (error) {
+      console.warn("[MotionStage] WebGL unavailable — 3D stage disabled", error);
+      this.webglFailed = true;
+    }
+    if (this.webglFailed) {
+      // Degrade instead of freezing the whole app: camera bay, scoring UI and
+      // boot sequence keep working; only the 3D stage is offline.
+      this.loadingOverlay.innerHTML =
+        "<strong>当前浏览器不支持 WebGL</strong><span>3D 舞台不可用，其余功能不受影响</span>";
+      this.loadingOverlay.classList.remove("is-hidden");
+      return;
+    }
     this.renderer.setClearColor(0xffffff, 0);
 
     this.scene = new THREE.Scene();
@@ -143,6 +158,7 @@ export class MotionStage {
   }
 
   async preload()                {
+    if (this.webglFailed) return; // keep the fallback message on screen
     this.loadingOverlay.classList.remove("is-hidden");
     await new Promise((resolve) => window.setTimeout(resolve, 220));
     this.loadingOverlay.classList.add("is-hidden");
@@ -160,6 +176,7 @@ export class MotionStage {
   }
 
   resize()       {
+    if (this.webglFailed) return;
     const rect = this.canvas.getBoundingClientRect();
     const width = Math.max(1, Math.floor(rect.width));
     const height = Math.max(1, Math.floor(rect.height));
@@ -185,6 +202,7 @@ export class MotionStage {
   }
 
   setMeshClip(clip          )       {
+    if (this.webglFailed) return;
     this.clearMeshClip();
     const { mesh, geometry, material, positions } = buildMeshPrimitive(clip);
     const wireMaterial = new THREE.MeshBasicMaterial({
@@ -211,6 +229,7 @@ export class MotionStage {
   }
 
   clearMeshClip()       {
+    if (this.webglFailed) return;
     if (!this.smplxHandle) return;
     this.scene.remove(this.smplxHandle.mesh);
     this.scene.remove(this.smplxHandle.wireMesh);
@@ -222,6 +241,7 @@ export class MotionStage {
   }
 
   resetForSeed()       {
+    if (this.webglFailed) return;
     this.resources.disposeSceneResources();
     this.scene.remove(this.skeletonGroup);
     this.boneMeshes = {};
@@ -241,10 +261,12 @@ export class MotionStage {
     const frame = this.frameBuffer.readLatest();
     const dtMs = this.lastTickMs > 0 ? now - this.lastTickMs : 16;
     this.lastTickMs = now;
-    this.updateCamera(now, Math.min(dtMs, 50) / 1000);
-    this.updateSkeleton(frame, now);
-    this.updateSmplxMesh(frame);
-    this.renderer.render(this.scene, this.camera);
+    if (!this.webglFailed) {
+      this.updateCamera(now, Math.min(dtMs, 50) / 1000);
+      this.updateSkeleton(frame, now);
+      this.updateSmplxMesh(frame);
+      this.renderer.render(this.scene, this.camera);
+    }
 
     if (this.cameraOverlay && this.isCameraActive()) {
       this.cameraOverlay.render(frame, now);
