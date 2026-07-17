@@ -69,6 +69,8 @@ interface JointMesh {
 interface SmplxMeshHandle {
   clip: MeshClip;
   mesh: InstanceType<typeof THREE.Mesh>;
+  wireMesh: InstanceType<typeof THREE.Mesh>;
+  wireMaterial: InstanceType<typeof THREE.MeshBasicMaterial>;
   geometry: InstanceType<typeof THREE.BufferGeometry>;
   material: InstanceType<typeof THREE.MeshStandardMaterial>;
   positions: Float32Array;
@@ -91,6 +93,10 @@ export class MotionStage {
   private lastUiEmit = 0;
   private lastSequence = -1;
   private cameraState = { yawOffset: 0, pitchOffset: 0, zoom: 1 };
+  /** Damped camera base — lerps toward VIEW_OFFSETS[view] for fly transitions. */
+  private displayBase: MotionVector3 = VIEW_OFFSETS.front.clone();
+  private lastTickMs = 0;
+  private stressScratch = new THREE.Color(STRESS_COLOR);
 
   private renderer: InstanceType<typeof THREE.WebGLRenderer>;
   private scene: InstanceType<typeof THREE.Scene>;
@@ -181,10 +187,21 @@ export class MotionStage {
   setMeshClip(clip: MeshClip): void {
     this.clearMeshClip();
     const { mesh, geometry, material, positions } = buildMeshPrimitive(clip);
+    const wireMaterial = new THREE.MeshBasicMaterial({
+      color: 0x111111,
+      wireframe: true,
+      transparent: true,
+      opacity: 0.22,
+    });
+    const wireMesh = new THREE.Mesh(geometry, wireMaterial);
+    wireMesh.visible = false;
     this.scene.add(mesh);
+    this.scene.add(wireMesh);
     this.smplxHandle = {
       clip,
       mesh,
+      wireMesh,
+      wireMaterial,
       geometry,
       material,
       positions,
@@ -196,8 +213,10 @@ export class MotionStage {
   clearMeshClip(): void {
     if (!this.smplxHandle) return;
     this.scene.remove(this.smplxHandle.mesh);
+    this.scene.remove(this.smplxHandle.wireMesh);
     this.smplxHandle.geometry.dispose();
     this.smplxHandle.material.dispose();
+    this.smplxHandle.wireMaterial.dispose();
     this.smplxHandle = null;
     this.applyModeStyle();
   }
@@ -220,8 +239,10 @@ export class MotionStage {
   private tick(now: number): void {
     if (!this.running) return;
     const frame = this.frameBuffer.readLatest();
-    this.updateCamera();
-    this.updateSkeleton(frame);
+    const dtMs = this.lastTickMs > 0 ? now - this.lastTickMs : 16;
+    this.lastTickMs = now;
+    this.updateCamera(now, Math.min(dtMs, 50) / 1000);
+    this.updateSkeleton(frame, now);
     this.updateSmplxMesh(frame);
     this.renderer.render(this.scene, this.camera);
 
@@ -324,9 +345,14 @@ export class MotionStage {
     });
   }
 
-  private updateCamera(): void {
-    const base = VIEW_OFFSETS[this.view];
-    const yaw = this.cameraState.yawOffset;
+  private updateCamera(now: number, dt: number): void {
+    // Damped base position: view switches fly instead of snapping.
+    this.displayBase.lerp(VIEW_OFFSETS[this.view], 1 - Math.exp(-dt * 7));
+    const base = this.displayBase;
+    // Gentle idle sway after 3s without pointer input; any input kills it.
+    const idleMs = now - this.interactions.lastInputAt;
+    const idleYaw = idleMs > 3000 ? Math.sin(now * 0.00045) * 0.05 : 0;
+    const yaw = this.cameraState.yawOffset + idleYaw;
     const pitch = this.cameraState.pitchOffset;
     const zoom = this.cameraState.zoom;
     const distance = base.length() / zoom;
@@ -339,17 +365,24 @@ export class MotionStage {
     this.camera.lookAt(0, TARGET_Y, 0);
   }
 
-  private updateSkeleton(frame: RuntimeFrame | null): void {
+  private updateSkeleton(frame: RuntimeFrame | null, now: number): void {
     if (!frame) {
       this.skeletonGroup.visible = false;
       return;
     }
-    this.skeletonGroup.visible = this.smplxHandle === null;
-    if (this.smplxHandle) return;
+    const withMesh = this.smplxHandle !== null;
+    // mesh mode shows the bone rig together with the wireframe envelope.
+    this.skeletonGroup.visible = !withMesh || this.mode === "mesh";
+    if (withMesh && this.mode !== "mesh") return;
 
     const seed = frame.seedJoints;
     const pelvisX = seed.pelvis.position[0];
+    const pelvisZ = seed.pelvis.position[2];
     const offsetX = -pelvisX; // recentre skeleton on its own pelvis along X
+    // In mesh mode the rig shares the stage with the SMPL-X envelope — pull
+    // joints toward the pelvis axis (X/Z only) so the rig floats clearly
+    // inside the wireframe instead of tangling with the skin surface.
+    const contract = this.mode === "mesh" ? 0.72 : 1;
 
     // Update joints first so bones can read positions back.
     const jointPos: Partial<Record<JointName, MotionVector3>> = {};
@@ -358,17 +391,22 @@ export class MotionStage {
       const joint = seed[name];
       if (!handle || !joint) return;
       const p = joint.position;
-      handle.mesh.position.set(p[0] + offsetX, p[1], p[2]);
+      const x = pelvisX + (p[0] - pelvisX) * contract + offsetX;
+      const z = pelvisZ + (p[2] - pelvisZ) * contract;
+      handle.mesh.position.set(x, p[1], z);
       jointPos[name] = handle.mesh.position;
     });
 
     const worst = this.stress || this.mode === "stress" ? worstMetric(frame) : null;
     const stressJoints = worst && worst.risk !== "good" ? STRESS_JOINTS_BY_METRIC[worst.id] ?? [] : [];
     const stressSet = new Set(stressJoints);
+    // Low-frequency pulse makes stressed joints read at a glance (no glow).
+    const pulse = 0.72 + 0.28 * Math.sin(now * 0.012);
+    const stressColor = this.stressScratch.setHex(STRESS_COLOR).multiplyScalar(pulse);
     const baseJointColor = MODE_STYLE[this.mode].jointColor;
     (Object.entries(this.jointMeshes) as Array<[JointName, JointMesh]>).forEach(([name, joint]) => {
       if (!joint) return;
-      joint.material.color.set(stressSet.has(name) ? STRESS_COLOR : baseJointColor);
+      joint.material.color.set(stressSet.has(name) ? stressColor : baseJointColor);
     });
 
     const baseBoneColor = MODE_STYLE[this.mode].boneColor;
@@ -392,7 +430,7 @@ export class MotionStage {
       handle.smoothed.slerp(handle.quaternion, 0.5);
       handle.mesh.quaternion.copy(handle.smoothed);
       handle.mesh.scale.set(1, length, 1);
-      handle.material.color.set(stressSet.has(a) || stressSet.has(b) ? STRESS_COLOR : baseBoneColor);
+      handle.material.color.set(stressSet.has(a) || stressSet.has(b) ? stressColor : baseBoneColor);
     });
   }
 
@@ -401,9 +439,12 @@ export class MotionStage {
     if (!handle) return;
     if (!frame) {
       handle.mesh.visible = false;
+      handle.wireMesh.visible = false;
       return;
     }
-    handle.mesh.visible = true;
+    // Solid envelope in coach/stress mode; wireframe blueprint in mesh mode.
+    handle.mesh.visible = this.mode !== "mesh";
+    handle.wireMesh.visible = this.mode === "mesh";
     const idx = sampleFrameIndex(handle.clip, frame.progress);
     if (idx === handle.lastFrameIndex) return;
     handle.lastFrameIndex = idx;

@@ -101,10 +101,10 @@ export function applyLiveScore(packet: FrameStreamPacket, ctx: ScorerContext): v
   frame.combo = clamp(Math.floor((frame.score - 65) / 3), 1, 18);
   frame.riskLabel =
     !worst || worst.risk === "good"
-      ? "Clean alignment"
+      ? "对齐良好"
       : worst.risk === "warn"
-        ? `Guard ${worst.name}`
-        : `Risk ${worst.name}`;
+        ? `注意${worst.name}`
+        : `风险${worst.name}`;
 }
 
 function computeBuckets(

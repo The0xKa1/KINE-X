@@ -45,6 +45,31 @@
   letter-spacing: -0.04em;
 }
 
+/* Telemetry data strip — live mono readouts pinned to the stage bay. */
+.telemetry {
+  position: absolute;
+  left: 14px;
+  bottom: 16px;
+  z-index: 3;
+  display: inline-flex;
+  align-items: center;
+  gap: 14px;
+  padding: 7px 12px;
+  border: 2px solid var(--ink);
+  background: var(--paper);
+  font-family: var(--mono);
+  font-size: 9px;
+  letter-spacing: 0.14em;
+  color: var(--muted);
+}
+
+.telemetry b {
+  margin-left: 5px;
+  color: var(--ink);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
 .score-orbit {
   position: absolute;
   right: 14px;

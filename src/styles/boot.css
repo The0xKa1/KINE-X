@@ -1,0 +1,138 @@
+/* Boot sequence overlay + first-paint entrance choreography ---------------- */
+
+.boot-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 4000;
+  display: grid;
+  place-items: center;
+  background: var(--bg);
+  cursor: pointer;
+}
+
+.boot-overlay.is-exiting {
+  transform: translateY(-101%);
+  transition: transform 520ms cubic-bezier(0.85, 0, 0.15, 1);
+}
+
+.boot-frame {
+  position: relative;
+  width: min(780px, 92vw);
+  padding: 36px 40px 24px;
+  border: 5px solid var(--ink);
+  background: var(--paper);
+}
+
+.boot-frame::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 38%;
+  height: 8px;
+  background: var(--hot);
+  transform: translateY(-8px);
+}
+
+.boot-eyebrow {
+  margin: 0 0 14px;
+  font: 700 10px/1 var(--mono);
+  letter-spacing: 0.18em;
+  color: var(--ink);
+}
+
+.boot-brand {
+  margin: 0;
+  font-family: var(--display);
+  font-size: clamp(64px, 12vw, 168px);
+  font-weight: 400;
+  letter-spacing: -0.08em;
+  line-height: 0.9;
+  color: var(--ink);
+  transform: skewX(var(--slant));
+  transform-origin: left bottom;
+}
+
+.boot-brand b {
+  color: var(--hot);
+  font-weight: inherit;
+}
+
+.boot-checks {
+  list-style: none;
+  margin: 28px 0 0;
+  padding: 0;
+  border-top: 3px solid var(--ink);
+}
+
+.boot-checks li {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  padding: 10px 2px;
+  border-bottom: 1px solid var(--rule-soft);
+  font: 700 11px/1.2 var(--mono);
+  letter-spacing: 0.1em;
+  color: var(--muted);
+}
+
+.boot-checks .boot-dots {
+  flex: 1;
+  border-bottom: 2px dotted var(--rule-soft);
+  transform: translateY(-3px);
+}
+
+.boot-checks li > b {
+  font-weight: 700;
+  padding: 2px 6px;
+}
+
+.boot-checks li.is-ok {
+  color: var(--ink);
+  animation: bootOkFlick 180ms steps(2, end) 1;
+}
+
+.boot-checks li.is-ok > b {
+  background: var(--hot);
+  color: var(--ink);
+}
+
+@keyframes bootOkFlick {
+  0% { opacity: 0.2; }
+  100% { opacity: 1; }
+}
+
+.boot-hint {
+  margin: 18px 0 0;
+  font: 700 9px/1 var(--mono);
+  letter-spacing: 0.22em;
+  text-align: right;
+  color: var(--muted);
+}
+
+/* First-paint: workspace stays hidden until boot finishes, then staggers in. */
+body.boot-pending .rail,
+body.boot-pending .workspace > * {
+  opacity: 0;
+}
+
+body.boot-done .rail,
+body.boot-done .workspace > * {
+  animation: bootBlockIn 480ms cubic-bezier(0.2, 0.65, 0.25, 1) both;
+}
+
+body.boot-done .workspace > *:nth-child(2) { animation-delay: 90ms; }
+body.boot-done .workspace > *:nth-child(3) { animation-delay: 180ms; }
+body.boot-done .workspace > *:nth-child(4) { animation-delay: 270ms; }
+
+@keyframes bootBlockIn {
+  from { opacity: 0; transform: translateY(16px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .boot-overlay.is-exiting { transition: none; }
+  .boot-checks li.is-ok { animation: none; }
+  body.boot-done .rail,
+  body.boot-done .workspace > * { animation: none; }
+}

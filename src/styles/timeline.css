@@ -83,6 +83,12 @@
   background-color: #000;
   color: #fff;
   padding: 0;
+  filter: grayscale(1) contrast(1.12);
+}
+
+.timeline-frame.has-thumb:hover,
+.timeline-frame.has-thumb.is-active {
+  filter: none;
 }
 
 .timeline-frame.has-thumb::before { display: none; }

@@ -26,6 +26,7 @@ declare module "three" {
     subVectors(a: Vector3, b: Vector3): this;
     addVectors(a: Vector3, b: Vector3): this;
     multiplyScalar(s: number): this;
+    lerp(v: Vector3, alpha: number): this;
     normalize(): this;
     length(): number;
     dot(v: Vector3): number;
@@ -51,8 +52,12 @@ declare module "three" {
   }
 
   export class Color {
-    constructor(value?: number | string);
-    set(value: number | string): this;
+    constructor(value?: number | string | Color);
+    set(value: number | string | Color): this;
+    setHex(value: number): this;
+    copy(source: Color): this;
+    clone(): Color;
+    multiplyScalar(s: number): this;
   }
 
   export class PerspectiveCamera extends Object3D {
@@ -92,7 +97,21 @@ declare module "three" {
     target: Object3D;
   }
 
+  export const DynamicDrawUsage: number;
+  export const DoubleSide: number;
+
+  export class BufferAttribute {
+    constructor(array: ArrayLike<number>, itemSize: number, normalized?: boolean);
+    needsUpdate: boolean;
+    setUsage(usage: number): this;
+  }
+
   export class BufferGeometry {
+    setAttribute(name: string, attribute: BufferAttribute): this;
+    getAttribute(name: string): BufferAttribute;
+    setIndex(index: BufferAttribute | null): this;
+    computeVertexNormals(): void;
+    computeBoundingSphere(): void;
     dispose(): void;
   }
 
@@ -132,6 +151,8 @@ declare module "three" {
       roughness?: number;
       metalness?: number;
       emissive?: number | string;
+      side?: number;
+      wireframe?: boolean;
     });
   }
 

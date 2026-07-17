@@ -8,6 +8,7 @@ interface ComboBurstOptions {
   flash: HTMLElement;
   burst: HTMLElement;
   combo: HTMLElement;
+  giant?: HTMLElement;
   audio: AudioFx;
   onPerfectFrame?: () => void;
 }
@@ -102,6 +103,7 @@ export class ComboBurst {
   private fireBurst(): void {
     this.replay(this.options.flash, "is-firing");
     this.replay(this.options.burst, "is-firing");
+    if (this.options.giant) this.replay(this.options.giant, "is-firing");
   }
 
   private fireCombo(combo: number): void {

@@ -36,6 +36,7 @@
 
 .results-screen.is-open .results-head,
 .results-screen.is-open .results-grid,
+.results-screen.is-open .results-report,
 .results-screen.is-open .results-ai-card,
 .results-screen.is-open .results-cta {
   animation: rs-block-in 360ms cubic-bezier(0.2, 0.65, 0.25, 1) both;
@@ -43,8 +44,9 @@
 
 .results-screen.is-open .results-head { animation-delay: 80ms; }
 .results-screen.is-open .results-grid { animation-delay: 140ms; }
-.results-screen.is-open .results-ai-card { animation-delay: 220ms; }
-.results-screen.is-open .results-cta { animation-delay: 280ms; }
+.results-screen.is-open .results-report { animation-delay: 190ms; }
+.results-screen.is-open .results-ai-card { animation-delay: 240ms; }
+.results-screen.is-open .results-cta { animation-delay: 300ms; }
 
 @keyframes rs-block-in {
   0% { opacity: 0; transform: translateY(8px); }
@@ -59,7 +61,7 @@
 @keyframes rs-medal-pop {
   0%   { transform: scale(0.6) rotate(-8deg); opacity: 0; }
   60%  { transform: scale(1.06) rotate(2deg); opacity: 1; }
-  100% { transform: scale(1) rotate(0); opacity: 1; }
+  100% { transform: scale(1) rotate(-7deg); opacity: 1; }
 }
 
 .results-head {
@@ -167,9 +169,12 @@
   height: 44px;
   display: grid;
   place-items: center;
-  border: var(--hairline);
+  border: 3px solid var(--ink);
+  outline: 1px solid var(--ink);
+  outline-offset: 2px;
   background: var(--surface);
   color: var(--ink);
+  transform: rotate(-7deg);
 }
 
 .medal-mark svg { width: 20px; height: 20px; }
@@ -397,4 +402,57 @@
 
 @keyframes aiCaret {
   50% { opacity: 0; }
+}
+
+/* Joint telemetry report — dense mono readout between the score grid and AI card. */
+.results-report {
+  border: var(--hairline);
+}
+
+.results-report-head,
+.results-report-row {
+  display: grid;
+  grid-template-columns: 1.6fr 1fr 1fr 1fr 0.7fr;
+  gap: 12px;
+  align-items: baseline;
+  padding: 8px 16px;
+}
+
+.results-report-head {
+  border-bottom: var(--hairline);
+  font-family: var(--mono);
+  font-size: 9px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.results-report-row {
+  border-bottom: 1px solid var(--line-soft);
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  color: var(--ink);
+}
+
+.results-report-row:last-child {
+  border-bottom: 0;
+}
+
+.results-report-row b {
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Joint names are user-facing copy — sans, not mono. */
+.results-report-row > span:first-child {
+  font-family: var(--sans);
+  font-weight: 700;
+}
+
+.results-report-row.is-risk .report-risk {
+  background: var(--hot);
+  color: var(--ink);
+  padding: 0 5px;
+  justify-self: start;
 }

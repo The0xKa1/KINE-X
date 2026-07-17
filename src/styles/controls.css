@@ -14,7 +14,22 @@
   font-family: var(--sans);
   font-size: 12px;
   letter-spacing: 0.04em;
-  transition: none;
+  transition: background 140ms linear, color 140ms linear, transform 120ms cubic-bezier(0.2, 0.65, 0.25, 1);
+}
+
+.icon-button:active,
+.primary-button:active,
+.secondary-button:active,
+.round-button:active {
+  transform: translateY(1px);
+}
+
+.icon-button:disabled,
+.primary-button:disabled,
+.secondary-button:disabled,
+.round-button:disabled {
+  opacity: 0.35;
+  pointer-events: none;
 }
 
 .icon-button:hover,
@@ -169,6 +184,12 @@ input[type="range"]:focus-visible::-moz-range-thumb {
   font-size: 10px;
   letter-spacing: 0.18em;
   text-transform: uppercase;
+  transition: background 140ms linear, color 140ms linear, transform 120ms cubic-bezier(0.2, 0.65, 0.25, 1);
+}
+
+.view-controls button:active,
+.segmented button:active {
+  transform: translateY(1px);
 }
 
 .view-controls button:last-child,
@@ -216,7 +237,7 @@ input[type="range"]:focus-visible::-moz-range-thumb {
   border: var(--hairline);
   background: var(--surface);
   color: var(--ink);
-  font-family: var(--mono);
+  font-family: var(--mono-cjk);
   font-size: 10px;
   letter-spacing: 0.14em;
   text-transform: uppercase;

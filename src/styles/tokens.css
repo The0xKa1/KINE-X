@@ -11,6 +11,7 @@
   --line-soft: rgba(17, 17, 17, 0.12);
   --cool: #111111;
   --hot: #ff4d00;
+  --accent: var(--hot);
   --invert-bg: #111111;
   --invert-fg: #ffffff;
   --hairline: 2px solid var(--rule);
@@ -19,5 +20,6 @@
   --sans: "Noto Sans SC", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Helvetica Neue", Arial, sans-serif;
   --display: "Archivo Black", "Noto Sans SC", ui-sans-serif, sans-serif;
   --mono: "JetBrains Mono", ui-monospace, "SFMono-Regular", Menlo, Consolas, "Liberation Mono", monospace;
+  --mono-cjk: "JetBrains Mono", "Noto Sans SC", ui-monospace, monospace;
   font-family: var(--sans);
 }

@@ -61,7 +61,7 @@
   background: var(--ink);
   color: var(--invert-fg);
   font-family: var(--mono);
-  font-size: 15px;
+  font-size: clamp(24px, 2.6vw, 42px);
   font-weight: 700;
   letter-spacing: 0.14em;
   text-transform: uppercase;
@@ -101,11 +101,54 @@
   100% { transform: translate(var(--dx, 80px), var(--dy, 80px)) rotate(var(--rot, 20deg)); opacity: 0; }
 }
 
+/* Giant stroked PERFECT — projection-scale cue layered over the mirror bay. */
+.fx-giant {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  font-family: var(--display);
+  font-size: clamp(88px, 15vw, 230px);
+  letter-spacing: -0.04em;
+  line-height: 1;
+  color: var(--ink);
+  -webkit-text-fill-color: transparent;
+  -webkit-text-stroke: 3px var(--ink);
+  opacity: 0;
+  transform: skewX(var(--slant)) scale(0.94);
+}
+
+.fx-giant.is-firing {
+  animation: giantPerfect 620ms steps(6, end) forwards;
+}
+
+@keyframes giantPerfect {
+  0%   { opacity: 0; transform: skewX(var(--slant)) scale(0.94); -webkit-text-fill-color: transparent; }
+  20%  { opacity: 1; transform: skewX(var(--slant)) scale(1); -webkit-text-fill-color: transparent; }
+  55%  { opacity: 1; -webkit-text-fill-color: transparent; }
+  75%  { opacity: 1; -webkit-text-fill-color: var(--hot); }
+  100% { opacity: 0; transform: skewX(var(--slant)) scale(1.02); -webkit-text-fill-color: var(--hot); }
+}
+
+/* Score numeral hard-flicker whenever the value changes. */
+.score-orbit.is-tick span {
+  animation: scoreTick 140ms steps(2, end) 1;
+}
+
+@keyframes scoreTick {
+  0% { opacity: 0.25; }
+  100% { opacity: 1; }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .fx-flash.is-firing,
   .fx-burst.is-firing,
   .fx-combo.is-firing,
+  .fx-giant.is-firing,
   .fx-shard {
     animation-duration: 200ms;
+  }
+  .score-orbit.is-tick span {
+    animation: none;
   }
 }

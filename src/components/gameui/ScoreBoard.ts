@@ -19,6 +19,7 @@ interface ScoreBoardOptions {
 export class ScoreBoard {
   private options: ScoreBoardOptions;
   private pipelineRun = 0;
+  private lastScore: number | null = null;
 
   constructor(options: ScoreBoardOptions) {
     this.options = options;
@@ -31,6 +32,15 @@ export class ScoreBoard {
   }
 
   renderScore(payload: ScoreUpdate): void {
+    if (this.lastScore !== payload.score) {
+      this.lastScore = payload.score;
+      const orbit = this.options.scoreValue.closest(".score-orbit");
+      if (orbit) {
+        orbit.classList.remove("is-tick");
+        void (orbit as HTMLElement).offsetWidth;
+        orbit.classList.add("is-tick");
+      }
+    }
     this.options.scoreValue.textContent = String(payload.score);
     this.options.comboLabel.textContent = `x${String(payload.combo).padStart(2, "0")}`;
     this.options.frameLabel.textContent = String(payload.frame).padStart(3, "0");
