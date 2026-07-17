@@ -84,7 +84,7 @@ flowchart LR
 | --- | --- |
 | 前端 UI / 动作舞台 / 时间轴 | 已可演示 |
 | MediaPipe Pose / Hand / Face | 已本地离线运行 |
-| 视频导入为 CoachClip | 已可用，支持本地视频逐帧处理 |
+| 视频导入为 CoachClip | 已可用：可选 MLLM 分段，上传 SAM3D 后端逐帧重建 |
 | SAM 3D Body 导入后端 | 已接入，需要本机模型资产与 Python 环境 |
 | 用户标定与实时评分 | 已可用，摄像头开启后参与评分 |
 | Session 结果页与 AI 教练 | 已可用，LLM 代理需配置环境变量 |
@@ -174,11 +174,11 @@ http://localhost:5173/?backend=http://localhost:8765
 
 ```text
 .
-├── index.html                 # 浏览器入口，importmap 指向本地 MediaPipe 与 esm.sh Three.js
+├── index.html                 # 浏览器入口，importmap 指向本地 MediaPipe 与本地 Three.js（public/three/）
 ├── src/                       # TypeScript 源码
-│   ├── bootstrap/             # DOM 收集、启动辅助与 mock stream
-│   ├── components/            # UI 组件：舞台控制、抽屉、结果页、AI 教练面板
-│   ├── core/                  # 动作渲染、摄像头、MediaPipe、评分、导入、LLM 客户端
+│   ├── bootstrap/             # DOM 收集、启动辅助与 mock stream（遗留）
+│   ├── components/            # UI 组件：layout / gameui / pages（四页：动作库、训练舱、报告、创作）
+│   ├── core/                  # 路由、动作渲染、摄像头、MediaPipe、评分、导入、LLM 客户端
 │   ├── data/                  # 内置动作种子与 pipeline 配置
 │   ├── hooks/                 # WebSocket 帧流入口
 │   ├── styles/                # 分层 CSS
@@ -186,13 +186,27 @@ http://localhost:5173/?backend=http://localhost:8765
 ├── dist/                      # 构建产物，由 scripts/build.mjs 生成
 ├── public/
 │   ├── mediapipe/             # 离线 WASM / task 模型资产
+│   ├── three/                 # 本地化 Three.js（r160）
 │   └── coach_clips/           # 预置或导入生成的动作资源
 ├── backend/                   # SAM 3D Body 视频导入服务
 ├── server/                    # LLM Proxy Backend
 ├── sam_3d_body/               # SAM / SMPL-X 转换与导出脚本
-├── scripts/                   # 构建与 guardrail 检查
+├── scripts/                   # 构建、guardrail 检查与调试工具
 └── docs/                      # 项目文档、视觉参考与后续 demo 视频
 ```
+
+## 页面与路由
+
+应用为单 DOM 的 hash 路由 SPA（页面切换不重载，MediaPipe / WebSocket / 摄像头流在页面间存活）：
+
+| Route | 页面 | 内容 |
+| --- | --- | --- |
+| `#/` | 动作库 | 种子卡墙、导入入口、最近训练记录 |
+| `#/train/:seedId` | 训练舱 | 摄像头跟练主舞台（镜像 + 3D 教练 + 实时评分 + 时间轴） |
+| `#/report/:sessionId?` | 训练报告 | 总分、关节报告表、阶段均分、AI 教练、历史趋势 |
+| `#/create` | 创作工坊 | 视频上传 → MLLM 分片 → SAM3D 重建 → 入库四步向导 |
+
+训练记录（最近 20 场）保存在浏览器 localStorage（`kinex.sessions.v1`）。
 
 ## 运动数据契约
 

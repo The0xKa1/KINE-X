@@ -1,6 +1,6 @@
-# CLAUDE.md
+# AGENTS.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository. `AGENTS.md` carries the same content for other coding agents; keep the two in sync.
+This file provides guidance to coding agents (Codex, Claude Code, Kimi, etc.) when working with this repository.
 
 KINE//X is a hackathon prototype: import a short sports clip → reconstruct it into a 3D coach (CoachClip skeleton + SMPL-X mesh) → score the user's live camera pose against it in the browser → LLM post-session feedback.
 

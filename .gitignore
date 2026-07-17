@@ -1,6 +1,9 @@
 # Dependencies
 node_modules/
 
+# Local deploy secrets (SSH keys, AutoDL scripts — never commit)
+.deploy-tmp/
+
 # Local development state
 .claude/
 .vscode/
