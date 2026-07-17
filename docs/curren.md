@@ -170,6 +170,8 @@ LLM 上游报错会被代理吞成静默错误帧，前端表现为 AI 教练空
 
 ## 下一步优先级
 
+打磨工作清单以 `docs/review.md` 为准（含评审维度对照、P0 防穿帮、P1 涨分点、P2 锦上添花与答辩叙事）。长期项：
+
 清理遗留：删除或归档 `MockStream` / `mockFrameSource` / `landmarksToPose` / `postProcess` / `smpl-lite-rig.gltf`；找回或替换 `single_leg_squat_frames` 原始帧图。
 `tsc --noEmit` 清零（当前 11 个）后纳入 `npm run check` 门禁。
 接入生产级 WebSocket 帧流服务；将 `MotionFrame` 固化为 OpenAPI / JSON Schema 文档。
