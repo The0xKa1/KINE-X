@@ -67,3 +67,12 @@
 
 .connection-dot.is-busy { background: var(--hot); }
 .connection-dot.is-offline { background: var(--ink); }
+
+.connection-lat {
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--hot);
+}
+
+.connection-lat:empty { display: none; }
+

@@ -8,6 +8,7 @@
                      
                      
                      
+                      
                  
                               
  
@@ -102,6 +103,7 @@ export class ComboBurst {
           fireBurst()       {
     this.replay(this.options.flash, "is-firing");
     this.replay(this.options.burst, "is-firing");
+    if (this.options.giant) this.replay(this.options.giant, "is-firing");
   }
 
           fireCombo(combo        )       {

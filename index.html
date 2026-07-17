@@ -17,29 +17,43 @@
     <script type="importmap">
       {
         "imports": {
-          "three": "https://esm.sh/three@0.160.0",
+          "three": "./public/three/three.module.min.js",
           "@mediapipe/tasks-vision": "./public/mediapipe/tasks-vision/vision_bundle.mjs"
         }
       }
     </script>
   </head>
-  <body>
+  <body class="boot-pending">
+    <div id="bootOverlay" class="boot-overlay" aria-label="系统启动中">
+      <div class="boot-frame">
+        <p class="boot-eyebrow">REAL-TIME MOTION COACHING SYSTEM · v0.1</p>
+        <h1 class="boot-brand">KINE<b>//</b>X</h1>
+        <ul class="boot-checks">
+          <li data-check="clip"><span>COACH CLIP</span><i class="boot-dots"></i><b>WAIT</b></li>
+          <li data-check="mesh"><span>SMPL-X MESH</span><i class="boot-dots"></i><b>WAIT</b></li>
+          <li data-check="mediapipe"><span>MEDIAPIPE RUNTIME</span><i class="boot-dots"></i><b>WAIT</b></li>
+          <li data-check="stream"><span>FRAME STREAM</span><i class="boot-dots"></i><b>WAIT</b></li>
+        </ul>
+        <p class="boot-hint">CLICK ANYWHERE TO SKIP ///</p>
+      </div>
+    </div>
+
     <div class="app-shell">
       <aside class="rail" aria-label="Primary">
-        <div class="brand-mark">hm</div>
+        <div class="brand-mark">kx</div>
 
-        <nav class="rail-nav" aria-label="Workflow">
-          <button class="rail-item is-active" type="button" data-nav="seed" title="Seed">
-            <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M5 5h14v14H5z" /><path d="m10 9 5 3-5 3V9z" /></svg>
+        <nav class="rail-nav" aria-label="页面导航">
+          <button class="rail-item is-active" type="button" data-route="library" data-label="LIB" title="动作库">
+            <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M4 4h7v7H4zM13 4h7v7h-7zM4 13h7v7H4zM13 13h7v7h-7z" /></svg>
           </button>
-          <button class="rail-item" type="button" data-nav="rebuild" title="Rebuild">
-            <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M12 3 4 7v10l8 4 8-4V7l-8-4Z" /><path d="M4 7l8 4 8-4M12 11v10" /></svg>
+          <button class="rail-item" type="button" data-route="train" data-label="TRN" title="训练舱">
+            <svg aria-hidden="true" viewBox="0 0 24 24"><path d="m8 5 11 7-11 7V5Z" /></svg>
           </button>
-          <button class="rail-item" type="button" data-nav="compare" title="Compare">
-            <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M7 4v16M17 4v16M4 8h6M14 8h6M4 16h6M14 16h6" /></svg>
+          <button class="rail-item" type="button" data-route="report" data-label="RPT" title="报告">
+            <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M6 4h12v16H6z" /><path d="M9 15v4M12 9v10M15 12v7" /></svg>
           </button>
-          <button class="rail-item" type="button" data-nav="score" title="Safety">
-            <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M5 19 12 5l7 14H5Z" /><path d="M12 10v4M12 17h.01" /></svg>
+          <button class="rail-item" type="button" data-route="create" data-label="CRT" title="创作">
+            <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14" /></svg>
           </button>
         </nav>
 
@@ -59,6 +73,7 @@
             <div class="connection" aria-live="polite">
               <span id="connectionDot" class="connection-dot"></span>
               <span id="connectionText">Mock WebSocket streaming</span>
+              <b id="connectionLat" class="connection-lat"></b>
             </div>
             <button id="cameraButton" class="icon-button" type="button" title="切换评委镜头" aria-pressed="false">
               <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M4 7h11a3 3 0 0 1 3 3v4a3 3 0 0 1-3 3H4V7Z" /><path d="m18 10 3-2v8l-3-2" /></svg>
@@ -75,7 +90,7 @@
               <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M6 4c4 4 8 12 12 16M18 4c-4 4-8 12-12 16M8 8h8M8 16h8" /></svg>
               <span>DNA</span>
             </button>
-            <button id="importButton" class="icon-button" type="button" title="导入短视频生成虚拟教练" aria-label="导入短视频" aria-controls="importDrawer" aria-expanded="false">
+            <button id="importButton" class="icon-button" type="button" title="导入短视频生成虚拟教练" aria-label="导入短视频">
               <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
                 <path d="M12 3v12" />
                 <path d="m7 10 5 5 5-5" />
@@ -86,6 +101,23 @@
           </div>
         </header>
 
+        <div id="page-library" class="page" hidden></div>
+
+        <div id="page-report" class="page" hidden>
+          <div class="page-placeholder">
+            <span class="eyebrow">03 · REPORT / 训练报告</span>
+            <strong>完成一场训练后，这里生成你的专属报告</strong>
+          </div>
+        </div>
+
+        <div id="page-create" class="page" hidden>
+          <div class="page-placeholder">
+            <span class="eyebrow">04 · CREATE / 创作工坊</span>
+            <strong>视频 → 虚拟教练，向导即将上线</strong>
+          </div>
+        </div>
+
+        <div id="page-train" class="page">
         <section class="seed-strip" aria-label="Seed carousel">
           <div class="seed-strip-head">
             <span class="eyebrow">01 · INPUT / SEED</span>
@@ -137,6 +169,7 @@
                 <div id="fxFlash" class="fx-flash"></div>
                 <div id="fxBurst" class="fx-burst">PERFECT</div>
                 <div id="fxCombo" class="fx-combo">COMBO ×01</div>
+                <div id="fxGiant" class="fx-giant" aria-hidden="true">PERFECT</div>
               </div>
 
               <div id="sessionOverlay" class="session-overlay" aria-live="polite" aria-atomic="true">
@@ -211,6 +244,13 @@
                   <small>SYNC</small>
                 </div>
               </div>
+
+              <div class="telemetry" id="telemetryStrip" aria-hidden="true">
+                <span>FRAME<b id="tlFrame">000000</b></span>
+                <span>PROG<b id="tlProgress">0.0%</b></span>
+                <span>LAT<b id="tlLat">—</b></span>
+                <span>Δ<b id="tlDelta">—</b></span>
+              </div>
             </div>
 
             <div class="bay-playbar">
@@ -234,6 +274,7 @@
           </div>
           <div id="timelineFrames" class="timeline-frames"></div>
         </section>
+        </div>
       </main>
     </div>
 
@@ -337,73 +378,7 @@
       </div>
     </aside>
 
-    <!-- Import drawer (短视频 → 虚拟动作教具) -->
     <div id="drawerBackdrop" class="drawer-backdrop"></div>
-    <aside id="importDrawer" class="dna-drawer" aria-label="导入短视频">
-      <header class="dna-drawer-head">
-        <div>
-          <span class="eyebrow">07 · IMPORT</span>
-          <h2>video → coach</h2>
-        </div>
-        <button id="importClose" class="drawer-close" type="button" aria-label="关闭">
-          <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6l-12 12" /></svg>
-        </button>
-      </header>
-      <div class="dna-drawer-body">
-        <section class="drawer-section">
-          <div class="section-head">
-            <h3>SOURCE</h3>
-            <span>standard motion clip</span>
-          </div>
-          <label id="importDrop" class="import-drop" for="importFile">
-            <strong>选择视频或拖拽到这里</strong>
-            <span>建议正面 / 侧面拍摄、全身入境的 mp4，时长 3-15 秒</span>
-            <input id="importFile" type="file" accept="video/*" hidden />
-          </label>
-          <video id="importPreview" class="import-preview" muted playsinline></video>
-        </section>
-        <section class="drawer-section">
-          <div class="section-head">
-            <h3>SHAPE</h3>
-            <span>motion category</span>
-          </div>
-          <label class="settings-field">
-            <span>动作类型</span>
-            <select id="importMotionSelect">
-              <option value="flow">Flow · 通用 / 流动</option>
-              <option value="squat">Squat · 下蹲</option>
-              <option value="hinge">Hinge · 髋铰</option>
-              <option value="bounce">Bounce · 弹跳</option>
-              <option value="throw">Throw · 投掷</option>
-            </select>
-          </label>
-          <p class="settings-hint">仅用于打分 metric 权重提示；不影响骨架重建。</p>
-        </section>
-        <section class="drawer-section">
-          <div class="section-head">
-            <h3>MLLM 分段</h3>
-            <span>可选：先用大模型切出动作段</span>
-          </div>
-          <button id="importSegment" class="secondary-button" type="button">用 MLLM 切片</button>
-          <p id="segmentSummary" class="segment-summary"></p>
-          <div id="segmentList" class="segment-list is-empty"></div>
-          <p class="settings-hint">不选段时整段导入。选中某段后，后端只对该时间区间抽帧/推理。</p>
-        </section>
-        <section class="drawer-section">
-          <div class="section-head">
-            <h3>PARSE</h3>
-            <span id="importStatus">等待上传视频</span>
-          </div>
-          <div class="import-progress"><i id="importProgress"></i></div>
-          <div class="import-progress-label" id="importProgressLabel">—</div>
-          <div class="import-actions">
-            <button id="importStart" class="secondary-button" type="button">开始解析</button>
-            <button id="importApply" class="primary-button" type="button">应用为当前教练</button>
-          </div>
-          <p class="settings-hint">视频会上传到 SAM3D 导入后端 (:8765)；模型在 GPU 上跑，~30s/100 帧。</p>
-        </section>
-      </div>
-    </aside>
 
     <!-- DNA drawer -->
     <aside id="dnaDrawer" class="dna-drawer" aria-label="Action DNA inspector">
@@ -479,6 +454,17 @@
           </div>
         </div>
 
+        <section class="results-report" aria-label="关节数据报告">
+          <header class="results-report-head">
+            <span>JOINT</span>
+            <span>AVG</span>
+            <span>WORST</span>
+            <span>Δ MAX</span>
+            <span>RISK</span>
+          </header>
+          <div id="resultsJoints" class="results-report-rows"></div>
+        </section>
+
         <section id="aiCoachCard" class="results-ai-card">
           <header class="results-ai-head">
             <span class="eyebrow">[ AI COACH DIAGNOSIS ]</span>
@@ -489,6 +475,7 @@
 
         <div class="results-cta">
           <span class="cta-text">一键生成你的 3D 动作分身 DNA 二创短视频，发回抖音装个杯。</span>
+          <button id="resultsReportLink" class="secondary-button" type="button">查看完整报告 →</button>
           <button id="exportButton" class="primary-button" type="button">
             <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M12 3v12M7 10l5 5 5-5M5 19h14" /></svg>
             生成 DNA 二创视频

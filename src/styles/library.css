@@ -1,0 +1,189 @@
+/* Library page (seed wall) -------------------------------------------------- */
+
+#page-library:not([hidden]) {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  gap: 0;
+  overflow-y: auto;
+}
+
+.library-hero {
+  padding: 26px 28px 20px;
+  border-bottom: var(--heavy-rule);
+  background: var(--paper);
+}
+
+.library-hero .eyebrow {
+  margin: 0 0 10px;
+  font: 700 10px/1 var(--mono);
+  letter-spacing: 0.2em;
+  color: var(--ink);
+}
+
+.library-hero h2 {
+  margin: 0;
+  font-family: var(--display);
+  font-size: clamp(34px, 4.5vw, 64px);
+  letter-spacing: -0.05em;
+  line-height: 0.95;
+}
+
+.library-hero .library-sub {
+  margin: 10px 0 0;
+  font: 700 10px/1.4 var(--mono);
+  letter-spacing: 0.16em;
+  color: var(--muted);
+}
+
+.library-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 0;
+  align-content: start;
+}
+
+.library-card {
+  position: relative;
+  display: grid;
+  gap: 10px;
+  justify-items: start;
+  padding: 16px;
+  min-height: 240px;
+  border: 0;
+  border-right: 2px solid var(--ink);
+  border-bottom: 2px solid var(--ink);
+  background: var(--paper);
+  color: var(--ink);
+  text-align: left;
+  cursor: pointer;
+  transition: background 140ms linear, color 140ms linear;
+}
+
+.library-card:hover {
+  background: var(--ink);
+  color: var(--paper);
+}
+
+.library-cover {
+  display: block;
+  width: 100%;
+  height: 120px;
+  border: 2px solid currentColor;
+  background-size: cover;
+  background-position: center;
+  filter: grayscale(1) contrast(1.12);
+}
+
+.library-card:hover .library-cover {
+  filter: none;
+}
+
+.library-cover.is-empty {
+  display: grid;
+  place-items: center;
+  font: 700 9px/1 var(--mono);
+  letter-spacing: 0.22em;
+  opacity: 0.5;
+}
+
+.library-card-tag {
+  font: 700 9px/1 var(--mono);
+  letter-spacing: 0.16em;
+  opacity: 0.72;
+}
+
+.library-card-name {
+  font-family: var(--display);
+  font-size: 22px;
+  line-height: 1;
+  letter-spacing: -0.03em;
+}
+
+.library-card-meta {
+  display: grid;
+  gap: 4px;
+  font-size: 11px;
+  opacity: 0.78;
+}
+
+.library-card-meta b {
+  font-family: var(--mono);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+
+.library-card-cta {
+  align-self: end;
+  margin-top: auto;
+  font: 700 10px/1 var(--mono);
+  letter-spacing: 0.14em;
+  padding: 6px 10px;
+  border: 2px solid currentColor;
+}
+
+.library-card.is-create {
+  background: var(--bg);
+  border-style: solid;
+}
+
+.library-create-plus {
+  display: grid;
+  place-items: center;
+  width: 64px;
+  height: 64px;
+  border: 3px solid var(--hot);
+  color: var(--hot);
+  font-family: var(--display);
+  font-size: 34px;
+  line-height: 1;
+}
+
+/* Library history strip */
+.library-history {
+  border-top: var(--heavy-rule);
+  background: var(--paper);
+}
+
+.library-history-head {
+  padding: 10px 16px;
+  border-bottom: 2px solid var(--ink);
+  font: 700 9px/1 var(--mono);
+  letter-spacing: 0.2em;
+  color: var(--ink);
+}
+
+.library-history-rows {
+  display: grid;
+}
+
+.library-history-row {
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  align-items: baseline;
+  gap: 16px;
+  padding: 9px 16px;
+  border: 0;
+  border-bottom: 1px solid var(--rule-soft);
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--mono);
+  font-size: 11px;
+  text-align: left;
+  cursor: pointer;
+  transition: background 120ms linear, color 120ms linear;
+}
+
+.library-history-row:hover {
+  background: var(--ink);
+  color: var(--paper);
+}
+
+.library-history-row b {
+  font-variant-numeric: tabular-nums;
+  font-size: 13px;
+}
+
+.library-history-row span:last-child {
+  color: var(--muted);
+  font-size: 10px;
+}

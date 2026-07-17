@@ -1,7 +1,6 @@
-                                                                    
+                                                        
 
                            
-                                 
                                    
                                 
                        
@@ -9,9 +8,6 @@
                                 
                                
                                   
-                                    
-                    
-                   
                                        
                                        
                                          
@@ -62,18 +58,6 @@ export class AppShell {
   }
 
           bind()       {
-    this.options.railItems.forEach((button) => {
-      button.addEventListener("click", () => {
-        this.options.railItems.forEach((item) => item.classList.remove("is-active"));
-        button.classList.add("is-active");
-        const nav = button.dataset.nav;
-        if (nav === "seed") this.options.onNavMode("coach");
-        else if (nav === "compare") this.options.onNavMode("stress");
-        else if (nav === "rebuild") this.options.onRebuild();
-        else if (nav === "score") this.options.onSafety();
-      });
-    });
-
     this.options.viewButtons.forEach((button) => {
       button.addEventListener("click", () => {
         this.options.viewButtons.forEach((item) => item.classList.remove("is-active"));

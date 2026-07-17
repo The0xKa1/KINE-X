@@ -12,6 +12,11 @@ export interface DomRefs {
   mirrorTitle: HTMLElement;
   connectionText: HTMLElement;
   connectionDot: HTMLElement;
+  connectionLat: HTMLElement;
+  tlFrame: HTMLElement;
+  tlProgress: HTMLElement;
+  tlLat: HTMLElement;
+  tlDelta: HTMLElement;
   fpsLabel: HTMLElement;
   mirrorEmpty: HTMLElement;
   mirrorEmptyTitle: HTMLElement;
@@ -21,6 +26,11 @@ export interface DomRefs {
   cameraOverlayCanvas: HTMLCanvasElement;
   motionCanvas: HTMLCanvasElement;
   loadingOverlay: HTMLElement;
+  bootOverlay: HTMLElement;
+  pageLibrary: HTMLElement;
+  pageTrain: HTMLElement;
+  pageReport: HTMLElement;
+  pageCreate: HTMLElement;
 
   metricList: HTMLElement;
   pipelineList: HTMLElement;
@@ -43,6 +53,7 @@ export interface DomRefs {
   fxFlash: HTMLElement;
   fxBurst: HTMLElement;
   fxCombo: HTMLElement;
+  fxGiant: HTMLElement;
   mirrorStage: HTMLElement;
 
   resultsScreen: HTMLElement;
@@ -53,8 +64,10 @@ export interface DomRefs {
   resultsPerfect: HTMLElement;
   resultsDelta: HTMLElement;
   resultsRisk: HTMLElement;
+  resultsJoints: HTMLElement;
   medalName: HTMLElement;
   resultsTitle: HTMLElement;
+  resultsReportLink: HTMLButtonElement;
   exportButton: HTMLElement;
 
   dnaExport: HTMLElement;
@@ -106,21 +119,7 @@ export interface DomRefs {
   sessionGestureValue: HTMLElement;
   sessionGestureBar: HTMLElement;
 
-  importDrawer: HTMLElement;
   importButton: HTMLElement;
-  importClose: HTMLElement;
-  importFile: HTMLInputElement;
-  importDrop: HTMLElement;
-  importMotionSelect: HTMLSelectElement;
-  importStart: HTMLButtonElement;
-  importApply: HTMLButtonElement;
-  importSegment: HTMLButtonElement;
-  segmentList: HTMLElement;
-  segmentSummary: HTMLElement;
-  importProgress: HTMLElement;
-  importProgressLabel: HTMLElement;
-  importStatus: HTMLElement;
-  importPreview: HTMLVideoElement;
 
   railItems: HTMLButtonElement[];
   viewButtons: HTMLButtonElement[];
@@ -141,6 +140,11 @@ export function collectDomRefs(): DomRefs {
     mirrorTitle: $("#mirrorTitle"),
     connectionText: $("#connectionText"),
     connectionDot: $("#connectionDot"),
+    connectionLat: $("#connectionLat"),
+    tlFrame: $("#tlFrame"),
+    tlProgress: $("#tlProgress"),
+    tlLat: $("#tlLat"),
+    tlDelta: $("#tlDelta"),
     fpsLabel: $("#fpsLabel"),
     mirrorEmpty: $("#mirrorEmpty"),
     mirrorEmptyTitle: $("#mirrorEmptyTitle"),
@@ -150,6 +154,11 @@ export function collectDomRefs(): DomRefs {
     cameraOverlayCanvas: $("#cameraOverlay") as HTMLCanvasElement,
     motionCanvas: $("#motionCanvas") as HTMLCanvasElement,
     loadingOverlay: $("#loadingOverlay"),
+    bootOverlay: $("#bootOverlay"),
+    pageLibrary: $("#page-library"),
+    pageTrain: $("#page-train"),
+    pageReport: $("#page-report"),
+    pageCreate: $("#page-create"),
 
     metricList: $("#metricList"),
     pipelineList: $("#pipelineList"),
@@ -172,6 +181,7 @@ export function collectDomRefs(): DomRefs {
     fxFlash: $("#fxFlash"),
     fxBurst: $("#fxBurst"),
     fxCombo: $("#fxCombo"),
+    fxGiant: $("#fxGiant"),
     mirrorStage: $("#mirrorStage"),
 
     resultsScreen: $("#resultsScreen"),
@@ -182,8 +192,10 @@ export function collectDomRefs(): DomRefs {
     resultsPerfect: $("#resultsPerfect"),
     resultsDelta: $("#resultsDelta"),
     resultsRisk: $("#resultsRisk"),
+    resultsJoints: $("#resultsJoints"),
     medalName: $("#medalName"),
     resultsTitle: $("#resultsTitle"),
+    resultsReportLink: $("#resultsReportLink") as HTMLButtonElement,
     exportButton: $("#exportButton"),
 
     dnaExport: $("#dnaExport"),
@@ -235,21 +247,7 @@ export function collectDomRefs(): DomRefs {
     sessionGestureValue: $("#sessionGestureValue"),
     sessionGestureBar: $("#sessionGestureBar"),
 
-    importDrawer: $("#importDrawer"),
     importButton: $("#importButton"),
-    importClose: $("#importClose"),
-    importFile: $("#importFile") as HTMLInputElement,
-    importDrop: $("#importDrop"),
-    importMotionSelect: $("#importMotionSelect") as HTMLSelectElement,
-    importStart: $("#importStart") as HTMLButtonElement,
-    importApply: $("#importApply") as HTMLButtonElement,
-    importSegment: $("#importSegment") as HTMLButtonElement,
-    segmentList: $("#segmentList"),
-    segmentSummary: $("#segmentSummary"),
-    importProgress: $("#importProgress"),
-    importProgressLabel: $("#importProgressLabel"),
-    importStatus: $("#importStatus"),
-    importPreview: $("#importPreview") as HTMLVideoElement,
 
     railItems: $$<HTMLButtonElement>(".rail-item"),
     viewButtons: $$<HTMLButtonElement>("[data-view]"),

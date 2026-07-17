@@ -19,6 +19,7 @@ import { formatCm, formatDeg } from "../../core/coordinates.js";
 export class ScoreBoard {
           options                   ;
           pipelineRun = 0;
+          lastScore                = null;
 
   constructor(options                   ) {
     this.options = options;
@@ -31,6 +32,15 @@ export class ScoreBoard {
   }
 
   renderScore(payload             )       {
+    if (this.lastScore !== payload.score) {
+      this.lastScore = payload.score;
+      const orbit = this.options.scoreValue.closest(".score-orbit");
+      if (orbit) {
+        orbit.classList.remove("is-tick");
+        void (orbit               ).offsetWidth;
+        orbit.classList.add("is-tick");
+      }
+    }
     this.options.scoreValue.textContent = String(payload.score);
     this.options.comboLabel.textContent = `x${String(payload.combo).padStart(2, "0")}`;
     this.options.frameLabel.textContent = String(payload.frame).padStart(3, "0");

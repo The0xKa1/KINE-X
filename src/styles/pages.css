@@ -1,0 +1,54 @@
+/* Hash-routed page containers ---------------------------------------------- */
+
+.workspace {
+  grid-template-rows: auto minmax(0, 1fr);
+}
+
+.page {
+  min-width: 0;
+  min-height: 0;
+}
+
+.page[hidden] {
+  display: none;
+}
+
+.page:not([hidden]) {
+  animation: pageIn 260ms cubic-bezier(0.2, 0.65, 0.25, 1) both;
+}
+
+@keyframes pageIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+#page-train:not([hidden]) {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  gap: 0;
+}
+
+.page-placeholder {
+  height: 100%;
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  gap: 10px;
+  text-align: center;
+}
+
+.page-placeholder .eyebrow {
+  font: 700 10px/1 var(--mono);
+  letter-spacing: 0.2em;
+  color: var(--muted);
+}
+
+.page-placeholder strong {
+  font-family: var(--display);
+  font-size: clamp(18px, 2.4vw, 28px);
+  letter-spacing: -0.02em;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .page:not([hidden]) { animation: none; }
+}

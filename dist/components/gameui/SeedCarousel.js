@@ -66,6 +66,8 @@ export class SeedCarousel {
     if (!this.options.order.includes(id)) this.options.order.push(id);
     this.options.exercises[id] = exercise;
     const card = this.buildCard(id, exercise);
+    card.classList.add("is-entering");
+    card.addEventListener("animationend", () => card.classList.remove("is-entering"), { once: true });
     this.options.container.appendChild(card);
     this.cards.set(id, card);
     this.setActive(id);

@@ -1,7 +1,6 @@
-import type { CameraView, MotionMode } from "../../types/motion.js";
+import type { CameraView } from "../../types/motion.js";
 
 interface AppShellOptions {
-  railItems: HTMLButtonElement[];
   viewButtons: HTMLButtonElement[];
   playButton: HTMLButtonElement;
   playIcon: SVGElement;
@@ -9,9 +8,6 @@ interface AppShellOptions {
   speedSlider: HTMLInputElement;
   timeSlider: HTMLInputElement;
   cameraButton: HTMLButtonElement;
-  onNavMode(mode: MotionMode): void;
-  onRebuild(): void;
-  onSafety(): void;
   onViewChange(view: CameraView): void;
   onPlayChange(playing: boolean): void;
   onStressChange(enabled: boolean): void;
@@ -62,18 +58,6 @@ export class AppShell {
   }
 
   private bind(): void {
-    this.options.railItems.forEach((button) => {
-      button.addEventListener("click", () => {
-        this.options.railItems.forEach((item) => item.classList.remove("is-active"));
-        button.classList.add("is-active");
-        const nav = button.dataset.nav;
-        if (nav === "seed") this.options.onNavMode("coach");
-        else if (nav === "compare") this.options.onNavMode("stress");
-        else if (nav === "rebuild") this.options.onRebuild();
-        else if (nav === "score") this.options.onSafety();
-      });
-    });
-
     this.options.viewButtons.forEach((button) => {
       button.addEventListener("click", () => {
         this.options.viewButtons.forEach((item) => item.classList.remove("is-active"));

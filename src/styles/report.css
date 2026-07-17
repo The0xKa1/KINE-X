@@ -1,0 +1,244 @@
+/* Report page (full-page session report) ----------------------------------- */
+
+#page-report:not([hidden]) {
+  display: block;
+  overflow-y: auto;
+}
+
+.report-scroll {
+  display: grid;
+  gap: 0;
+  align-content: start;
+  min-height: 100%;
+}
+
+.report-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: end;
+  gap: 16px;
+  padding: 22px 28px 18px;
+  border-bottom: var(--heavy-rule);
+  background: var(--paper);
+}
+
+.report-head .eyebrow {
+  font: 700 10px/1 var(--mono);
+  letter-spacing: 0.2em;
+  color: var(--ink);
+}
+
+.report-head h2 {
+  margin: 8px 0 0;
+  font-family: var(--display);
+  font-size: clamp(28px, 3.6vw, 52px);
+  letter-spacing: -0.04em;
+  line-height: 0.95;
+}
+
+.report-date {
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.1em;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.report-grid {
+  display: grid;
+  grid-template-columns: minmax(260px, 1fr) minmax(0, 1.4fr);
+  border-bottom: var(--heavy-rule);
+}
+
+.report-score-card {
+  display: grid;
+  align-content: center;
+  justify-items: center;
+  gap: 8px;
+  padding: 28px 24px;
+  border-right: var(--heavy-rule);
+  text-align: center;
+}
+
+.report-score-big {
+  font-family: var(--display);
+  font-size: clamp(72px, 10vw, 140px);
+  line-height: 0.9;
+  letter-spacing: -0.05em;
+  font-variant-numeric: tabular-nums;
+}
+
+.report-score-label {
+  font: 700 10px/1 var(--mono);
+  letter-spacing: 0.24em;
+  color: var(--muted);
+}
+
+.report-score-beat {
+  font-family: var(--mono);
+  font-size: 12px;
+}
+
+.report-score-beat b {
+  color: var(--hot);
+}
+
+.report-medal {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 10px;
+  text-align: left;
+}
+
+.report-medal-stamp {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border: 3px solid var(--ink);
+  outline: 1px solid var(--ink);
+  outline-offset: 2px;
+  transform: rotate(-7deg);
+  font-family: var(--display);
+  font-size: 18px;
+  color: var(--hot);
+}
+
+.report-medal span {
+  display: block;
+  font: 700 9px/1 var(--mono);
+  letter-spacing: 0.18em;
+  color: var(--muted);
+}
+
+.report-medal b {
+  font-size: 14px;
+}
+
+.report-side {
+  display: grid;
+  align-content: start;
+}
+
+.report-stats {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  border-bottom: 2px solid var(--ink);
+}
+
+.report-stats > div {
+  display: grid;
+  gap: 4px;
+  padding: 14px 16px;
+  border-right: 1px solid var(--rule-soft);
+}
+
+.report-stats > div:last-child {
+  border-right: 0;
+}
+
+.report-stats span {
+  font: 700 9px/1 var(--mono);
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.report-stats b {
+  font-family: var(--mono);
+  font-size: 18px;
+  font-variant-numeric: tabular-nums;
+}
+
+.report-block-title {
+  padding: 10px 16px 0;
+  font: 700 9px/1 var(--mono);
+  letter-spacing: 0.2em;
+  color: var(--ink);
+}
+
+.report-block-title em {
+  font-style: normal;
+  color: var(--muted);
+  letter-spacing: 0.08em;
+}
+
+.report-phases {
+  padding-bottom: 12px;
+  border-bottom: 2px solid var(--ink);
+}
+
+.report-phase {
+  display: grid;
+  grid-template-columns: 52px 1fr 40px;
+  align-items: center;
+  gap: 12px;
+  padding: 7px 16px;
+}
+
+.report-phase span {
+  font: 700 9px/1 var(--mono);
+  letter-spacing: 0.16em;
+  color: var(--muted);
+}
+
+.report-phase i {
+  display: block;
+  height: 10px;
+  background: var(--ink);
+}
+
+.report-phase.is-worst i {
+  background: var(--hot);
+}
+
+.report-phase b {
+  font-family: var(--mono);
+  font-size: 11px;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.report-trend-bars {
+  display: flex;
+  align-items: flex-end;
+  gap: 6px;
+  height: 64px;
+  padding: 10px 16px 16px;
+}
+
+.report-trend-bars i {
+  flex: 1;
+  max-width: 34px;
+  background: var(--ink);
+}
+
+.report-trend-bars i.is-current {
+  background: var(--hot);
+  outline: 2px solid var(--ink);
+}
+
+.report-trend-empty {
+  font-family: var(--mono);
+  color: var(--muted);
+}
+
+.report-joints {
+  border: 0;
+  border-bottom: var(--heavy-rule);
+}
+
+.report-ai {
+  border: 0;
+}
+
+@media (max-width: 900px) {
+  .report-grid {
+    grid-template-columns: 1fr;
+  }
+  .report-score-card {
+    border-right: 0;
+    border-bottom: var(--heavy-rule);
+  }
+}

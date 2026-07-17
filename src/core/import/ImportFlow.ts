@@ -1,13 +1,12 @@
-import { drawerStack } from "../../core/DrawerStack.js";
-import { buildFrameThumbnailsFromMeta, loadCoachClip } from "../../core/import/loadCoachClip.js";
-import { loadMeshClip, type MeshClip } from "../../core/import/MeshClip.js";
-import { VideoSeeker } from "../../core/import/VideoSeeker.js";
-import { SegmentResourceStore, type SegmentResource } from "../../core/mllm/SegmentResourceStore.js";
+import { buildFrameThumbnailsFromMeta, loadCoachClip } from "./loadCoachClip.js";
+import { loadMeshClip, type MeshClip } from "./MeshClip.js";
+import { VideoSeeker } from "./VideoSeeker.js";
+import { SegmentResourceStore, type SegmentResource } from "../mllm/SegmentResourceStore.js";
 import {
   VideoSegmentationClient,
   sampleFramesAtInterval,
   type MllmVideoSegment,
-} from "../../core/mllm/VideoSegmentationClient.js";
+} from "../mllm/VideoSegmentationClient.js";
 import type { CoachClip, SeedMotion } from "../../types/motion.js";
 
 const SEGMENT_SAMPLE_INTERVAL_SEC = 1.5;
@@ -20,6 +19,16 @@ export interface ImportApplyPayload {
   meshClip: MeshClip | null;
   motion: SeedMotion;
 }
+
+export type ImportFlowState =
+  | "empty"
+  | "file"
+  | "segmenting"
+  | "segmented"
+  | "parsing"
+  | "ready"
+  | "applied"
+  | "error";
 
 interface ImportJobResult {
   jobId: string;
@@ -42,10 +51,7 @@ interface PendingImport {
   meshClip: MeshClip | null;
 }
 
-interface ImportDrawerOptions {
-  drawer: HTMLElement;
-  trigger: HTMLElement;
-  closeButton: HTMLElement;
+export interface ImportFlowOptions {
   fileInput: HTMLInputElement;
   dropZone: HTMLElement;
   motionSelect: HTMLSelectElement;
@@ -60,13 +66,18 @@ interface ImportDrawerOptions {
   preview: HTMLVideoElement;
   backendUrl: string;
   onApply(payload: ImportApplyPayload): void;
+  onStateChange?(state: ImportFlowState): void;
 }
 
 const SIMULATED_DURATION_MS = 50_000;
 
-export class ImportDrawer {
-  private options: ImportDrawerOptions;
-  private isOpen = false;
+/**
+ * Container-agnostic video → CoachClip import flow: file handling, optional
+ * MLLM segmentation, backend upload, result hydration. Drives whatever DOM it
+ * is handed (the create page wizard today; a drawer before that).
+ */
+export class ImportFlow {
+  private options: ImportFlowOptions;
   private file: File | null = null;
   private pending: PendingImport | null = null;
   private busy = false;
@@ -74,16 +85,8 @@ export class ImportDrawer {
   private resourceStore = new SegmentResourceStore();
   private selectedSegment: MllmVideoSegment | null = null;
 
-  constructor(options: ImportDrawerOptions) {
+  constructor(options: ImportFlowOptions) {
     this.options = options;
-    drawerStack.register({
-      id: "import",
-      onForceClose: () => {
-        if (this.busy) return false;
-        this.close();
-      },
-      trigger: this.options.trigger,
-    });
     this.bindEvents();
     this.setStatus("等待上传视频");
     this.setProgress(0, 0);
@@ -91,30 +94,14 @@ export class ImportDrawer {
     this.options.applyButton.disabled = true;
     this.options.segmentButton.disabled = true;
     this.renderSegments([]);
+    this.emitState("empty");
   }
 
-  open(): void {
-    this.isOpen = true;
-    this.options.drawer.classList.add("is-open");
-    drawerStack.open("import");
-  }
-
-  close(): void {
-    if (this.busy) return;
-    this.isOpen = false;
-    this.options.drawer.classList.remove("is-open");
-    drawerStack.close("import");
-  }
-
-  toggle(): void {
-    if (this.isOpen) this.close();
-    else this.open();
+  private emitState(state: ImportFlowState): void {
+    this.options.onStateChange?.(state);
   }
 
   private bindEvents(): void {
-    this.options.trigger.addEventListener("click", () => this.toggle());
-    this.options.closeButton.addEventListener("click", () => this.close());
-
     this.options.fileInput.addEventListener("change", () => {
       const next = this.options.fileInput.files?.[0] ?? null;
       this.handleFile(next);
@@ -130,8 +117,8 @@ export class ImportDrawer {
       e.preventDefault();
       dz.classList.remove("is-drag");
       const next = e.dataTransfer?.files?.[0] ?? null;
-      if (next) {
-        this.options.fileInput.files = e.dataTransfer!.files;
+      if (next && e.dataTransfer) {
+        this.options.fileInput.files = e.dataTransfer.files;
         this.handleFile(next);
       }
     });
@@ -141,6 +128,7 @@ export class ImportDrawer {
     this.options.applyButton.addEventListener("click", () => {
       if (!this.pending) return;
       const { meta, clip, meshClip } = this.pending;
+      this.emitState("applied");
       this.options.onApply({
         id: meta.jobId,
         name: meta.name,
@@ -164,13 +152,14 @@ export class ImportDrawer {
       this.options.startButton.disabled = true;
       this.options.segmentButton.disabled = true;
       this.options.preview.removeAttribute("src");
+      this.emitState("empty");
       return;
     }
     this.setStatus(`已选择 ${file.name}`);
     this.options.startButton.disabled = false;
     this.options.segmentButton.disabled = false;
-    const url = URL.createObjectURL(file);
-    this.options.preview.src = url;
+    this.options.preview.src = URL.createObjectURL(file);
+    this.emitState("file");
   }
 
   private async runSegmentation(): Promise<void> {
@@ -183,6 +172,7 @@ export class ImportDrawer {
     this.renderSegments([]);
     this.setStatus("采样关键帧…");
     this.setProgress(0.1);
+    this.emitState("segmenting");
 
     const seeker = new VideoSeeker(this.file);
     try {
@@ -205,12 +195,14 @@ export class ImportDrawer {
       this.renderSegments(resources);
       this.setStatus(`分段完成 · ${resources.length} 段`);
       this.setProgress(1);
+      this.emitState("segmented");
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
-      console.warn("[ImportDrawer] MLLM segmentation failed", err);
+      console.warn("[ImportFlow] MLLM segmentation failed", err);
       this.setStatus(`分段失败：${msg}`);
       this.setProgress(0);
       this.renderSegments([]);
+      this.emitState("error");
     } finally {
       seeker.dispose();
       this.busy = false;
@@ -319,6 +311,7 @@ export class ImportDrawer {
     this.options.startButton.disabled = true;
     this.options.applyButton.disabled = true;
     this.options.segmentButton.disabled = true;
+    this.emitState("parsing");
     const segment = this.selectedSegment;
     const range = segment
       ? ` · ${segment.startSec.toFixed(1)}s–${segment.endSec.toFixed(1)}s`
@@ -361,7 +354,7 @@ export class ImportDrawer {
       try {
         meshClip = await loadMeshClip(meta.meshClipMetaUrl);
       } catch (err) {
-        console.warn("[ImportDrawer] mesh clip load failed; skeleton-only result", err);
+        console.warn("[ImportFlow] mesh clip load failed; skeleton-only result", err);
       }
 
       this.pending = { meta, clip, meshClip };
@@ -369,11 +362,13 @@ export class ImportDrawer {
       const elapsed = meta.elapsedSeconds ? ` · ${meta.elapsedSeconds.toFixed(1)}s` : "";
       this.setStatus(`就绪 · ${meta.name} · ${meta.frameCount} 帧${elapsed}`);
       this.options.applyButton.disabled = false;
+      this.emitState("ready");
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
-      console.warn("[ImportDrawer] backend import failed", err);
+      console.warn("[ImportFlow] backend import failed", err);
       this.setStatus(`解析失败：${msg}`);
       this.setProgress(0);
+      this.emitState("error");
     } finally {
       stopSim();
       this.options.startButton.disabled = false;

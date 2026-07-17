@@ -13,7 +13,7 @@
                     
                        
                      
-                          
+                                      
  
 
 const COACH_CLIP_MANIFEST                           = [

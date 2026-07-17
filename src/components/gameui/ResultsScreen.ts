@@ -7,6 +7,7 @@ import type { SessionRecorder } from "../../core/scoring/SessionRecorder.js";
 import type { AiCoachPanel } from "./AiCoachPanel.js";
 import { buildDiagnosisMessages, buildFallbackText, type CoachPersona } from "../../core/llm/buildPrompt.js";
 import { streamChat } from "../../core/llm/LLMClient.js";
+import type { SessionArchive } from "../../core/scoring/SessionArchive.js";
 
 interface ResultsScreenOptions {
   bus: EventBus;
@@ -18,6 +19,7 @@ interface ResultsScreenOptions {
   perfectEl: HTMLElement;
   deltaEl: HTMLElement;
   riskEl: HTMLElement;
+  jointsEl: HTMLElement;
   medalEl: HTMLElement;
   titleEl: HTMLElement;
   exportButton: HTMLElement;
@@ -26,16 +28,13 @@ interface ResultsScreenOptions {
   getStats(): { bestCombo: number; perfectFrames: number };
   exercises: Record<string, ExerciseConfig>;
   sessionRecorder: SessionRecorder;
+  sessionArchive: SessionArchive;
   aiCoach: AiCoachPanel;
   getPersona(): CoachPersona;
 }
 
 const MEDALS: Record<string, string> = {
   squat: "重心掌控者",
-  deadlift: "脊柱守护者",
-  baduanjin: "太极初窥门径",
-  street: "节奏掠夺者",
-  basketball: "罚球线刺客",
 };
 
 export class ResultsScreen {
@@ -84,6 +83,21 @@ export class ResultsScreen {
     this.options.titleEl.textContent = `本次动作匹配度 ${score}%`;
     this.options.medalEl.textContent = MEDALS[this.currentExercise] ?? "限定数字勋章";
 
+    this.options.sessionArchive.add({
+      id: String(Date.now()),
+      exerciseId: this.currentExercise,
+      exerciseName: this.options.exercises[this.currentExercise]?.name ?? this.currentExercise,
+      finishedAt: Date.now(),
+      score,
+      beat,
+      bestCombo: combo,
+      perfectFrames: stats.perfectFrames,
+      avgDelta,
+      riskHits: this.riskHits,
+      medalName: MEDALS[this.currentExercise] ?? "限定数字勋章",
+      summary: this.options.sessionRecorder.snapshot(),
+    });
+
     this.options.root.classList.add("is-open");
     this.options.root.setAttribute("aria-hidden", "false");
     this.a11y.activate();
@@ -95,7 +109,27 @@ export class ResultsScreen {
     this.animateNumber(this.options.deltaEl, 0, avgDelta, 720, (v) => formatCm(v));
     this.animateNumber(this.options.riskEl, 0, this.riskHits, 600, (v) => String(Math.round(v)));
 
+    this.renderJointReport();
     this.runDiagnosis();
+  }
+
+  private renderJointReport(): void {
+    const { joints } = this.options.sessionRecorder.snapshot();
+    const container = this.options.jointsEl;
+    container.innerHTML = "";
+    const sorted = [...joints].sort((a, b) => a.avgScore - b.avgScore);
+    for (const joint of sorted) {
+      const row = document.createElement("div");
+      row.className = `results-report-row${joint.riskHits > 0 ? " is-risk" : ""}`;
+      row.innerHTML = `
+        <span>${joint.name}</span>
+        <b>${Math.round(joint.avgScore)}%</b>
+        <b>${Math.round(joint.worstScore)}%</b>
+        <span>${formatCm(joint.worstDistanceDeltaCm)}</span>
+        <b class="report-risk">${joint.riskHits > 0 ? `×${joint.riskHits}` : "—"}</b>
+      `;
+      container.appendChild(row);
+    }
   }
 
   close(): void {

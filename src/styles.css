@@ -14,3 +14,8 @@
 @import "./styles/responsive.css";
 @import "./styles/c3-surfaces.css";
 @import "./styles/c3-workspace.css";
+@import "./styles/boot.css";
+@import "./styles/pages.css";
+@import "./styles/library.css";
+@import "./styles/report.css";
+@import "./styles/create.css";

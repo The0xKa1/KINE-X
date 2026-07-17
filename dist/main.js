@@ -7,9 +7,10 @@ import { ResultsScreen } from "./components/gameui/ResultsScreen.js";
 import { DnaExport } from "./components/gameui/DnaExport.js";
 import { DnaDrawer } from "./components/gameui/DnaDrawer.js";
 import { CameraSettings } from "./components/gameui/CameraSettings.js";
-import { ImportDrawer } from "./components/gameui/ImportDrawer.js";
+import { CreatePage } from "./components/pages/CreatePage.js";
 import { AiCoachPanel } from "./components/gameui/AiCoachPanel.js";
 import { SessionStartOverlay } from "./components/gameui/SessionStartOverlay.js";
+import { BootSequence } from "./components/gameui/BootSequence.js";
 import { AppShell } from "./components/layout/AppShell.js";
 import { AudioFx } from "./core/AudioFx.js";
 import { CameraOverlay } from "./core/CameraOverlay.js";
@@ -24,10 +25,15 @@ import { SessionGate } from "./core/SessionGate.js";
 import { CalibrationController } from "./core/scoring/CalibrationController.js";
 import { CoachHistory } from "./core/scoring/CoachHistory.js";
 import { SessionRecorder } from "./core/scoring/SessionRecorder.js";
+import { SessionArchive } from "./core/scoring/SessionArchive.js";
+import { ReportPage } from "./components/pages/ReportPage.js";
 import { UserPoseSource } from "./core/scoring/UserPoseSource.js";
 import { UserProfileStore } from "./core/scoring/UserProfile.js";
 import { WebCamManager } from "./core/WebCamManager.js";
-import { exerciseOrder, exercises as builtinExercises, pipeline } from "./data/exercises.js";
+import { exerciseOrder, exercises as builtinExercises, MOTION_METRIC_TEMPLATES, pipeline } from "./data/exercises.js";
+import { Router } from "./core/Router.js";
+import { TrainPage } from "./components/pages/TrainPage.js";
+import { LibraryPage } from "./components/pages/LibraryPage.js";
 import { useWebSocket } from "./hooks/useWebSocket.js";
 
 const exercises                                 = { ...builtinExercises };
@@ -60,7 +66,9 @@ function resolveBackendUrl()         {
 }
 import { collectDomRefs } from "./bootstrap/dom.js";
 import { ConnectionIndicator, renderDnaList, beatsPerMinute } from "./bootstrap/uiHelpers.js";
+import { formatCm } from "./core/coordinates.js";
 import { buildFrameThumbnails, buildFrameThumbnailsFromMeta, getCoachClipManifest, loadCoachClip } from "./core/import/loadCoachClip.js";
+import { renderMeshThumbnails } from "./core/import/renderMeshThumbs.js";
 import { loadMeshClip,               } from "./core/import/MeshClip.js";
                                                                                                  
 
@@ -86,6 +94,12 @@ const state                      = {
   frame: 0,
 };
 
+// Deep-link a stage mode for demos / tests, e.g. ?mode=mesh or ?mode=stress.
+const initialMode = new URLSearchParams(window.location.search).get("mode");
+if (initialMode === "coach" || initialMode === "mesh" || initialMode === "stress") {
+  state.mode = initialMode;
+}
+
 let lastFpsTick = performance.now();
 let fpsFrames = 0;
 
@@ -95,6 +109,7 @@ const profileStore = new UserProfileStore();
 const calibrationController = new CalibrationController(userPose, profileStore);
 const coachHistory = new CoachHistory();
 const sessionRecorder = new SessionRecorder(bus);
+const sessionArchive = new SessionArchive();
 const sessionGate = new SessionGate({ bus });
 const CALIBRATION_SKIP_KEY = "kinex.calibrationSkipped.v1";
 function readCalibrationSkipped()          {
@@ -195,12 +210,15 @@ const timeline = new Timeline({
   },
 });
 
+seedCarousel.setMode(state.mode);
+
 const comboBurst = new ComboBurst({
   bus,
   fxLayer: dom.fxLayer,
   flash: dom.fxFlash,
   burst: dom.fxBurst,
   combo: dom.fxCombo,
+  giant: dom.fxGiant,
   audio,
 });
 
@@ -233,6 +251,7 @@ const resultsScreen = new ResultsScreen({
   perfectEl: dom.resultsPerfect,
   deltaEl: dom.resultsDelta,
   riskEl: dom.resultsRisk,
+  jointsEl: dom.resultsJoints,
   medalEl: dom.medalName,
   titleEl: dom.resultsTitle,
   exportButton: dom.exportButton,
@@ -241,6 +260,7 @@ const resultsScreen = new ResultsScreen({
   getStats: () => comboBurst.getStats(),
   exercises,
   sessionRecorder,
+  sessionArchive,
   aiCoach,
   getPersona: () => cameraSettings.getPersona(),
 });
@@ -326,22 +346,8 @@ const sessionStartOverlay = new SessionStartOverlay({
 });
 void sessionStartOverlay;
 
-const importDrawer = new ImportDrawer({
-  drawer: dom.importDrawer,
-  trigger: dom.importButton,
-  closeButton: dom.importClose,
-  fileInput: dom.importFile,
-  dropZone: dom.importDrop,
-  motionSelect: dom.importMotionSelect,
-  startButton: dom.importStart,
-  applyButton: dom.importApply,
-  segmentButton: dom.importSegment,
-  segmentList: dom.segmentList,
-  segmentSummary: dom.segmentSummary,
-  progressBar: dom.importProgress,
-  progressLabel: dom.importProgressLabel,
-  statusLabel: dom.importStatus,
-  preview: dom.importPreview,
+const createPage = new CreatePage({
+  el: dom.pageCreate,
   backendUrl: BACKEND_URL,
   onApply: ({ id, name, clip, meshClip, motion }) => {
     const newId = `imported-${id}`;
@@ -368,13 +374,12 @@ const importDrawer = new ImportDrawer({
     else meshClipBySeed.delete(newId);
     shell.setPlaying(false);
     setExercise(newId, `Imported · ${name}`);
-    importDrawer.close();
+    router.navigate(`#/train/${newId}`);
   },
 });
-void importDrawer;
+dom.importButton.addEventListener("click", () => router.navigate("#/create"));
 
 const shell = new AppShell({
-  railItems: dom.railItems,
   viewButtons: dom.viewButtons,
   playButton: dom.playButton,
   playIcon: dom.playIcon,
@@ -382,17 +387,6 @@ const shell = new AppShell({
   speedSlider: dom.speedSlider,
   timeSlider: dom.timeSlider,
   cameraButton: dom.cameraButton,
-  onNavMode: (nextMode) => {
-    setMode(nextMode);
-    seedCarousel.setMode(nextMode);
-  },
-  onRebuild: () => setExercise(state.exerciseId, "Stage rebuild"),
-  onSafety: () => {
-    setMode("stress");
-    seedCarousel.setMode("stress");
-    dom.stressToggle.checked = true;
-    stage.setStress(true);
-  },
   onViewChange: (view) => stage.setView(view),
   onPlayChange: (nextPlaying) => {
     realtime?.setPlaying(nextPlaying);
@@ -483,7 +477,7 @@ bus.on("seed:update", (payload) => {
   resultsScreen.setExercise(payload.exercise.id);
 });
 
-bus.on("score:update", () => {
+bus.on("score:update", (payload) => {
   fpsFrames += 1;
   const now = performance.now();
   if (now - lastFpsTick > 1000) {
@@ -492,11 +486,26 @@ bus.on("score:update", () => {
     fpsFrames = 0;
     lastFpsTick = now;
   }
+  // Telemetry strip + topbar latency readout (already throttled to ~120ms upstream).
+  dom.tlFrame.textContent = String(payload.frame).padStart(6, "0");
+  dom.tlProgress.textContent = `${(payload.progress * 100).toFixed(1)}%`;
+  const latency = socket.latencyMs();
+  dom.tlLat.textContent = latency > 0 ? `${Math.round(latency)}ms` : "—";
+  dom.connectionLat.textContent = latency > 0 ? `${Math.round(latency)}ms` : "";
+  const avgDelta = payload.metrics.length
+    ? payload.metrics.reduce((sum, m) => sum + m.distanceDeltaCm, 0) / payload.metrics.length
+    : 0;
+  dom.tlDelta.textContent = formatCm(avgDelta);
 });
 
 dom.finishButton.addEventListener("click", () => {
   sessionGate.markFinished("button");
   resultsScreen.open();
+});
+
+dom.resultsReportLink.addEventListener("click", () => {
+  resultsScreen.close();
+  router.navigate("#/report");
 });
 
 dom.demoPerfectButton.addEventListener("click", () => {
@@ -523,27 +532,111 @@ window.addEventListener("resize", () => stage.resize());
 
 const DEFAULT_WS_URL = "ws://localhost:8000/motion";
 
-void stage.preload().then(async () => {
+const trainPage = new TrainPage({
+  el: dom.pageTrain,
+  stage,
+  realtime,
+  getCurrentSeedId: () => state.exerciseId,
+  hasSeed: (seedId) => Boolean(exercises[seedId]),
+  onSeedRequest: (seedId) => setExercise(seedId, "Route seed changed"),
+});
+const libraryPage = new LibraryPage({ el: dom.pageLibrary, exercises, order: exerciseOrderList, archive: sessionArchive });
+const reportPage = new ReportPage({
+  el: dom.pageReport,
+  archive: sessionArchive,
+  exercises,
+  getPersona: () => cameraSettings.getPersona(),
+});
+const router = new Router({
+  pages: {
+    library: libraryPage,
+    train: trainPage,
+    report: reportPage,
+    create: createPage,
+  },
+  onNavigate: (route) => {
+    dom.railItems.forEach((item) => item.classList.toggle("is-active", item.dataset.route === route.name));
+  },
+});
+
+dom.railItems.forEach((button) => {
+  button.addEventListener("click", () => {
+    const route = button.dataset.route;
+    if (route === "library") router.navigate("#/");
+    else if (route === "train") router.navigate(`#/train/${state.exerciseId}`);
+    else if (route === "report") router.navigate("#/report");
+    else if (route === "create") router.navigate("#/create");
+  });
+});
+
+const boot = new BootSequence({ root: dom.bootOverlay });
+bus.on("pipeline:update", (payload) => {
+  if (payload.status === "ready" && payload.runIndex === 1) boot.tick("stream", "LIVE");
+});
+
+void (async () => {
+  await stage.preload();
   await hydrateCoachClips();
-  await hydrateMeshClip();
+  const squatClip = exercises.squat?.clip;
+  boot.tick("clip", squatClip ? `OK · ${squatClip.frames.length}F` : "SKIP");
+  const loadedMesh = await hydrateMeshClip();
+  boot.tick("mesh", loadedMesh ? `OK · ${loadedMesh.meta.vertexCount}V` : "SKIP");
+  await healTimelineThumbnails(loadedMesh);
+  void probeMediapipeRuntime().then((ok) => boot.tick("mediapipe", ok ? "OK" : "FAIL"));
   setExercise(state.exerciseId, "Realtime evaluator streaming");
-  stage.start();
+  router.start();
   const wsUrl = new URLSearchParams(window.location.search).get("ws") ?? DEFAULT_WS_URL;
   socket.connect(wsUrl);
+  boot.tick("stream", "STANDBY");
   // Fire-and-forget so a slow/unreachable backend (port-forward without :8765)
   // doesn't block stage.start() — imported seeds drop into the carousel later.
   void hydrateImportedJobs();
-});
+})();
 
-async function hydrateMeshClip()                {
+async function probeMediapipeRuntime()                   {
+  try {
+    const resp = await fetch("public/mediapipe/tasks-vision/vision_bundle.mjs", { method: "HEAD" });
+    return resp.ok;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * The baked frame JPGs for the built-in clip may be missing (the frames dir
+ * was a machine-local symlink). Probe the first thumbnail; when it fails,
+ * re-render replacements from the in-memory SMPL-X mesh clip instead.
+ */
+async function healTimelineThumbnails(mesh                 )                {
+  if (!mesh) return;
+  const clip = exercises.squat?.clip;
+  if (!clip || clip.thumbnails.length === 0) return;
+  const firstThumb = clip.thumbnails[0];
+  if (!firstThumb) return;
+  try {
+    const probe = await fetch(firstThumb, { method: "HEAD" });
+    if (probe.ok) return;
+  } catch {
+    // fall through to mesh-rendered replacements
+  }
+  const thumbs = renderMeshThumbnails(mesh, clip.thumbnails.length);
+  if (thumbs.length > 0) {
+    clip.thumbnails = thumbs;
+    console.info(`[mesh-thumbs] rendered ${thumbs.length} thumbnails from mesh clip`);
+  }
+}
+
+async function hydrateMeshClip()                           {
   try {
     const clip = await loadMeshClip("public/coach_clips/single_leg_squat.mesh.meta.json");
     defaultMeshClip = clip;
     console.info(
       `[mesh-clip] loaded ${clip.meta.frameCount} frames · ${clip.meta.vertexCount} verts · ${clip.meta.faceCount} faces`,
     );
+    return clip;
   } catch (err) {
     console.warn("[mesh-clip] skip:", err);
+    return null;
   }
 }
 
@@ -658,6 +751,10 @@ function setExercise(nextId        , message        )       {
   applyMeshForSeed(nextId);
   connection.set(message, "busy");
   bus.emit("seed:update", { exercise, message });
+  // Keep the URL honest when the seed changes from inside the train bay.
+  if (router.currentRoute().name === "train" && router.currentRoute().params.seedId !== nextId) {
+    router.navigate(`#/train/${nextId}`);
+  }
   window.setTimeout(() => connection.set("Action DNA cache refreshed", "ready"), 420);
 }
 
@@ -675,13 +772,8 @@ function applyMeshForSeed(seedId        )       {
 }
 
 function pickMetricsForMotion(motion            )                    {
-  for (const id of exerciseOrder) {
-    const candidate = builtinExercises[id];
-    if (candidate.motion === motion) {
-      return candidate.metrics.map((m) => ({ ...m }));
-    }
-  }
-  return builtinExercises.squat.metrics.map((m) => ({ ...m }));
+  const template = MOTION_METRIC_TEMPLATES[motion] ?? MOTION_METRIC_TEMPLATES.squat;
+  return template.map((m) => ({ ...m }));
 }
 
 function currentBpm()         {

@@ -8,7 +8,10 @@
                                                   
                                                                
 
-                                                                                      
+// Built-in seeds shipped with the app. Only squat has a real CoachClip today;
+// retired seeds (deadlift/baduanjin/street/basketball) survive as metric
+// templates in data/exercises.ts (MOTION_METRIC_TEMPLATES).
+                                 
 
 // Runtime-side exercise id: built-in literals OR an arbitrary string for
 // imported clips. Keep `ExerciseId` strict for `data/exercises.ts`; use

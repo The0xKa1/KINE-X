@@ -13,7 +13,7 @@ export interface FrameThumbnailMeta {
   framesDir: string;
   framePattern: string;
   frameCount: number;
-  thumbnailCount?: number;
+  thumbnailCount?: number | undefined;
 }
 
 const COACH_CLIP_MANIFEST: CoachClipManifestEntry[] = [

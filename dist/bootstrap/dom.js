@@ -12,6 +12,11 @@ export const $$ =                    (selector        )      =>
                            
                               
                              
+                             
+                       
+                          
+                     
+                       
                         
                            
                                 
@@ -21,6 +26,11 @@ export const $$ =                    (selector        )      =>
                                          
                                   
                               
+                           
+                           
+                         
+                          
+                          
 
                           
                             
@@ -43,6 +53,7 @@ export const $$ =                    (selector        )      =>
                        
                        
                        
+                       
                            
 
                              
@@ -53,8 +64,10 @@ export const $$ =                    (selector        )      =>
                               
                             
                            
+                             
                          
                             
+                                       
                             
 
                          
@@ -107,20 +120,6 @@ export const $$ =                    (selector        )      =>
                                  
 
                             
-                            
-                           
-                               
-                          
-                                        
-                                 
-                                 
-                                   
-                           
-                              
-                              
-                                   
-                            
-                                  
 
                                  
                                    
@@ -141,6 +140,11 @@ export function collectDomRefs()          {
     mirrorTitle: $("#mirrorTitle"),
     connectionText: $("#connectionText"),
     connectionDot: $("#connectionDot"),
+    connectionLat: $("#connectionLat"),
+    tlFrame: $("#tlFrame"),
+    tlProgress: $("#tlProgress"),
+    tlLat: $("#tlLat"),
+    tlDelta: $("#tlDelta"),
     fpsLabel: $("#fpsLabel"),
     mirrorEmpty: $("#mirrorEmpty"),
     mirrorEmptyTitle: $("#mirrorEmptyTitle"),
@@ -150,6 +154,11 @@ export function collectDomRefs()          {
     cameraOverlayCanvas: $("#cameraOverlay")                     ,
     motionCanvas: $("#motionCanvas")                     ,
     loadingOverlay: $("#loadingOverlay"),
+    bootOverlay: $("#bootOverlay"),
+    pageLibrary: $("#page-library"),
+    pageTrain: $("#page-train"),
+    pageReport: $("#page-report"),
+    pageCreate: $("#page-create"),
 
     metricList: $("#metricList"),
     pipelineList: $("#pipelineList"),
@@ -172,6 +181,7 @@ export function collectDomRefs()          {
     fxFlash: $("#fxFlash"),
     fxBurst: $("#fxBurst"),
     fxCombo: $("#fxCombo"),
+    fxGiant: $("#fxGiant"),
     mirrorStage: $("#mirrorStage"),
 
     resultsScreen: $("#resultsScreen"),
@@ -182,8 +192,10 @@ export function collectDomRefs()          {
     resultsPerfect: $("#resultsPerfect"),
     resultsDelta: $("#resultsDelta"),
     resultsRisk: $("#resultsRisk"),
+    resultsJoints: $("#resultsJoints"),
     medalName: $("#medalName"),
     resultsTitle: $("#resultsTitle"),
+    resultsReportLink: $("#resultsReportLink")                     ,
     exportButton: $("#exportButton"),
 
     dnaExport: $("#dnaExport"),
@@ -235,21 +247,7 @@ export function collectDomRefs()          {
     sessionGestureValue: $("#sessionGestureValue"),
     sessionGestureBar: $("#sessionGestureBar"),
 
-    importDrawer: $("#importDrawer"),
     importButton: $("#importButton"),
-    importClose: $("#importClose"),
-    importFile: $("#importFile")                    ,
-    importDrop: $("#importDrop"),
-    importMotionSelect: $("#importMotionSelect")                     ,
-    importStart: $("#importStart")                     ,
-    importApply: $("#importApply")                     ,
-    importSegment: $("#importSegment")                     ,
-    segmentList: $("#segmentList"),
-    segmentSummary: $("#segmentSummary"),
-    importProgress: $("#importProgress"),
-    importProgressLabel: $("#importProgressLabel"),
-    importStatus: $("#importStatus"),
-    importPreview: $("#importPreview")                    ,
 
     railItems: $$                   (".rail-item"),
     viewButtons: $$                   ("[data-view]"),
