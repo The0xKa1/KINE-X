@@ -59,9 +59,9 @@ export const exercises: Record<ExerciseId, ExerciseConfig> = {
 };
 
 export const pipeline: PipelineStep[] = [
-  { name: "YOLOv8-Pose", detail: "bbox + 2D keypoints" },
-  { name: "WHAM / gvHMR", detail: "mock SMPL-X sequence" },
-  { name: "Action DNA", detail: "normalized motion cache" },
-  { name: "MediaPipe", detail: "browser pose stream" },
-  { name: "Angle Solver", detail: "3D distance + score" },
+  { name: "SAM 3D Body", detail: "video → SMPL-X 离线重建" },
+  { name: "Action DNA", detail: "coach clip 归一化缓存" },
+  { name: "MediaPipe Pose", detail: "33pt world landmarks · 浏览器实时" },
+  { name: "Angle Solver", detail: "骨向 + 关节角 + DTW-lite" },
+  { name: "Score Fusion", detail: "加权帧分 · 风险标记" },
 ];

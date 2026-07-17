@@ -104,7 +104,12 @@ let lastFpsTick = performance.now();
 let fpsFrames = 0;
 
 const userPose = new UserPoseSource();
-const landmarkerController = new LandmarkerController();
+const landmarkerController = new LandmarkerController({
+  onError: (kind, message) => {
+    console.warn(`[mediapipe] ${kind} init failed:`, message);
+    bus.emit("camera:error", { kind: "Other", message: `姿态引擎初始化失败（${kind}），请检查模型资产后重试` });
+  },
+});
 const profileStore = new UserProfileStore();
 const calibrationController = new CalibrationController(userPose, profileStore);
 const coachHistory = new CoachHistory();
@@ -457,7 +462,7 @@ bus.on("camera:update", (payload) => {
 bus.on("camera:error", (payload) => {
   dom.mirrorEmpty.classList.remove("is-hidden");
   dom.mirrorEmpty.classList.add("is-error");
-  dom.mirrorEmptyTitle.textContent = "摄像头无法启动";
+  dom.mirrorEmptyTitle.textContent = payload.kind === "Other" ? "姿态引擎初始化失败" : "摄像头无法启动";
   dom.mirrorEmptyHint.textContent = payload.message;
   dom.cameraRetry.hidden = false;
 });
@@ -465,6 +470,15 @@ bus.on("camera:error", (payload) => {
 dom.cameraRetry.addEventListener("click", () => {
   audio.enable();
   audio.resume();
+  if (webcam.isActive() && webcam.getMode() === "camera") {
+    // Pose-engine retry — the camera itself is fine, don't toggle it off.
+    dom.mirrorEmpty.classList.add("is-hidden");
+    dom.mirrorEmpty.classList.remove("is-error");
+    dom.cameraRetry.hidden = true;
+    landmarkerController.resetRetries();
+    void landmarkerController.ensureReady(["pose", "hand"]);
+    return;
+  }
   void webcam.toggle();
 });
 
@@ -499,6 +513,11 @@ bus.on("score:update", (payload) => {
 });
 
 dom.finishButton.addEventListener("click", () => {
+  if (sessionGate.getPhase() === "idle") {
+    connection.set("先开始一场跟练，再结算", "busy");
+    window.setTimeout(() => connection.set("Action DNA cache refreshed", "ready"), 1600);
+    return;
+  }
   sessionGate.markFinished("button");
   resultsScreen.open();
 });

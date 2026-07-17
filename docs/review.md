@@ -26,14 +26,14 @@
 
 ## 行动清单
 
-### P0 · 防穿帮（约 1 天代码量）
+### P0 · 防穿帮（约 1 天代码量）— ✅ 已完成（2026-07-17）
 
-- [ ] **真实误差接上**：`computeBuckets` 已算出真角度差，按 metric 聚合写入 `angleDeltaDeg` / `distanceDeltaCm`（`src/core/scoring/PoseScorer.ts`，~20 行）。下游报告表 / AI prompt / fallback 文案自动全部变真。
-- [ ] **"全球百分位"改本机历史百分位**：用 `SessionArchive.forExercise()` 真实分布算"超过你历史 X% 场次"（`ResultsScreen.ts:78`、`ReportPage.ts` 文案，~10 行）。
-- [ ] **pipeline 面板换血**：`data/exercises.ts` 的 pipeline 改为真实链路描述（SAM 3D Body / MediaPipe / Angle Solver），删掉 mock 字样。
-- [ ] **WebGL 构造器防护**：`MotionStage.ts` 构造 try-catch，失败时在 loadingOverlay 显示降级文案并继续 boot。
-- [ ] **MediaPipe 失败上 UI**：catch 里走 `camera:error` 事件复用现有错误 UI；`ensureVision` 失败后清空 `visionPending` 允许重试（`src/core/PoseLandmarkerManager.ts`）。
-- [ ] **结算按钮门禁**：仅非 idle 状态可结算（`main.ts` finishButton handler），避免无 session 产出假报告污染存档。
+- [x] **真实误差接上**：`computeBuckets` 已算出真角度差，按 metric 聚合写入 `angleDeltaDeg` / `distanceDeltaCm`（`src/core/scoring/PoseScorer.ts`，~20 行）。下游报告表 / AI prompt / fallback 文案自动全部变真。
+- [x] **"全球百分位"改本机历史百分位**：用 `SessionArchive.forExercise()` 真实分布算"超过你历史 X% 场次"（`ResultsScreen.ts:78`、`ReportPage.ts` 文案，~10 行）。
+- [x] **pipeline 面板换血**：`data/exercises.ts` 的 pipeline 改为真实链路描述（SAM 3D Body / MediaPipe / Angle Solver），删掉 mock 字样。
+- [x] **WebGL 构造器防护**：`MotionStage.ts` 构造 try-catch，失败时在 loadingOverlay 显示降级文案并继续 boot。
+- [x] **MediaPipe 失败上 UI**：catch 里走 `camera:error` 事件复用现有错误 UI；`ensureVision` 失败后清空 `visionPending` 允许重试（`src/core/PoseLandmarkerManager.ts`）。
+- [x] **结算按钮门禁**：仅非 idle 状态可结算（`main.ts` finishButton handler），避免无 session 产出假报告污染存档。
 
 ### P1 · 涨分点
 
