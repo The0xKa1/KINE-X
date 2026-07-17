@@ -35,6 +35,7 @@ import { streamChat } from "../../core/llm/LLMClient.js";
 
 const MEDALS                         = {
   squat: "重心掌控者",
+  "ugc-squat": "私教重建者",
 };
 
 export class ResultsScreen {

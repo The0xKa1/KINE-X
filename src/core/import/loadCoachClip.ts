@@ -25,6 +25,14 @@ const COACH_CLIP_MANIFEST: CoachClipManifestEntry[] = [
     framePattern: "frame_{i:05}.jpg",
     thumbnailCount: 18,
   },
+  {
+    exercise: "ugc-squat",
+    url: "public/coach_clips/ugc_squat.json",
+    framesDir: "public/coach_clips/ugc_squat_frames",
+    frameCount: 118,
+    framePattern: "frame_{i:05}.jpg",
+    thumbnailCount: 18,
+  },
 ];
 
 interface RawJoint {

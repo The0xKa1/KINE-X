@@ -8,10 +8,11 @@
                                                   
                                                                
 
-// Built-in seeds shipped with the app. Only squat has a real CoachClip today;
-// retired seeds (deadlift/baduanjin/street/basketball) survive as metric
+// Built-in seeds shipped with the app. squat = pre-baked clip; ugc-squat = a
+// real video imported through the SAM3D backend and committed as an asset.
+// Retired seeds (deadlift/baduanjin/street/basketball) survive as metric
 // templates in data/exercises.ts (MOTION_METRIC_TEMPLATES).
-                                 
+                                               
 
 // Runtime-side exercise id: built-in literals OR an arbitrary string for
 // imported clips. Keep `ExerciseId` strict for `data/exercises.ts`; use

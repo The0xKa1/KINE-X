@@ -1,0 +1,20 @@
+{
+  "id": "20260717-162255-a62b9c",
+  "name": "UGC Squat Import",
+  "motion": "squat",
+  "fps": 15,
+  "durationSeconds": 7.867,
+  "frameCount": 118,
+  "vertexCount": 10475,
+  "faceCount": 20908,
+  "vertexBytes": 14832600,
+  "faceBytes": 250896,
+  "vertexBin": "mesh.bin",
+  "faceBin": "mesh.faces.bin",
+  "vertexDtype": "float32",
+  "faceDtype": "uint32",
+  "source": "sam-3d-body + mhr2smplx barycentric",
+  "format": "kinex.mesh_clip.v1",
+  "unit": "meters",
+  "handedness": "right-hand"
+}

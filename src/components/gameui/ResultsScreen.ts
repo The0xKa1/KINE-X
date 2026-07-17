@@ -35,6 +35,7 @@ interface ResultsScreenOptions {
 
 const MEDALS: Record<string, string> = {
   squat: "重心掌控者",
+  "ugc-squat": "私教重建者",
 };
 
 export class ResultsScreen {

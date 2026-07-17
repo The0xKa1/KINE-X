@@ -37,7 +37,7 @@ export const MOTION_METRIC_TEMPLATES: Record<SeedMotion, JointMetricSeed[]> = {
   ],
 };
 
-export const exerciseOrder: ExerciseId[] = ["squat"];
+export const exerciseOrder: ExerciseId[] = ["squat", "ugc-squat"];
 
 export const exercises: Record<ExerciseId, ExerciseConfig> = {
   squat: {
@@ -53,6 +53,22 @@ export const exercises: Record<ExerciseId, ExerciseConfig> = {
       theta: "24x3 quaternion, 180 frames",
       trans: "[x:0.00m, y:0.84m, z:0.18m]",
       format: "kinex.v1.motion_dna.json",
+    },
+    metrics: MOTION_METRIC_TEMPLATES.squat.map((m) => ({ ...m })),
+  },
+  "ugc-squat": {
+    id: "ugc-squat",
+    name: "UGC Squat Import",
+    discipline: "Imported",
+    seedUrl: "local://import/ugc-squat",
+    durationSeconds: 7.867,
+    motion: "squat",
+    target: "上传视频重建的私人教练",
+    params: {
+      beta: "",
+      theta: "",
+      trans: "",
+      format: "kinex.coach_clip.v1",
     },
     metrics: MOTION_METRIC_TEMPLATES.squat.map((m) => ({ ...m })),
   },

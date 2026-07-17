@@ -600,6 +600,7 @@ void (async () => {
   boot.tick("clip", squatClip ? `OK · ${squatClip.frames.length}F` : "SKIP");
   const loadedMesh = await hydrateMeshClip();
   boot.tick("mesh", loadedMesh ? `OK · ${loadedMesh.meta.vertexCount}V` : "SKIP");
+  await hydrateSeedMeshClips();
   await healTimelineThumbnails(loadedMesh);
   void probeMediapipeRuntime().then((ok) => boot.tick("mediapipe", ok ? "OK" : "FAIL"));
   setExercise(state.exerciseId, "Realtime evaluator streaming");
@@ -657,6 +658,20 @@ async function hydrateMeshClip(): Promise<MeshClip | null> {
     console.warn("[mesh-clip] skip:", err);
     return null;
   }
+}
+
+/** Per-seed mesh envelopes for built-in seeds that ship their own SMPL-X clip. */
+async function hydrateSeedMeshClips(): Promise<void> {
+  const perSeed: Array<[string, string]> = [["ugc-squat", "public/coach_clips/ugc_squat.mesh.meta.json"]];
+  await Promise.all(
+    perSeed.map(async ([seedId, url]) => {
+      try {
+        meshClipBySeed.set(seedId, await loadMeshClip(url));
+      } catch (err) {
+        console.warn(`[mesh-clip] seed ${seedId} skip:`, err);
+      }
+    }),
+  );
 }
 
 async function hydrateCoachClips(): Promise<void> {
