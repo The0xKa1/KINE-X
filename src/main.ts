@@ -171,11 +171,12 @@ const stage = new MotionStage({
 let currentView: CameraView = "front";
 const coachVideo = new CoachVideo({
   video: dom.coachVideo,
+  empty: dom.twinEmpty,
   bus,
   getPlayback: () => ({ progress: state.progress, speed: state.speed, playing: state.playing }),
-  getMode: () => state.mode,
   getView: () => currentView,
 });
+dom.twinEmptyCta.addEventListener("click", () => router.navigate("#/create"));
 
 realtime = new RealtimeStream({
   bus,

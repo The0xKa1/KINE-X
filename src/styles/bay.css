@@ -504,3 +504,40 @@
 .coach-video.is-active {
   opacity: 1;
 }
+
+/* Twin bay (digital human) — plain stage, no blueprint grid/crosshair. */
+.bay-toolbar-controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.twin-stage {
+  background-image: none;
+  background-color: var(--paper);
+}
+
+.twin-stage::before {
+  display: none;
+}
+
+.twin-empty {
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  gap: 10px;
+  padding-bottom: 130px; /* keep clear of the SYNC score orbit */
+  text-align: center;
+}
+
+.twin-empty.is-hidden {
+  display: none;
+}
+
+.twin-empty strong {
+  max-width: 240px;
+}
+
+.twin-empty .bay-empty-action {
+  display: inline-block;
+}

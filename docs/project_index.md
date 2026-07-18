@@ -69,6 +69,7 @@ KINE//X 的项目结构索引。
 ## components/gameui
 
 `BootSequence.ts`：开机编排 overlay；真实里程碑逐行点亮，点击跳过或 9s 兜底，退出后进入初始路由。
+`CoachVideo.ts`：数字分身舱播放器；按种子的 `coachVideo`（front/side/top 多角度源）播放真人教练视频，与 RealtimeStream 的 progress / speed / playing 状态同步，无视频时切空态。
 `SeedCarousel.ts`：种子卡片轮播 + 模式分段控件（`prefers-reduced-motion` 感知；新种子交错入场）。
 `ScoreBoard.ts`：score / combo / risk / joint metrics / pipeline 渲染（写入抽屉内 DOM）；分数跳变触发巨数区机械闪切。
 `Timeline.ts`：clip 帧节奏条；缩略图一帧一格，flex 横向滚动，当前帧自动 `scrollIntoView`；无 clip 时回退 18 帧 mock。

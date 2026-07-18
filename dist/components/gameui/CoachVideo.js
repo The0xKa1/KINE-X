@@ -3,19 +3,18 @@
 
                              
                           
+                     
                 
                                                                            
-                        
                             
  
 
 const DRIFT_TOLERANCE_SEC = 0.2;
 
 /**
- * Photoreal coach layer: an opaque video panel that covers the 3D stage when
- * the current seed ships a baked coach video and the mode is "coach". Scrub /
- * tempo / play state stay in sync with the RealtimeStream playback state;
- * mesh & stress modes keep the 3D blueprint view.
+ * Photoreal coach layer living in its own "digital twin" bay. Scrub / tempo /
+ * play state stay in sync with the RealtimeStream playback state; angle
+ * variants (front/side/top) swap sources when they exist.
  */
 export class CoachVideo {
           options                   ;
@@ -34,6 +33,7 @@ export class CoachVideo {
 
   setSources(sources                          )       {
     this.sources = sources;
+    this.options.empty.classList.toggle("is-hidden", sources !== null);
     if (!sources) {
       this.options.video.removeAttribute("src");
       this.options.video.load();
@@ -70,21 +70,10 @@ export class CoachVideo {
     );
   }
 
-          hasVideoForView(view            )          {
-    if (!this.sources) return false;
-    if (view === "side") return Boolean(this.sources.side);
-    if (view === "top") return Boolean(this.sources.top);
-    return Boolean(this.sources.front);
-  }
-
           isActive()          {
-    // Without an angle-matched video the 3D stage takes over, so SIDE/TOP
-    // stay fully rotatable instead of showing the same front clip.
-    return (
-      this.sources !== null &&
-      this.options.getMode() === "coach" &&
-      this.hasVideoForView(this.options.getView())
-    );
+    // The twin bay is dedicated to the photoreal coach — it plays whenever the
+    // seed ships a video, regardless of the blueprint's render mode or view.
+    return this.sources !== null;
   }
 
           tick()       {

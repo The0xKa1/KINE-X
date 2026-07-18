@@ -27,6 +27,8 @@ export const $$ =                    (selector        )      =>
                                          
                                   
                                
+                         
+                                  
                               
                            
                            
@@ -158,6 +160,8 @@ export function collectDomRefs()          {
     cameraOverlayCanvas: $("#cameraOverlay")                     ,
     motionCanvas: $("#motionCanvas")                     ,
     coachVideo: $("#coachVideo")                    ,
+    twinEmpty: $("#twinEmpty"),
+    twinEmptyCta: $("#twinEmptyCta")                     ,
     loadingOverlay: $("#loadingOverlay"),
     bootOverlay: $("#bootOverlay"),
     pageLibrary: $("#page-library"),
