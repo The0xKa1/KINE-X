@@ -11,6 +11,7 @@ interface ScoreBoardOptions {
   riskBadge: HTMLElement;
   stageRisk?: HTMLElement;
   frameLabel: HTMLElement;
+  getFrameIndex: (progress: number) => number;
   deltaLabel: HTMLElement;
   pipelineLatency: HTMLElement;
   streamLabel: HTMLElement;
@@ -44,7 +45,7 @@ export class ScoreBoard {
     }
     this.options.scoreValue.textContent = String(payload.score);
     this.options.comboLabel.textContent = `x${String(payload.combo).padStart(2, "0")}`;
-    this.options.frameLabel.textContent = String(payload.frame).padStart(3, "0");
+    this.options.frameLabel.textContent = String(this.options.getFrameIndex(payload.progress)).padStart(3, "0");
     this.options.deltaLabel.textContent = formatCm(averageDistance(payload.metrics));
     this.renderMetrics(payload.metrics);
     this.renderRisk(payload);

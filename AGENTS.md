@@ -42,7 +42,7 @@ These rules trace back to `docs/Constraint.md` (in Chinese) — the hard contrac
 
 ## Architecture
 
-Vanilla TypeScript SPA. No framework, no bundler, zero `package.json` dependencies. Rendering is **real Three.js** (WebGL): `src/core/three-compat.ts` is a facade that re-exports the THREE pieces the app uses as a single `THREE` object; `MotionStage` renders a cylinder-bone / sphere-joint skeleton plus an optional SMPL-X `MeshClip` (10 475 vertices, baked by the import backend) on the same canvas.
+Vanilla TypeScript SPA. No framework, no bundler, zero `package.json` dependencies. Rendering is **real Three.js** (WebGL): `src/core/three-compat.ts` is a facade that re-exports the THREE pieces the app uses as a single `THREE` object; `MotionStage` renders a cylinder-bone / sphere-joint skeleton plus an optional SMPL-X `MeshClip` (10 475 vertices, baked by the import backend) on the same canvas. Seeds with an `avatarUrl` also get a live 3DGS avatar (`src/core/avatar/GaussianAvatar.ts` — KINEXGS1 binary, per-gaussian LBS in the vertex shader + CPU depth sort; `MotionStage.setAvatar` swaps it in for the SMPL-X envelope in coach/stress modes).
 
 Frame data flow:
 

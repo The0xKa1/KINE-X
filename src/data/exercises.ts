@@ -37,7 +37,7 @@ export const MOTION_METRIC_TEMPLATES: Record<SeedMotion, JointMetricSeed[]> = {
   ],
 };
 
-export const exerciseOrder: ExerciseId[] = ["squat", "ugc-squat"];
+export const exerciseOrder: ExerciseId[] = ["squat", "ugc-squat", "gs-avatar"];
 
 export const exercises: Record<ExerciseId, ExerciseConfig> = {
   squat: {
@@ -76,6 +76,23 @@ export const exercises: Record<ExerciseId, ExerciseConfig> = {
       side: "public/coach_clips/ugc_squat_lhm_side.mp4",
       top: "public/coach_clips/ugc_squat_lhm_top.mp4",
     },
+  },
+  "gs-avatar": {
+    id: "gs-avatar",
+    name: "3DGS Digital Human",
+    discipline: "Avatar",
+    seedUrl: "local://lhm/gs-avatar",
+    durationSeconds: 7.867,
+    motion: "squat",
+    target: "单张照片重建的可交互 3D 数字分身",
+    params: {
+      beta: "",
+      theta: "",
+      trans: "",
+      format: "kinex.gs_avatar.v1",
+    },
+    metrics: MOTION_METRIC_TEMPLATES.squat.map((m) => ({ ...m })),
+    avatarUrl: "public/coach_clips/gs_avatar_coach.bin",
   },
 };
 

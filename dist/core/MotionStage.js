@@ -12,6 +12,7 @@ import {
   sampleFrameIndex,
                 
 } from "./import/MeshClip.js";
+                                                                 
                                                                                           
 
                         
@@ -108,6 +109,8 @@ export class MotionStage {
           jointMeshes                                        = {};
           skeletonRotations                    ;
           smplxHandle                         = null;
+          avatarHandle                        = null;
+          lastAvatarFrame = -1;
 
   constructor(options              ) {
     this.canvas = options.canvas;
@@ -184,6 +187,10 @@ export class MotionStage {
     this.renderer.setSize(width, height, false);
     this.camera.aspect = width / height;
     this.camera.updateProjectionMatrix();
+    if (this.avatarHandle) {
+      const size = this.renderer.getDrawingBufferSize(new THREE.Vector2());
+      this.avatarHandle.setViewport(size.x, size.y);
+    }
     if (this.cameraOverlay) this.cameraOverlay.resize();
   }
 
@@ -240,6 +247,23 @@ export class MotionStage {
     this.applyModeStyle();
   }
 
+  /** Attach (or swap/clear with null) the live 3DGS avatar layer.
+   *  Does not dispose replaced avatars — main.ts caches them per seed. */
+  setAvatar(avatar                       )       {
+    if (this.webglFailed) return;
+    if (this.avatarHandle) {
+      this.scene.remove(this.avatarHandle.object3d);
+      this.avatarHandle = null;
+    }
+    if (avatar) {
+      this.avatarHandle = avatar;
+      this.scene.add(avatar.object3d);
+      const size = this.renderer.getDrawingBufferSize(new THREE.Vector2());
+      avatar.setViewport(size.x, size.y);
+      this.lastAvatarFrame = -1;
+    }
+  }
+
   resetForSeed()       {
     if (this.webglFailed) return;
     this.resources.disposeSceneResources();
@@ -265,6 +289,7 @@ export class MotionStage {
       this.updateCamera(now, Math.min(dtMs, 50) / 1000);
       this.updateSkeleton(frame, now);
       this.updateSmplxMesh(frame);
+      this.updateAvatar(frame);
       this.renderer.render(this.scene, this.camera);
     }
 
@@ -465,7 +490,8 @@ export class MotionStage {
       return;
     }
     // Solid envelope in coach/stress mode; wireframe blueprint in mesh mode.
-    handle.mesh.visible = this.mode !== "mesh";
+    // The 3DGS avatar takes over the envelope slot when present.
+    handle.mesh.visible = this.mode !== "mesh" && this.avatarHandle === null;
     handle.wireMesh.visible = this.mode === "mesh";
     const idx = sampleFrameIndex(handle.clip, frame.progress);
     if (idx === handle.lastFrameIndex) return;
@@ -475,6 +501,23 @@ export class MotionStage {
     attr.needsUpdate = true;
     handle.geometry.computeVertexNormals();
     handle.geometry.computeBoundingSphere();
+  }
+
+          updateAvatar(frame                     )       {
+    const avatar = this.avatarHandle;
+    if (!avatar) return;
+    if (!frame || this.mode === "mesh") {
+      avatar.object3d.visible = false;
+      return;
+    }
+    avatar.object3d.visible = true;
+    const wrapped = ((frame.progress % 1) + 1) % 1;
+    const idx = Math.min(avatar.frameCount - 1, Math.floor(wrapped * avatar.frameCount));
+    if (idx !== this.lastAvatarFrame) {
+      this.lastAvatarFrame = idx;
+      avatar.setFrame(idx);
+    }
+    avatar.update(this.camera);
   }
 }
 

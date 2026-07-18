@@ -12,7 +12,7 @@ export type QuaternionTuple = [number, number, number, number];
 // real video imported through the SAM3D backend and committed as an asset.
 // Retired seeds (deadlift/baduanjin/street/basketball) survive as metric
 // templates in data/exercises.ts (MOTION_METRIC_TEMPLATES).
-export type ExerciseId = "squat" | "ugc-squat";
+export type ExerciseId = "squat" | "ugc-squat" | "gs-avatar";
 
 // Runtime-side exercise id: built-in literals OR an arbitrary string for
 // imported clips. Keep `ExerciseId` strict for `data/exercises.ts`; use
@@ -105,6 +105,8 @@ export interface ExerciseConfig {
   clip?: CoachClip;
   /** Optional photoreal coach video(s), one per camera angle. */
   coachVideo?: CoachVideoSources | undefined;
+  /** Optional LHM-baked 3DGS avatar binary (KINEXGS1), driven live by the clip. */
+  avatarUrl?: string | undefined;
 }
 
 export interface MotionFrame {

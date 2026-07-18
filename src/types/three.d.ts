@@ -32,11 +32,20 @@ declare module "three" {
     dot(v: Vector3): number;
   }
 
+  export class Vector2 {
+    x: number;
+    y: number;
+    constructor(x?: number, y?: number);
+    set(x: number, y: number): this;
+  }
+
   export class Object3D {
     position: Vector3;
     quaternion: Quaternion;
     scale: Vector3;
     visible: boolean;
+    frustumCulled: boolean;
+    matrixWorld: { elements: ArrayLike<number> };
     children: Object3D[];
     add(...objects: Object3D[]): this;
     remove(...objects: Object3D[]): this;
@@ -82,6 +91,7 @@ declare module "three" {
     setPixelRatio(value: number): void;
     setSize(width: number, height: number, updateStyle?: boolean): void;
     setClearColor(color: number | string | Color, alpha?: number): void;
+    getDrawingBufferSize(target: Vector2): Vector2;
     render(scene: Scene, camera: PerspectiveCamera): void;
     dispose(): void;
   }
@@ -160,6 +170,61 @@ declare module "three" {
     geometry: G;
     material: M;
     constructor(geometry?: G, material?: M);
+  }
+
+  export const DynamicDrawUsage: number;
+  export const RGBAFormat: number;
+  export const FloatType: number;
+  export const NearestFilter: number;
+  export const CustomBlending: number;
+  export const NormalBlending: number;
+  export const OneFactor: number;
+  export const OneMinusSrcAlphaFactor: number;
+  export const SrcAlphaFactor: number;
+
+  export class InstancedBufferGeometry extends BufferGeometry {
+    instanceCount: number;
+  }
+
+  export class InstancedBufferAttribute extends BufferAttribute {}
+
+  export class Texture {
+    magFilter: number;
+    minFilter: number;
+    needsUpdate: boolean;
+    dispose(): void;
+  }
+
+  export class DataTexture extends Texture {
+    constructor(
+      data: ArrayLike<number> | null,
+      width?: number,
+      height?: number,
+      format?: number,
+      type?: number,
+    );
+  }
+
+  export interface ShaderMaterialParameters {
+    uniforms?: Record<string, { value: unknown }>;
+    vertexShader?: string;
+    fragmentShader?: string;
+    transparent?: boolean;
+    depthWrite?: boolean;
+    depthTest?: boolean;
+    side?: number;
+    blending?: number;
+    blendSrc?: number;
+    blendDst?: number;
+  }
+
+  export class ShaderMaterial extends Material {
+    uniforms: Record<string, { value: unknown }>;
+    blending: number;
+    blendSrc: number;
+    blendDst: number;
+    needsUpdate: boolean;
+    constructor(params?: ShaderMaterialParameters);
   }
 
   export class GridHelper extends Object3D {

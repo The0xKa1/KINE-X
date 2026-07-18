@@ -32,6 +32,7 @@ import { UserPoseSource } from "./core/scoring/UserPoseSource.js";
 import { UserProfileStore } from "./core/scoring/UserProfile.js";
 import { WebCamManager } from "./core/WebCamManager.js";
 import { exerciseOrder, exercises as builtinExercises, MOTION_METRIC_TEMPLATES, pipeline } from "./data/exercises.js";
+import { GaussianAvatar } from "./core/avatar/GaussianAvatar.js";
 import { Router } from "./core/Router.js";
 import { TrainPage } from "./components/pages/TrainPage.js";
 import { LibraryPage } from "./components/pages/LibraryPage.js";
@@ -40,6 +41,8 @@ import { useWebSocket } from "./hooks/useWebSocket.js";
 const exercises: Record<string, ExerciseConfig> = { ...builtinExercises };
 const exerciseOrderList: string[] = [...exerciseOrder];
 const meshClipBySeed = new Map<string, MeshClip>();
+const avatarBySeed = new Map<string, GaussianAvatar>();
+const avatarLoads = new Map<string, Promise<GaussianAvatar | null>>();
 let defaultMeshClip: MeshClip | null = null;
 const BACKEND_URL = resolveBackendUrl();
 
@@ -205,6 +208,15 @@ realtime = new RealtimeStream({
   onSessionFinished: () => resultsScreen.open(),
 });
 
+// Display helper: map playback progress to the coach clip's frame index
+// (wraps with the preview loop; clamps on the final frame during a session).
+const clipFrameIndex = (progress: number): number => {
+  const clip = exercises[state.exerciseId]?.clip;
+  const count = clip?.frames.length ?? 0;
+  if (count === 0) return 0;
+  return Math.min(count - 1, Math.floor(progress * count));
+};
+
 const scoreBoard = new ScoreBoard({
   bus,
   metricList: dom.metricList,
@@ -214,6 +226,7 @@ const scoreBoard = new ScoreBoard({
   riskBadge: dom.riskBadge,
   stageRisk: dom.stageRisk,
   frameLabel: dom.frameLabel,
+  getFrameIndex: clipFrameIndex,
   deltaLabel: dom.deltaLabel,
   pipelineLatency: dom.pipelineLatency,
   streamLabel: dom.streamLabel,
@@ -537,7 +550,7 @@ bus.on("score:update", (payload) => {
     lastFpsTick = now;
   }
   // Telemetry strip + topbar latency readout (already throttled to ~120ms upstream).
-  dom.tlFrame.textContent = String(payload.frame).padStart(6, "0");
+  dom.tlFrame.textContent = String(clipFrameIndex(payload.progress)).padStart(6, "0");
   dom.tlProgress.textContent = `${(payload.progress * 100).toFixed(1)}%`;
   const latency = socket.latencyMs();
   dom.tlLat.textContent = latency > 0 ? `${Math.round(latency)}ms` : "—";
@@ -705,7 +718,10 @@ async function hydrateMeshClip(): Promise<MeshClip | null> {
 
 /** Per-seed mesh envelopes for built-in seeds that ship their own SMPL-X clip. */
 async function hydrateSeedMeshClips(): Promise<void> {
-  const perSeed: Array<[string, string]> = [["ugc-squat", "public/coach_clips/ugc_squat.mesh.meta.json"]];
+  const perSeed: Array<[string, string]> = [
+    ["ugc-squat", "public/coach_clips/ugc_squat.mesh.meta.json"],
+    ["gs-avatar", "public/coach_clips/ugc_squat.mesh.meta.json"],
+  ];
   await Promise.all(
     perSeed.map(async ([seedId, url]) => {
       try {
@@ -827,6 +843,7 @@ function setExercise(nextId: string, message: string): void {
   if (!exercise) return;
   state.exerciseId = nextId;
   applyMeshForSeed(nextId);
+  applyAvatarForSeed(nextId);
   connection.set(message, "busy");
   bus.emit("seed:update", { exercise, message });
   // Keep the URL honest when the seed changes from inside the train bay.
@@ -834,6 +851,39 @@ function setExercise(nextId: string, message: string): void {
     router.navigate(`#/train/${nextId}`);
   }
   window.setTimeout(() => connection.set("Action DNA cache refreshed", "ready"), 420);
+}
+
+function applyAvatarForSeed(seedId: string): void {
+  const url = exercises[seedId]?.avatarUrl;
+  if (!url) {
+    stage.setAvatar(null);
+    return;
+  }
+  const cached = avatarBySeed.get(seedId);
+  if (cached) {
+    stage.setAvatar(cached);
+    return;
+  }
+  // Skeleton/mesh fallback stays on stage while the avatar streams in.
+  stage.setAvatar(null);
+  let pending = avatarLoads.get(seedId);
+  if (!pending) {
+    pending = GaussianAvatar.load(url)
+      .then((avatar) => {
+        avatarBySeed.set(seedId, avatar);
+        return avatar;
+      })
+      .catch((err) => {
+        console.warn(`[gs-avatar] load failed for ${seedId}:`, err);
+        return null;
+      });
+    avatarLoads.set(seedId, pending);
+  }
+  void pending.then((avatar) => {
+    avatarLoads.delete(seedId);
+    // Ignore stale loads after the user switched seeds.
+    if (avatar && state.exerciseId === seedId) stage.setAvatar(avatar);
+  });
 }
 
 function applyMeshForSeed(seedId: string): void {
