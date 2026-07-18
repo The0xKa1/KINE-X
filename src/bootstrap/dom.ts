@@ -27,8 +27,9 @@ export interface DomRefs {
   cameraOverlayCanvas: HTMLCanvasElement;
   motionCanvas: HTMLCanvasElement;
   coachVideo: HTMLVideoElement;
-  twinEmpty: HTMLElement;
-  twinEmptyCta: HTMLButtonElement;
+  stageBay: HTMLElement;
+  thumbHotspot: HTMLElement;
+  thumbLabel: HTMLElement;
   loadingOverlay: HTMLElement;
   bootOverlay: HTMLElement;
   pageLibrary: HTMLElement;
@@ -160,8 +161,9 @@ export function collectDomRefs(): DomRefs {
     cameraOverlayCanvas: $("#cameraOverlay") as HTMLCanvasElement,
     motionCanvas: $("#motionCanvas") as HTMLCanvasElement,
     coachVideo: $("#coachVideo") as HTMLVideoElement,
-    twinEmpty: $("#twinEmpty"),
-    twinEmptyCta: $("#twinEmptyCta") as HTMLButtonElement,
+    stageBay: $("#stageBay"),
+    thumbHotspot: $("#thumbHotspot"),
+    thumbLabel: $("#thumbLabel"),
     loadingOverlay: $("#loadingOverlay"),
     bootOverlay: $("#bootOverlay"),
     pageLibrary: $("#page-library"),

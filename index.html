@@ -209,45 +209,11 @@
             </div>
           </section>
 
-          <!-- MIDDLE: 数字分身 -->
-          <section class="bay" aria-label="数字分身">
-            <div class="bay-toolbar">
-              <div>
-                <span class="eyebrow">03 · TWIN / DIGITAL</span>
-                <strong>数字分身</strong>
-              </div>
-            </div>
-
-            <div class="bay-stage twin-stage" id="twinBay">
-              <video id="coachVideo" class="coach-video" muted playsinline></video>
-
-              <div id="twinEmpty" class="bay-empty twin-empty">
-                <strong>该种子还没有分身视频</strong>
-                <span>去创作工坊烘焙你的数字人教练</span>
-                <button id="twinEmptyCta" type="button" class="bay-empty-action">进入创作工坊 →</button>
-              </div>
-
-              <div class="hud hud-tr combo"><span>Combo</span><strong id="comboLabel">—</strong></div>
-              <div id="stageRisk" class="stage-risk">STANDBY</div>
-
-              <div class="score-orbit" aria-label="实时同步度">
-                <div>
-                  <span id="scoreValue">—</span>
-                  <small>SYNC</small>
-                </div>
-              </div>
-            </div>
-
-            <div class="bay-playbar">
-              <span class="hud">PHOTOREAL · MOTION TRANSFER</span>
-            </div>
-          </section>
-
           <!-- RIGHT: 全息标准舞台 -->
           <section class="bay" aria-label="全息标准舞台">
             <div class="bay-toolbar">
               <div>
-                <span class="eyebrow">04 · BLUEPRINT / SMPL-X</span>
+                <span class="eyebrow">03 · COACH / SMPL-X</span>
                 <strong id="stageTitle">Deep Squat Tutor</strong>
               </div>
               <div class="bay-toolbar-controls">
@@ -264,14 +230,27 @@
               </div>
             </div>
 
-            <div class="bay-stage" id="stageBay">
+            <div class="bay-stage" id="stageBay" data-primary="blueprint">
               <canvas id="motionCanvas" aria-label="3D 全息小人"></canvas>
+              <video id="coachVideo" class="coach-video" muted playsinline></video>
+              <div id="thumbHotspot" class="thumb-hotspot" title="点击切换主视图">
+                <span id="thumbLabel">3D</span>
+              </div>
               <div id="loadingOverlay" class="loading-mask" aria-live="polite">
                 <strong>初始化全息舱…</strong>
                 <span>预加载 SMPL-Lite 骨骼 / 校准动作 DNA</span>
               </div>
 
               <div class="hud hud-tl"><span>Frame</span><strong id="frameLabel">—</strong></div>
+              <div class="hud hud-tr combo"><span>Combo</span><strong id="comboLabel">—</strong></div>
+              <div id="stageRisk" class="stage-risk">STANDBY</div>
+
+              <div class="score-orbit" aria-label="实时同步度">
+                <div>
+                  <span id="scoreValue">—</span>
+                  <small>SYNC</small>
+                </div>
+              </div>
 
               <div class="telemetry" id="telemetryStrip" aria-hidden="true">
                 <span>FRAME<b id="tlFrame">000000</b></span>

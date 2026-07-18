@@ -171,12 +171,27 @@ const stage = new MotionStage({
 let currentView             = "front";
 const coachVideo = new CoachVideo({
   video: dom.coachVideo,
-  empty: dom.twinEmpty,
   bus,
   getPlayback: () => ({ progress: state.progress, speed: state.speed, playing: state.playing }),
   getView: () => currentView,
 });
-dom.twinEmptyCta.addEventListener("click", () => router.navigate("#/create"));
+
+/** The stage hosts two layers; mode decides which one is primary, the other
+ * shrinks to a corner thumbnail (only when the seed ships a coach video). */
+function syncStagePrimary()       {
+  const hasVideo = coachVideo.hasVideo();
+  dom.stageBay.classList.toggle("has-video", hasVideo);
+  const primary = hasVideo && state.mode === "coach" ? "twin" : "blueprint";
+  if (dom.stageBay.dataset.primary !== primary) {
+    dom.stageBay.dataset.primary = primary;
+    dom.thumbLabel.textContent = primary === "twin" ? "3D" : "VIDEO";
+    requestAnimationFrame(() => stage.resize());
+  }
+}
+
+dom.thumbHotspot.addEventListener("click", () => {
+  setMode(dom.stageBay.dataset.primary === "twin" ? "mesh" : "coach");
+});
 
 realtime = new RealtimeStream({
   bus,
@@ -507,6 +522,7 @@ bus.on("seed:update", (payload) => {
   timeline.setLabel(`${payload.exercise.discipline} · ${payload.exercise.target}`);
   timeline.setClip(payload.exercise.clip ?? null);
   coachVideo.setSources(payload.exercise.coachVideo ?? null);
+  syncStagePrimary();
   renderDnaList(dom.dnaList, payload.exercise);
   resultsScreen.setExercise(payload.exercise.id);
 });
@@ -799,6 +815,7 @@ function setMode(nextMode            )       {
   state.mode = nextMode;
   stage.setMode(nextMode);
   seedCarousel.setMode(nextMode);
+  syncStagePrimary();
 }
 
 function setExercise(nextId        , message        )       {

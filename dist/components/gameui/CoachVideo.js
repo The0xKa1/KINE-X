@@ -3,7 +3,6 @@
 
                              
                           
-                     
                 
                                                                            
                             
@@ -12,9 +11,10 @@
 const DRIFT_TOLERANCE_SEC = 0.2;
 
 /**
- * Photoreal coach layer living in its own "digital twin" bay. Scrub / tempo /
- * play state stay in sync with the RealtimeStream playback state; angle
- * variants (front/side/top) swap sources when they exist.
+ * Photoreal coach layer. The video element lives inside the stage bay where
+ * CSS decides whether it is the full-bleed primary view or the corner
+ * thumbnail; this class only manages sources and keeps playback in sync with
+ * the RealtimeStream state (scrub / tempo / play-pause).
  */
 export class CoachVideo {
           options                   ;
@@ -31,9 +31,12 @@ export class CoachVideo {
     this.raf = requestAnimationFrame(this.tick);
   }
 
+  hasVideo()          {
+    return this.sources !== null;
+  }
+
   setSources(sources                          )       {
     this.sources = sources;
-    this.options.empty.classList.toggle("is-hidden", sources !== null);
     if (!sources) {
       this.options.video.removeAttribute("src");
       this.options.video.load();
@@ -70,18 +73,10 @@ export class CoachVideo {
     );
   }
 
-          isActive()          {
-    // The twin bay is dedicated to the photoreal coach — it plays whenever the
-    // seed ships a video, regardless of the blueprint's render mode or view.
-    return this.sources !== null;
-  }
-
           tick()       {
     this.raf = requestAnimationFrame(this.tick);
     const video = this.options.video;
-    const active = this.isActive();
-    video.classList.toggle("is-active", active);
-    if (!active) {
+    if (!this.sources) {
       if (!video.paused) video.pause();
       return;
     }

@@ -487,13 +487,17 @@
   letter-spacing: 0.08em;
 }
 
-/* Photoreal coach video panel — covers the 3D stage when active. */
-.coach-video {
+/* Photoreal coach video + blueprint share the stage as primary/thumbnail. */
+#stageBay #motionCanvas {
   position: absolute;
   inset: 0;
-  z-index: 2;
   width: 100%;
   height: 100%;
+}
+
+.coach-video {
+  position: absolute;
+  z-index: 2;
   object-fit: contain;
   background: var(--paper);
   opacity: 0;
@@ -501,8 +505,68 @@
   transition: opacity 200ms linear;
 }
 
-.coach-video.is-active {
+#stageBay.has-video .coach-video {
   opacity: 1;
+}
+
+/* twin primary: video full-bleed, blueprint canvas shrinks to a corner card */
+#stageBay.has-video[data-primary="twin"] .coach-video {
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+#stageBay.has-video[data-primary="twin"] #motionCanvas {
+  inset: auto;
+  left: 14px;
+  bottom: 64px;
+  width: 148px;
+  height: 96px;
+  border: 2px solid var(--ink);
+  z-index: 3;
+  pointer-events: none;
+}
+
+/* blueprint primary: canvas full-bleed, video shrinks to a corner card */
+#stageBay.has-video[data-primary="blueprint"] .coach-video {
+  left: 14px;
+  bottom: 64px;
+  width: 148px;
+  height: 96px;
+  border: 2px solid var(--ink);
+  z-index: 3;
+}
+
+/* click-catcher over the thumbnail — swaps the primary view */
+.thumb-hotspot {
+  position: absolute;
+  left: 14px;
+  bottom: 64px;
+  width: 148px;
+  height: 96px;
+  z-index: 5;
+  display: none;
+  cursor: pointer;
+}
+
+#stageBay.has-video .thumb-hotspot {
+  display: block;
+}
+
+.thumb-hotspot span {
+  position: absolute;
+  right: 4px;
+  top: 4px;
+  padding: 2px 5px;
+  background: var(--ink);
+  color: var(--paper);
+  font: 700 8px/1 var(--mono);
+  letter-spacing: 0.12em;
+}
+
+.thumb-hotspot:hover span {
+  background: var(--hot);
+  color: var(--ink);
 }
 
 /* Twin bay (digital human) — plain stage, no blueprint grid/crosshair. */
@@ -510,34 +574,4 @@
   display: flex;
   align-items: center;
   gap: 8px;
-}
-
-.twin-stage {
-  background-image: none;
-  background-color: var(--paper);
-}
-
-.twin-stage::before {
-  display: none;
-}
-
-.twin-empty {
-  display: grid;
-  place-content: center;
-  justify-items: center;
-  gap: 10px;
-  padding-bottom: 130px; /* keep clear of the SYNC score orbit */
-  text-align: center;
-}
-
-.twin-empty.is-hidden {
-  display: none;
-}
-
-.twin-empty strong {
-  max-width: 240px;
-}
-
-.twin-empty .bay-empty-action {
-  display: inline-block;
 }
