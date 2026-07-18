@@ -70,8 +70,21 @@ export class CoachVideo {
     );
   }
 
+          hasVideoForView(view            )          {
+    if (!this.sources) return false;
+    if (view === "side") return Boolean(this.sources.side);
+    if (view === "top") return Boolean(this.sources.top);
+    return Boolean(this.sources.front);
+  }
+
           isActive()          {
-    return this.sources !== null && this.options.getMode() === "coach";
+    // Without an angle-matched video the 3D stage takes over, so SIDE/TOP
+    // stay fully rotatable instead of showing the same front clip.
+    return (
+      this.sources !== null &&
+      this.options.getMode() === "coach" &&
+      this.hasVideoForView(this.options.getView())
+    );
   }
 
           tick()       {
