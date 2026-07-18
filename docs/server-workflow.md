@@ -6,7 +6,7 @@
 
 | 项目 | 值 |
 |------|-----|
-| SSH | `ssh -p 46047 root@connect.westb.seetacloud.com`（密码见 AutoDL 控制台实例页） |
+| SSH | `ssh -p 24060 root@connect.westc.seetacloud.com`（密码见 AutoDL 控制台实例页） |
 | 免密密钥（本机 Mac） | `/Users/zhangjinkai/KINE-X/.deploy-tmp/autodl_ed25519` |
 | GPU | vGPU-32GB（RTX 4080 SUPER 级），¥1.68/时，按秒计费 |
 | 项目目录 | `/root/KINE-X` |
@@ -20,9 +20,9 @@
 bash /root/start_all.sh
 
 # 2. 本地 Mac 挂双端口隧道（后台常驻）
-nohup ssh -i /Users/zhangjinkai/KINE-X/.deploy-tmp/autodl_ed25519 -p 46047 \
+nohup ssh -i /Users/zhangjinkai/KINE-X/.deploy-tmp/autodl_ed25519 -p 24060 \
   -N -L 15173:localhost:5173 -L 18765:localhost:8765 \
-  -o ServerAliveInterval=30 root@connect.westb.seetacloud.com &
+  -o ServerAliveInterval=30 root@connect.westc.seetacloud.com &
 
 # 3. 浏览器打开（backend 地址已存 localStorage，只需设一次）
 open http://localhost:15173
@@ -34,7 +34,7 @@ open http://localhost:15173
 ## 三、在服务器上开发（推荐姿势）
 
 ```bash
-ssh -p 46047 root@connect.westb.seetacloud.com
+ssh -p 24060 root@connect.westc.seetacloud.com
 tmux new -s dev          # 防断线；重连用 tmux attach -t dev
 kx                       # = cd /root/KINE-X（zsh 别名）
 kimi                     # 启动 kimi-code（首次用 /login，会给 URL 到本地浏览器授权）
@@ -67,8 +67,8 @@ unturbo                                 # 用完关闭，避免 pip 等国内源
 2. 产物直接落在服务器 `/root/KINE-X/public/coach_clips/jobs/<jobId>/`，前端同源立即可用。
 3. 想归档到本地仓库（可选）：
    ```bash
-   rsync -az -e "ssh -i /Users/zhangjinkai/KINE-X/.deploy-tmp/autodl_ed25519 -p 46047" \
-     root@connect.westb.seetacloud.com:/root/KINE-X/public/coach_clips/jobs/ \
+   rsync -az -e "ssh -i /Users/zhangjinkai/KINE-X/.deploy-tmp/autodl_ed25519 -p 24060" \
+     root@connect.westc.seetacloud.com:/root/KINE-X/public/coach_clips/jobs/ \
      /Users/zhangjinkai/KINE-X/public/coach_clips/jobs/
    ```
 
@@ -76,11 +76,11 @@ unturbo                                 # 用完关闭，避免 pip 等国内源
 
 ```bash
 npm run build && rsync -az --delete \
-  -e "ssh -i /Users/zhangjinkai/KINE-X/.deploy-tmp/autodl_ed25519 -p 46047" \
+  -e "ssh -i /Users/zhangjinkai/KINE-X/.deploy-tmp/autodl_ed25519 -p 24060" \
   /Users/zhangjinkai/KINE-X/dist /Users/zhangjinkai/KINE-X/index.html \
   /Users/zhangjinkai/KINE-X/src /Users/zhangjinkai/KINE-X/public \
   --exclude 'coach_clips/jobs' \
-  root@connect.westb.seetacloud.com:/root/KINE-X/
+  root@connect.westc.seetacloud.com:/root/KINE-X/
 ```
 
 （在服务器上直接开发则不需要这步；两边都改时注意以服务器副本为准。）
