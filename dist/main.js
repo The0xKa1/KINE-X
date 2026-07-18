@@ -1,6 +1,7 @@
 import { ScoreBoard } from "./components/gameui/ScoreBoard.js";
 import { Timeline } from "./components/gameui/Timeline.js";
 import { SeedCarousel } from "./components/gameui/SeedCarousel.js";
+import { CoachVideo } from "./components/gameui/CoachVideo.js";
 import { ComboBurst } from "./components/gameui/ComboBurst.js";
 import { CalibrationOverlay } from "./components/gameui/CalibrationOverlay.js";
 import { ResultsScreen } from "./components/gameui/ResultsScreen.js";
@@ -70,7 +71,7 @@ import { formatCm } from "./core/coordinates.js";
 import { buildFrameThumbnails, buildFrameThumbnailsFromMeta, getCoachClipManifest, loadCoachClip } from "./core/import/loadCoachClip.js";
 import { renderMeshThumbnails } from "./core/import/renderMeshThumbs.js";
 import { loadMeshClip,               } from "./core/import/MeshClip.js";
-                                                                                                 
+                                                                                                             
 
 const dom = collectDomRefs();
 const bus = new EventBus();
@@ -165,6 +166,15 @@ const stage = new MotionStage({
   stress: true,
   cameraOverlay,
   isCameraActive: () => webcam.isActive() && webcam.getMode() === "camera",
+});
+
+let currentView             = "front";
+const coachVideo = new CoachVideo({
+  video: dom.coachVideo,
+  bus,
+  getPlayback: () => ({ progress: state.progress, speed: state.speed, playing: state.playing }),
+  getMode: () => state.mode,
+  getView: () => currentView,
 });
 
 realtime = new RealtimeStream({
@@ -396,7 +406,11 @@ const shell = new AppShell({
   speedSlider: dom.speedSlider,
   timeSlider: dom.timeSlider,
   cameraButton: dom.cameraButton,
-  onViewChange: (view) => stage.setView(view),
+  onViewChange: (view) => {
+    currentView = view;
+    stage.setView(view);
+    coachVideo.setView(view);
+  },
   onPlayChange: (nextPlaying) => {
     realtime?.setPlaying(nextPlaying);
     if (nextPlaying) audio.startBgm(currentBpm());
@@ -491,6 +505,7 @@ bus.on("seed:update", (payload) => {
   seedCarousel.syncExercise(payload.exercise);
   timeline.setLabel(`${payload.exercise.discipline} · ${payload.exercise.target}`);
   timeline.setClip(payload.exercise.clip ?? null);
+  coachVideo.setSources(payload.exercise.coachVideo ?? null);
   renderDnaList(dom.dnaList, payload.exercise);
   resultsScreen.setExercise(payload.exercise.id);
 });
@@ -607,7 +622,14 @@ void (async () => {
   await hydrateSeedMeshClips();
   await healTimelineThumbnails(loadedMesh);
   void probeMediapipeRuntime().then((ok) => boot.tick("mediapipe", ok ? "OK" : "FAIL"));
-  setExercise(state.exerciseId, "Realtime evaluator streaming");
+  // Respect deep links: when the URL names a train seed, boot straight into it
+  // instead of the default exercise (otherwise the initial setExercise would
+  // rewrite the URL to the default seed).
+  const initialRoute = router.currentRoute();
+  const routeSeed = initialRoute.params.seedId;
+  const initialSeed =
+    initialRoute.name === "train" && routeSeed && exercises[routeSeed] ? routeSeed : state.exerciseId;
+  setExercise(initialSeed, "Realtime evaluator streaming");
   router.start();
   const wsUrl = new URLSearchParams(window.location.search).get("ws") ?? DEFAULT_WS_URL;
   socket.connect(wsUrl);

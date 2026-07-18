@@ -26,6 +26,7 @@ export const $$ =                    (selector        )      =>
                                 
                                          
                                   
+                               
                               
                            
                            
@@ -156,6 +157,7 @@ export function collectDomRefs()          {
     cameraVideo: $("#cameraVideo")                    ,
     cameraOverlayCanvas: $("#cameraOverlay")                     ,
     motionCanvas: $("#motionCanvas")                     ,
+    coachVideo: $("#coachVideo")                    ,
     loadingOverlay: $("#loadingOverlay"),
     bootOverlay: $("#bootOverlay"),
     pageLibrary: $("#page-library"),

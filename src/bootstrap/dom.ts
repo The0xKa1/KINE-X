@@ -26,6 +26,7 @@ export interface DomRefs {
   cameraVideo: HTMLVideoElement;
   cameraOverlayCanvas: HTMLCanvasElement;
   motionCanvas: HTMLCanvasElement;
+  coachVideo: HTMLVideoElement;
   loadingOverlay: HTMLElement;
   bootOverlay: HTMLElement;
   pageLibrary: HTMLElement;
@@ -156,6 +157,7 @@ export function collectDomRefs(): DomRefs {
     cameraVideo: $("#cameraVideo") as HTMLVideoElement,
     cameraOverlayCanvas: $("#cameraOverlay") as HTMLCanvasElement,
     motionCanvas: $("#motionCanvas") as HTMLCanvasElement,
+    coachVideo: $("#coachVideo") as HTMLVideoElement,
     loadingOverlay: $("#loadingOverlay"),
     bootOverlay: $("#bootOverlay"),
     pageLibrary: $("#page-library"),

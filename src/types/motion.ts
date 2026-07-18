@@ -86,6 +86,12 @@ export interface CoachClip {
   thumbnails: string[];
 }
 
+export interface CoachVideoSources {
+  front: string;
+  side?: string | undefined;
+  top?: string | undefined;
+}
+
 export interface ExerciseConfig {
   id: string;
   name: string;
@@ -97,6 +103,8 @@ export interface ExerciseConfig {
   params: SmplxMetadata;
   metrics: JointMetricSeed[];
   clip?: CoachClip;
+  /** Optional photoreal coach video(s), one per camera angle. */
+  coachVideo?: CoachVideoSources | undefined;
 }
 
 export interface MotionFrame {
