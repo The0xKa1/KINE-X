@@ -71,7 +71,11 @@ export const exercises                                     = {
       format: "kinex.coach_clip.v1",
     },
     metrics: MOTION_METRIC_TEMPLATES.squat.map((m) => ({ ...m })),
-    coachVideo: { front: "public/coach_clips/ugc_squat_twin.mp4" },
+    coachVideo: {
+      front: "public/coach_clips/ugc_squat_twin.mp4",
+      side: "public/coach_clips/ugc_squat_lhm_side.mp4",
+      top: "public/coach_clips/ugc_squat_lhm_top.mp4",
+    },
   },
 };
 
