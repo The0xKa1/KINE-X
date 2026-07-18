@@ -1,22 +1,30 @@
 import type { Page } from "../../core/Router.js";
 import { ImportFlow, type ImportApplyPayload, type ImportFlowState } from "../../core/import/ImportFlow.js";
+import { AvatarImportFlow, type AvatarApplyPayload } from "../../core/import/AvatarImportFlow.js";
 import { $ } from "../../bootstrap/dom.js";
 
 interface CreatePageOptions {
   el: HTMLElement;
   backendUrl: string;
   onApply(payload: ImportApplyPayload): void;
+  onAvatarReady(payload: AvatarApplyPayload): void;
+  onAvatarEnter(payload: AvatarApplyPayload): void;
 }
 
+type CreateTab = "video" | "avatar";
+
 /**
- * Video → coach wizard: upload → optional MLLM segmentation → backend parse →
- * apply to library. The heavy lifting lives in ImportFlow; this page renders
- * the step rail and wires the DOM.
+ * Creation studio wizard, two branches:
+ *  - 视频教练: upload → optional MLLM segmentation → backend parse → library.
+ *  - 照片分身: single photo → LHM 3DGS avatar → attaches to the UGC Squat seed.
+ * The heavy lifting lives in ImportFlow / AvatarImportFlow; this page renders
+ * the step rail, the tab switch and wires the DOM.
  */
 export class CreatePage implements Page {
   el: HTMLElement;
   private options: CreatePageOptions;
   private initialized = false;
+  private tab: CreateTab = "video";
 
   constructor(options: CreatePageOptions) {
     this.options = options;
@@ -36,17 +44,27 @@ export class CreatePage implements Page {
         <header class="create-head">
           <div>
             <span class="eyebrow">04 · CREATE / 创作工坊</span>
-            <h2>视频 → 虚拟教练</h2>
+            <h2 id="createTitle">视频 → 虚拟教练</h2>
           </div>
-          <ol class="create-steps">
-            <li data-step="file"><b>01</b>上传</li>
-            <li data-step="segment"><b>02</b>分片</li>
-            <li data-step="parse"><b>03</b>解析</li>
-            <li data-step="apply"><b>04</b>入库</li>
-          </ol>
+          <div class="create-head-side">
+            <div class="create-tabs" role="tablist" aria-label="创作类型">
+              <button type="button" class="is-active" data-create-tab="video" role="tab" aria-selected="true">
+                视频教练<span>VIDEO → COACH</span>
+              </button>
+              <button type="button" data-create-tab="avatar" role="tab" aria-selected="false">
+                照片分身<span>PHOTO → AVATAR</span>
+              </button>
+            </div>
+            <ol class="create-steps" id="createSteps">
+              <li data-step="file"><b>01</b>上传</li>
+              <li data-step="segment"><b>02</b>分片</li>
+              <li data-step="parse"><b>03</b>解析</li>
+              <li data-step="apply"><b>04</b>入库</li>
+            </ol>
+          </div>
         </header>
 
-        <div class="create-grid">
+        <div class="create-grid" id="createVideoGrid">
           <section class="create-block">
             <div class="create-block-head"><h3>01 · SOURCE</h3><span>standard motion clip</span></div>
             <label id="createDrop" class="import-drop" for="createFile">
@@ -89,8 +107,60 @@ export class CreatePage implements Page {
             <p class="settings-hint">应用后自动进入训练舱，新种子会保留在动作库中。</p>
           </section>
         </div>
+
+        <div class="create-grid" id="createAvatarGrid" hidden>
+          <section class="create-block">
+            <div class="create-block-head"><h3>01 · PHOTO</h3><span>single full-body photo</span></div>
+            <label id="avatarDrop" class="import-drop" for="avatarFile">
+              <strong>选择照片或拖拽到这里</strong>
+              <span>单人正面全身照，光线均匀、无遮挡，jpg / png</span>
+              <input id="avatarFile" type="file" accept="image/*" hidden />
+            </label>
+            <img id="avatarPreview" class="import-preview avatar-preview" alt="分身照片预览" hidden />
+          </section>
+
+          <section class="create-block">
+            <div class="create-block-head"><h3>02 · IDENTITY</h3><span>name your twin</span></div>
+            <label class="settings-field">
+              <span>分身名</span>
+              <input id="avatarName" type="text" maxlength="24" placeholder="例如：阿凯的分身" />
+            </label>
+            <label class="settings-field">
+              <span>目标种子（v1 固定）</span>
+              <input type="text" value="UGC Squat Import" disabled />
+            </label>
+            <p class="settings-hint">分身将学会 UGC Squat 的动作，生成后挂载到该种子；训练舱内切「分身」模式即可见到它。</p>
+          </section>
+
+          <section class="create-block">
+            <div class="create-block-head"><h3>03 · SUMMON</h3><span id="avatarStatus">等待选择照片</span></div>
+            <div class="import-progress"><i id="avatarProgress"></i></div>
+            <div class="import-progress-label" id="avatarProgressLabel">—</div>
+            <button id="avatarSubmit" class="secondary-button" type="button">生成 3D 分身</button>
+            <button id="avatarEnter" class="primary-button" type="button" hidden>进入训练舱 · 切「分身」模式 →</button>
+            <p class="settings-hint">照片上传到 LHM 重建后端，GPU 上重建可动高斯分身，约 1-2 分钟。</p>
+          </section>
+        </div>
       </div>
     `;
+
+    this.el.querySelectorAll<HTMLButtonElement>("[data-create-tab]").forEach((button) => {
+      button.addEventListener("click", () => this.setTab(button.dataset.createTab as CreateTab));
+    });
+  }
+
+  private setTab(next: CreateTab): void {
+    if (this.tab === next) return;
+    this.tab = next;
+    this.el.querySelectorAll<HTMLButtonElement>("[data-create-tab]").forEach((button) => {
+      const active = button.dataset.createTab === next;
+      button.classList.toggle("is-active", active);
+      button.setAttribute("aria-selected", String(active));
+    });
+    ($("#createVideoGrid") as HTMLElement).hidden = next !== "video";
+    ($("#createAvatarGrid") as HTMLElement).hidden = next !== "avatar";
+    ($("#createSteps") as HTMLElement).hidden = next !== "video";
+    ($("#createTitle") as HTMLElement).textContent = next === "video" ? "视频 → 虚拟教练" : "照片 → 数字分身";
   }
 
   private initFlow(): void {
@@ -110,6 +180,22 @@ export class CreatePage implements Page {
       backendUrl: this.options.backendUrl,
       onApply: (payload) => this.options.onApply(payload),
       onStateChange: (state) => this.syncSteps(state),
+    });
+
+    new AvatarImportFlow({
+      fileInput: $("#avatarFile") as HTMLInputElement,
+      dropZone: $("#avatarDrop"),
+      preview: $("#avatarPreview") as HTMLImageElement,
+      nameInput: $("#avatarName") as HTMLInputElement,
+      submitButton: $("#avatarSubmit") as HTMLButtonElement,
+      enterButton: $("#avatarEnter") as HTMLButtonElement,
+      progressBar: $("#avatarProgress"),
+      progressLabel: $("#avatarProgressLabel"),
+      statusLabel: $("#avatarStatus"),
+      backendUrl: this.options.backendUrl,
+      seedId: "ugc-squat",
+      onReady: (payload) => this.options.onAvatarReady(payload),
+      onEnter: (payload) => this.options.onAvatarEnter(payload),
     });
   }
 

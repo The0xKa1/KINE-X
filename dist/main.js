@@ -41,7 +41,7 @@ import { useWebSocket } from "./hooks/useWebSocket.js";
 const exercises                                 = { ...builtinExercises };
 const exerciseOrderList           = [...exerciseOrder];
 const meshClipBySeed = new Map                  ();
-const avatarBySeed = new Map                        ();
+const avatarBySeed = new Map                                                 ();
 const avatarLoads = new Map                                        ();
 let defaultMeshClip                  = null;
 const BACKEND_URL = resolveBackendUrl();
@@ -98,9 +98,9 @@ const state                      = {
   frame: 0,
 };
 
-// Deep-link a stage mode for demos / tests, e.g. ?mode=mesh or ?mode=stress.
+// Deep-link a stage mode for demos / tests, e.g. ?mode=mesh or ?mode=avatar.
 const initialMode = new URLSearchParams(window.location.search).get("mode");
-if (initialMode === "coach" || initialMode === "mesh" || initialMode === "stress") {
+if (initialMode === "coach" || initialMode === "mesh" || initialMode === "stress" || initialMode === "avatar") {
   state.mode = initialMode;
 }
 
@@ -180,7 +180,9 @@ const coachVideo = new CoachVideo({
 });
 
 /** The stage hosts two layers; mode decides which one is primary, the other
- * shrinks to a corner thumbnail (only when the seed ships a coach video). */
+ * shrinks to a corner thumbnail (only when the seed ships a coach video).
+ * coach keeps the twin video primary; mesh/stress/avatar force the 3D
+ * blueprint primary full-bleed. */
 function syncStagePrimary()       {
   const hasVideo = coachVideo.hasVideo();
   dom.stageBay.classList.toggle("has-video", hasVideo);
@@ -424,6 +426,18 @@ const createPage = new CreatePage({
     setExercise(newId, `Imported · ${name}`);
     router.navigate(`#/train/${newId}`);
   },
+  onAvatarReady: ({ seedId, avatarBinUrl }) => {
+    applyAvatarUrlToSeed(seedId, avatarBinUrl);
+  },
+  onAvatarEnter: ({ seedId, name }) => {
+    router.navigate(`#/train/${seedId}`);
+    // setExercise flashes its own "cache refreshed" line ~420ms after the
+    // seed swap — land the avatar hint after that so it actually sticks.
+    window.setTimeout(
+      () => connection.set(`分身「${name}」已就位 · 点「分身」模式查看`, "ready"),
+      700,
+    );
+  },
 });
 dom.importButton.addEventListener("click", () => router.navigate("#/create"));
 
@@ -535,6 +549,7 @@ bus.on("seed:update", (payload) => {
   timeline.setLabel(`${payload.exercise.discipline} · ${payload.exercise.target}`);
   timeline.setClip(payload.exercise.clip ?? null);
   coachVideo.setSources(payload.exercise.coachVideo ?? null);
+  syncAvatarModeButton();
   syncStagePrimary();
   renderDnaList(dom.dnaList, payload.exercise);
   resultsScreen.setExercise(payload.exercise.id);
@@ -720,7 +735,6 @@ async function hydrateMeshClip()                           {
 async function hydrateSeedMeshClips()                {
   const perSeed                          = [
     ["ugc-squat", "public/coach_clips/ugc_squat.mesh.meta.json"],
-    ["gs-avatar", "public/coach_clips/ugc_squat.mesh.meta.json"],
   ];
   await Promise.all(
     perSeed.map(async ([seedId, url]) => {
@@ -768,8 +782,24 @@ async function hydrateCoachClips()                {
                      
  
 
+/** Photo-avatar jobs (kind === "avatar") attach a baked KINEXGS1 binary to an
+ * existing seed — usually a built-in one like ugc-squat — instead of creating
+ * a new seed card. */
+                              
+                
+                 
+                
+                  
+                  
+                    
+                        
+                 
+                     
+                      
+ 
+
 async function hydrateImportedJobs()                {
-  let payload                          ;
+  let payload                                                    ;
   try {
     // 4s timeout — if the backend isn't reachable (e.g. port-forward without
     // :8765) we want to drop the work, not block the carousel forever.
@@ -778,12 +808,37 @@ async function hydrateImportedJobs()                {
     const resp = await fetch(`${BACKEND_URL}/import/jobs`, { signal: ctrl.signal });
     window.clearTimeout(timer);
     if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-    payload = (await resp.json())                            ;
+    payload = (await resp.json())                                                      ;
   } catch (err) {
     console.warn("[imported-jobs] skip:", err);
     return;
   }
-  await Promise.all(payload.jobs.map((job) => hydrateOneJob(job)));
+  // Avatar jobs attach to existing seeds. Per seed only the NEWEST done job
+  // wins — the jobs list order is backend-defined, so pick by finishedAt.
+  const newestAvatarBySeed = new Map                            ();
+  payload.jobs.forEach((job) => {
+    const avatarJob = job                      ;
+    if (avatarJob.kind !== "avatar" || avatarJob.status !== "done" || !avatarJob.avatarBinUrl || !avatarJob.seedId) {
+      return;
+    }
+    const seedId = avatarJob.seedId;
+    const prev = newestAvatarBySeed.get(seedId);
+    const stamp = avatarJob.finishedAt ?? avatarJob.createdAt ?? 0;
+    const prevStamp = prev ? (prev.finishedAt ?? prev.createdAt ?? 0) : -1;
+    if (!prev || stamp > prevStamp) newestAvatarBySeed.set(seedId, avatarJob);
+  });
+  newestAvatarBySeed.forEach((job) => hydrateAvatarJob(job));
+
+  await Promise.all(
+    payload.jobs
+      .filter((job) => (job                      ).kind !== "avatar")
+      .map((job) => hydrateOneJob(job                )),
+  );
+}
+
+function hydrateAvatarJob(job                    )       {
+  if (job.status !== "done" || !job.avatarBinUrl || !job.seedId) return;
+  applyAvatarUrlToSeed(job.seedId, job.avatarBinUrl);
 }
 
 async function hydrateOneJob(job              )                {
@@ -834,6 +889,16 @@ function setMode(nextMode            )       {
   syncStagePrimary();
 }
 
+/** The 分身 mode button only exists when the current seed ships an avatarUrl.
+ * If the mode is left dangling on a seed without one, fall back to coach. */
+function syncAvatarModeButton()       {
+  const hasAvatar = Boolean(exercises[state.exerciseId]?.avatarUrl);
+  dom.modeButtons.forEach((button) => {
+    if (button.dataset.mode === "avatar") button.hidden = !hasAvatar;
+  });
+  if (!hasAvatar && state.mode === "avatar") setMode("coach");
+}
+
 function setExercise(nextId        , message        )       {
   realtime?.resetForSeed(nextId);
   frameBuffer.reset();
@@ -859,9 +924,11 @@ function applyAvatarForSeed(seedId        )       {
     stage.setAvatar(null);
     return;
   }
+  // Cache is validated against the CURRENT url — a hydrated job may have
+  // replaced the seed's avatarUrl since the last load.
   const cached = avatarBySeed.get(seedId);
-  if (cached) {
-    stage.setAvatar(cached);
+  if (cached && cached.url === url) {
+    stage.setAvatar(cached.avatar);
     return;
   }
   // Skeleton/mesh fallback stays on stage while the avatar streams in.
@@ -870,7 +937,7 @@ function applyAvatarForSeed(seedId        )       {
   if (!pending) {
     pending = GaussianAvatar.load(url)
       .then((avatar) => {
-        avatarBySeed.set(seedId, avatar);
+        avatarBySeed.set(seedId, { url, avatar });
         return avatar;
       })
       .catch((err) => {
@@ -881,9 +948,24 @@ function applyAvatarForSeed(seedId        )       {
   }
   void pending.then((avatar) => {
     avatarLoads.delete(seedId);
-    // Ignore stale loads after the user switched seeds.
-    if (avatar && state.exerciseId === seedId) stage.setAvatar(avatar);
+    // Ignore stale loads after the user switched seeds or the url moved on.
+    if (avatar && state.exerciseId === seedId && exercises[seedId]?.avatarUrl === url) {
+      stage.setAvatar(avatar);
+    }
   });
+}
+
+/** Attach a baked 3DGS avatar binary to a seed at runtime (photo-avatar
+ * branch, hydrated avatar jobs). When it's the live seed, swap the stage
+ * avatar in and light up the 分身 mode button immediately. */
+function applyAvatarUrlToSeed(seedId        , avatarBinUrl        )       {
+  const exercise = exercises[seedId];
+  if (!exercise) return;
+  exercise.avatarUrl = avatarBinUrl;
+  if (seedId === state.exerciseId) {
+    applyAvatarForSeed(seedId);
+    syncAvatarModeButton();
+  }
 }
 
 function applyMeshForSeed(seedId        )       {

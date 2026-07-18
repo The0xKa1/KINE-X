@@ -125,6 +125,46 @@ Synchronous response (200):
 
 Errors: `{"detail": {"error": "...", "stage": "extract|infer|pack|bake|coach"}}` with 4xx/5xx.
 
+### `POST /import/avatar`
+
+Photo → 3DGS digital double (KINEXGS1 bin), via the LHM exporter subprocess
+(`lhm` conda env) + a stage-space alignment bake (`backend/alignment.py`,
+base env, numpy only). Unlike `/import/video` this is **async**: the POST
+returns immediately and the client polls `GET /import/jobs`.
+
+Multipart form:
+
+| Field          | Required | Notes                                                                    |
+|----------------|----------|--------------------------------------------------------------------------|
+| `photo`        | yes      | jpeg/png/webp, ≤ 10 MB                                                    |
+| `name`         | no       | Display name; defaults to the photo filename stem                        |
+| `seedId`       | no       | Seed the avatar attaches to (default `ugc-squat`)                        |
+| `motionParams` | no       | Motion pack under `AVATAR_MOTION_ROOT/<name>/smplx_params` (default `test_video`) |
+
+Immediate response (202):
+
+```json
+{"jobId": "avatar-20260718-221530-a1b2c3", "kind": "avatar", "name": "...", "seedId": "ugc-squat",
+ "status": "queued", "progress": 0, "avatarBinUrl": null, "error": null, "createdAt": 177...}
+```
+
+Poll `GET /import/jobs` until `status` flips to `done` (then `avatarBinUrl` =
+`public/coach_clips/jobs/avatar/<jobId>.bin`, served by the `:5173` static
+server) or `error` (message carries the exporter stderr tail, ≤ 500 chars).
+Progress: export stage markers → 20/45/60/80%, alignment → 90%, done → 100%.
+Avatar jobs are serialized (one GPU export at a time; ~4.5 min, ~19.6 GiB
+VRAM). Finished records persist as `jobs/avatar/<jobId>.json` and survive
+restarts.
+
+Set `AVATAR_EXPORT_STUB=1` to skip the GPU export and reuse the baked
+`AVATAR_STUB_BIN`/`AVATAR_STUB_NPZ` pair — the alignment and artifact wiring
+still run, so the full HTTP path is exercisable without GPU time.
+
+### `GET /import/jobs`
+
+Every record now carries `kind`: `"video"` (the pre-existing directory scan)
+or `"avatar"`.
+
 ## Quick smoke test
 
 ```bash

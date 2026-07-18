@@ -43,6 +43,8 @@ const MODE_STYLE                                                                
   coach: { boneColor: 0x111111, jointColor: 0x222222, boneRadius: 0.028, jointRadius: 0.04, opacity: 1 },
   mesh: { boneColor: 0x444444, jointColor: 0x555555, boneRadius: 0.05, jointRadius: 0.06, opacity: 0.65 },
   stress: { boneColor: 0x111111, jointColor: 0x222222, boneRadius: 0.03, jointRadius: 0.045, opacity: 1 },
+  // Rig stays hidden in avatar mode; the style only keeps the record total.
+  avatar: { boneColor: 0x111111, jointColor: 0x222222, boneRadius: 0.028, jointRadius: 0.04, opacity: 1 },
 };
 
 const STRESS_JOINTS_BY_METRIC                              = {
@@ -419,8 +421,9 @@ export class MotionStage {
     }
     const withMesh = this.smplxHandle !== null;
     // mesh mode shows the bone rig together with the wireframe envelope.
-    this.skeletonGroup.visible = !withMesh || this.mode === "mesh";
-    if (withMesh && this.mode !== "mesh") return;
+    // avatar mode hides the rig entirely — the 3DGS figure carries the stage.
+    this.skeletonGroup.visible = this.mode === "avatar" ? false : !withMesh || this.mode === "mesh";
+    if (this.mode === "avatar" || (withMesh && this.mode !== "mesh")) return;
 
     const seed = frame.seedJoints;
     const pelvisX = seed.pelvis.position[0];
@@ -490,8 +493,10 @@ export class MotionStage {
       return;
     }
     // Solid envelope in coach/stress mode; wireframe blueprint in mesh mode.
-    // The 3DGS avatar takes over the envelope slot when present.
-    handle.mesh.visible = this.mode !== "mesh" && this.avatarHandle === null;
+    // In avatar mode a loaded 3DGS avatar takes over the stage; while it is
+    // still streaming in (or failed) the solid envelope stays as placeholder.
+    const avatarActive = this.mode === "avatar" && this.avatarHandle !== null;
+    handle.mesh.visible = this.mode !== "mesh" && !avatarActive;
     handle.wireMesh.visible = this.mode === "mesh";
     const idx = sampleFrameIndex(handle.clip, frame.progress);
     if (idx === handle.lastFrameIndex) return;
@@ -506,7 +511,8 @@ export class MotionStage {
           updateAvatar(frame                     )       {
     const avatar = this.avatarHandle;
     if (!avatar) return;
-    if (!frame || this.mode === "mesh") {
+    // The avatar only owns the stage in avatar mode; every other mode hides it.
+    if (!frame || this.mode !== "avatar") {
       avatar.object3d.visible = false;
       return;
     }

@@ -37,7 +37,7 @@ export const MOTION_METRIC_TEMPLATES: Record<SeedMotion, JointMetricSeed[]> = {
   ],
 };
 
-export const exerciseOrder: ExerciseId[] = ["squat", "ugc-squat", "gs-avatar"];
+export const exerciseOrder: ExerciseId[] = ["squat", "ugc-squat"];
 
 export const exercises: Record<ExerciseId, ExerciseConfig> = {
   squat: {
@@ -76,22 +76,8 @@ export const exercises: Record<ExerciseId, ExerciseConfig> = {
       side: "public/coach_clips/ugc_squat_lhm_side.mp4",
       top: "public/coach_clips/ugc_squat_lhm_top.mp4",
     },
-  },
-  "gs-avatar": {
-    id: "gs-avatar",
-    name: "3DGS Digital Human",
-    discipline: "Avatar",
-    seedUrl: "local://lhm/gs-avatar",
-    durationSeconds: 7.867,
-    motion: "squat",
-    target: "单张照片重建的可交互 3D 数字分身",
-    params: {
-      beta: "",
-      theta: "",
-      trans: "",
-      format: "kinex.gs_avatar.v1",
-    },
-    metrics: MOTION_METRIC_TEMPLATES.squat.map((m) => ({ ...m })),
+    // 3DGS digital human (KINEXGS1) — a display mode of this seed, not a seed
+    // of its own. Switch the stage to 分身 mode to bring it up.
     avatarUrl: "public/coach_clips/gs_avatar_coach.bin",
   },
 };

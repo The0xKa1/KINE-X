@@ -6,6 +6,7 @@ import json
 import logging
 import shutil
 import tempfile
+import threading
 import time
 import uuid
 from contextlib import asynccontextmanager
@@ -16,12 +17,20 @@ from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
-from . import config, pipeline
+from . import avatar, config, pipeline
 
 logger = logging.getLogger("kinex.backend")
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(name)s: %(message)s")
 
 VALID_MOTIONS = {"squat", "hinge", "flow", "bounce", "throw"}
+ALLOWED_IMAGE_TYPES = {"image/jpeg", "image/png", "image/webp"}
+
+# Avatar job registry (jobId → record). Done/error records are also persisted
+# as <AVATAR_JOBS_DIR>/<jobId>.json so they survive a restart.
+_AVATAR_JOBS: dict[str, dict] = {}
+# The LHM export peaks at ~19.6 GiB VRAM — serialize avatar jobs so two
+# concurrent exports cannot OOM the GPU. Queued jobs stay status="queued".
+_AVATAR_EXPORT_LOCK = threading.Lock()
 
 
 @asynccontextmanager
@@ -94,7 +103,7 @@ def list_import_jobs() -> JSONResponse:
     jobs: list[dict] = []
     jobs_root = config.PUBLIC_JOBS_DIR
     if not jobs_root.exists():
-        return JSONResponse({"jobs": jobs})
+        return JSONResponse({"jobs": jobs + _list_avatar_jobs()})
 
     for job_dir in sorted(jobs_root.iterdir()):
         if not job_dir.is_dir():
@@ -116,6 +125,7 @@ def list_import_jobs() -> JSONResponse:
             continue
         jobs.append({
             "jobId": job_dir.name,
+            "kind": "video",
             "coachClipUrl": config.relative_to_repo(coach_json),
             "meshClipMetaUrl": config.relative_to_repo(mesh_meta),
             "framesDir": config.relative_to_repo(frames_dir),
@@ -127,7 +137,139 @@ def list_import_jobs() -> JSONResponse:
             "name": str(meta.get("name") or job_dir.name),
             "motion": str(meta.get("motion") or "squat"),
         })
+    jobs.extend(_list_avatar_jobs())
     return JSONResponse({"jobs": jobs})
+
+
+def _list_avatar_jobs() -> list[dict]:
+    """Avatar job records: persisted metas on disk, overlaid with the live
+    in-memory registry (which is fresher for queued/running jobs)."""
+    records: dict[str, dict] = {}
+    avatar_dir = config.AVATAR_JOBS_DIR
+    if avatar_dir.is_dir():
+        for meta_path in sorted(avatar_dir.glob("*.json")):
+            try:
+                with meta_path.open("r", encoding="utf-8") as fh:
+                    meta = json.load(fh)
+            except (OSError, json.JSONDecodeError):
+                continue
+            job_id = meta.get("jobId")
+            if not job_id:
+                continue
+            # A "done" record without its bin is a partial — skip it.
+            if meta.get("status") == "done" and not (avatar_dir / f"{job_id}.bin").exists():
+                continue
+            records[job_id] = meta
+    records.update(_AVATAR_JOBS)
+    return sorted(records.values(), key=lambda r: r.get("createdAt") or 0.0)
+
+
+def _persist_avatar_meta(record: dict) -> None:
+    """Best-effort write of <AVATAR_JOBS_DIR>/<jobId>.json for restart recovery."""
+    try:
+        config.AVATAR_JOBS_DIR.mkdir(parents=True, exist_ok=True)
+        meta_path = config.AVATAR_JOBS_DIR / f"{record['jobId']}.json"
+        with meta_path.open("w", encoding="utf-8") as fh:
+            json.dump(record, fh, indent=2)
+    except OSError:
+        logger.warning("[%s] failed to persist avatar meta", record.get("jobId"))
+
+
+def _run_avatar_job(job_id: str, photo_path: Path, workdir: Path, motion_params: str) -> None:
+    """Worker-thread entry: run the avatar pipeline and track it in _AVATAR_JOBS."""
+    record = _AVATAR_JOBS[job_id]
+    with _AVATAR_EXPORT_LOCK:
+        record["status"] = "running"
+        record["startedAt"] = time.time()
+
+        def progress(stage: str, current: int, total: int, note: str) -> None:
+            if total > 0:
+                pct = max(0, min(100, round(current * 100 / total)))
+                record["progress"] = max(int(record.get("progress") or 0), pct)
+            logger.info("[%s] %-7s %s%% %s", job_id, stage, record["progress"], note)
+
+        try:
+            result = avatar.run_avatar_pipeline(
+                photo_path,
+                job_id,
+                name=record["name"],
+                seed_id=record["seedId"],
+                motion_params=motion_params,
+                progress=progress,
+            )
+            record["status"] = "done"
+            record["progress"] = 100
+            record["avatarBinUrl"] = result["avatarBinUrl"]
+            record["alignment"] = result.get("alignment")
+            record["error"] = None
+            logger.info("[%s] avatar done: %s", job_id, result["avatarBinUrl"])
+        except Exception as exc:  # noqa: BLE001
+            record["status"] = "error"
+            record["error"] = str(exc) or repr(exc)
+            logger.exception("[%s] avatar pipeline failed", job_id)
+        finally:
+            record["finishedAt"] = time.time()
+            _persist_avatar_meta(record)
+            shutil.rmtree(workdir, ignore_errors=True)
+
+
+@app.post("/import/avatar", status_code=202)
+async def import_avatar(
+    photo: UploadFile = File(...),
+    name: Optional[str] = Form(None),
+    seedId: Optional[str] = Form("ugc-squat"),
+    motionParams: Optional[str] = Form("test_video"),
+):
+    """Queue a photo → 3DGS avatar import. Returns the job record immediately;
+    poll GET /import/jobs for status/progress until done|error."""
+    content_type = (photo.content_type or "").lower()
+    if content_type not in ALLOWED_IMAGE_TYPES:
+        raise HTTPException(
+            status_code=400,
+            detail={"error": f"unsupported photo type '{content_type or 'unknown'}'", "stage": "input"},
+        )
+    data = await photo.read(config.AVATAR_MAX_PHOTO_BYTES + 1)
+    if not data:
+        raise HTTPException(status_code=400, detail={"error": "empty upload", "stage": "input"})
+    if len(data) > config.AVATAR_MAX_PHOTO_BYTES:
+        # Drain the rest of the upload first: responding while the client is
+        # still sending the body gets the connection reset and the 400 lost.
+        while await photo.read(1 << 20):
+            pass
+        raise HTTPException(
+            status_code=400,
+            detail={"error": f"photo exceeds {config.AVATAR_MAX_PHOTO_BYTES // (1024 * 1024)}MB", "stage": "input"},
+        )
+    motion_params = motionParams or "test_video"
+    try:
+        avatar.motion_params_dir(motion_params)
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=400, detail={"error": str(exc), "stage": "input"}) from exc
+
+    job_id = f"avatar-{time.strftime('%Y%m%d-%H%M%S')}-{uuid.uuid4().hex[:6]}"
+    suffix = Path(photo.filename or "photo.png").suffix or ".png"
+    workdir = Path(tempfile.mkdtemp(prefix=f"kinex-avatar-{job_id}-"))
+    photo_path = workdir / f"photo{suffix}"
+    photo_path.write_bytes(data)
+
+    record = {
+        "jobId": job_id,
+        "kind": "avatar",
+        "name": name or Path(photo.filename or "avatar").stem,
+        "seedId": seedId or "ugc-squat",
+        "status": "queued",
+        "progress": 0,
+        "avatarBinUrl": None,
+        "error": None,
+        "createdAt": time.time(),
+    }
+    _AVATAR_JOBS[job_id] = record
+    logger.info("[%s] queued avatar import '%s' (%.1f KB) motionParams=%s stub=%s",
+                job_id, record["name"], len(data) / 1024, motion_params,
+                config.avatar_export_stub())
+    loop = asyncio.get_running_loop()
+    loop.run_in_executor(None, _run_avatar_job, job_id, photo_path, workdir, motion_params)
+    return JSONResponse(record, status_code=202)
 
 
 @app.post("/import/video")

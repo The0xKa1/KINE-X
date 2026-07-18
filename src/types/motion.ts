@@ -12,14 +12,16 @@ export type QuaternionTuple = [number, number, number, number];
 // real video imported through the SAM3D backend and committed as an asset.
 // Retired seeds (deadlift/baduanjin/street/basketball) survive as metric
 // templates in data/exercises.ts (MOTION_METRIC_TEMPLATES).
-export type ExerciseId = "squat" | "ugc-squat" | "gs-avatar";
+export type ExerciseId = "squat" | "ugc-squat";
 
 // Runtime-side exercise id: built-in literals OR an arbitrary string for
 // imported clips. Keep `ExerciseId` strict for `data/exercises.ts`; use
 // `RuntimeExerciseId` everywhere a user-imported seed can show up.
 export type RuntimeExerciseId = ExerciseId | string;
 
-export type MotionMode = "coach" | "mesh" | "stress";
+// Stage display modes. "avatar" is only offered when the current seed carries
+// an avatarUrl (3DGS digital human); it replaces the whole rig/envelope.
+export type MotionMode = "coach" | "mesh" | "stress" | "avatar";
 export type CameraView = "front" | "side" | "top";
 export type MetricRisk = "good" | "warn" | "risk";
 export type StreamMode = "mock" | "camera";
