@@ -11,7 +11,7 @@
 复赛产品化打磨阶段，多页面骨架已落地。
 hash 路由四页：动作库 `#/`、训练舱 `#/train/:seedId`、训练报告 `#/report/:sessionId?`、创作工坊 `#/create`。
 单 DOM 容器切页，无整页跳转：MediaPipe 资产、WebSocket、摄像头流在页面间存活。
-3D 舞台为真实 Three.js WebGL 渲染（圆柱骨骼 + 球关节 + 可选 SMPL-X mesh clip 回放）。
+3D 舞台为真实 Three.js WebGL 渲染（圆柱骨骼 + 球关节 + 可选 SMPL-X mesh clip 回放 + 可选 3DGS 数字分身层——`src/core/avatar/GaussianAvatar.ts` 自研可变形 splat 渲染器，顶点 shader LBS + CPU 深度排序，KINEXGS1 二进制资产）。
 浏览器内 MediaPipe（Pose / Hand / Face）已落地，可独立完成 live 评测。
 视频 → CoachClip 导入链路走 SAM 3D Body 后端（:8765），可选 MLLM 分片前置（:8766）。
 评分、用户标定、Session 门禁（倒计时 / OK 手势）、结算页、Session 历史存档、AI 教练流式输出已联通。
@@ -38,7 +38,8 @@ boot 完成后进入初始路由，默认 `#/`。
 语言规则：英文 mono 大写小字为机器声部（结构标签 / 数据字段 / 状态词），中文 Noto Sans SC 为用户声部（操作指引 / 有后果按钮 / 叙事文案）；mono 中出现中文走 `--mono-cjk` 字体栈。
 首屏为开机编排：巨型字标 + mono 自检逐行点亮（CoachClip / SMPL-X mesh / MediaPipe / 帧流，全部挂钩真实启动里程碑），退出后各区块交错入场。
 动作库：海报式标题 + 种子卡墙（封面缩略图、时长 / 帧数 / 训练场次与最好成绩）+ 导入入口卡 + 最近训练记录条（点击直达对应报告）。
-训练舱为左右两舱：左舱「现实镜像」摄像头水平镜像 + 2D 骨骼贴合层；右舱「全息标准舱」由数字分身（真人教练视频）与结构蓝图（Three.js 3D 教练）共享——模式决定主视图（教练模式 = 分身主角、蓝图缩为角标小卡；骨骼 / 应力模式 = 蓝图主角、视频缩为小卡），点击小卡即换主视图。
+训练舱为左右两舱：左舱「现实镜像」摄像头水平镜像 + 2D 骨骼贴合层；右舱「全息标准舱」由数字分身（真人教练视频）与结构蓝图（Three.js 3D 教练）共享——模式决定主视图（教练模式 = 分身主角、蓝图缩为角标小卡；骨骼 / 应力 / 分身模式 = 蓝图主角、视频缩为小卡），点击小卡即换主视图。
+右舱模式行为四键：教练（twin 视频主角）/ 分身（3DGS 数字分身全幅，仅当前种子带 avatarUrl 时显示该键）/ 骨骼（线框 + 骨架）/ 应力（蒙皮 + 风险着色）；分身未加载完时蒙皮占位，无 avatarUrl 时自动回退教练模式。
 右下 SYNC 巨数区（clamp 72–132px Archivo Black），分数跳变机械闪切；PERFECT 触发全屏描边巨字（描边→填橙）。
 两个 bay 四角 crosshair 角标，右舱左下 mono telemetry 数据带（FRAME / PROG / LAT / Δ），顶栏连接指示带实时延迟读数。
 全站覆盖低透明度 SVG 噪点纹理（multiply），时间轴缩略图印刷化灰度处理（active/hover 恢复全彩）。
@@ -82,6 +83,15 @@ EventBus 事件共八类：`score:update` / `pipeline:update` / `seed:update` / 
 4. 前端 `loadCoachClip` + `loadMeshClip` 拉取产物，`buildFrameThumbnailsFromMeta` 等距抽缩略图 URL，`onApply` 生成 `imported-<jobId>` 新种子、加入轮播并跳转 `#/train/<newId>`。
 5. 页面刷新后 `main.ts hydrateImportedJobs()` 从 `GET /import/jobs` 再水合已导入种子（4s 超时静默放弃）。
 6. 旧浏览器端 heavy 模型导入链路（`landmarksToPose.ts` / `postProcess.ts`）已废弃，文件保留但未引用；旧 `ImportDrawer` 已删除，逻辑由 `ImportFlow` 继承。
+
+## 照片分身链路（3DGS 数字人）
+
+创作工坊「照片分身」支路（`src/core/import/AvatarImportFlow.ts`）：单张照片 → LHM-1B 重建 → 可交互 3DGS 数字分身，动作与目标种子共享（v1 固定 UGC Squat 的 squat 动作）。
+1. 选照片 + 命名后 POST 到 :8765 `POST /import/avatar`（multipart：photo/name/seedId/motionParams，202 异步返回 jobId；GPU 导出锁串行化）。
+2. 后端流水线（`backend/avatar.py`）：lhm env 跑 `export_avatar_kinex.py`（LHM-1B 推理 + KINEXGS1 导出，~3 分钟）→ base env 跑 `backend/alignment.py`（坐标对齐烘焙，Kabsch 关节轨迹拟合 + 按 clip 时长裁帧）→ bin 落 `public/coach_clips/jobs/avatar/<jobId>.bin`；progress 按导出 stage 标记推进（0–100）。
+3. 前端 2s 轮询 `/import/jobs`（progress 归一化到 0..1 进度条），done 且带 avatarBinUrl 后把 `exercises[seedId].avatarUrl` 写入运行时并提示切「分身」模式。
+4. 开机水合同时处理分身任务：按 finishedAt 取每个种子**最新 done** 的 avatar job 赋 avatarUrl（服务端 jobs 列表为 newest-first，顺序遍历会让最旧的赢，已踩过）；avatar 实例缓存按 URL 校验（URL 变更后旧缓存失效）。
+5. KINEXGS1 v1 二进制：4 万高斯静态属性（c_pts/q_cano/scale/opacity/rgb/A_null_rot/top-4 LBS 权重/constrain）+ 逐帧 55 关节矩阵 + trans；变形纯 shader LBS，无逐帧神经网络。
 
 ## 评分与标定
 
@@ -153,7 +163,7 @@ guardrails 对 `dist/**/*.js` 做语法检查。
 帧流 WS 客户端已就绪（`useWebSocket`：自动重连退避 1s→30s、PING/PONG 心跳 15s/8s 超时、点击连接指示手动重连），默认 `ws://localhost:8000/motion`，`?ws=` 覆盖；但真实帧流后端不在本仓库。
 外部帧与本地帧共用 `consumePacket → pushPacket`；前端 MediaPipe / Scoring 链路保留为后端不可用时的离线方案。
 LLM 一律经 `server/` 代理（:8766）；`API_BASE_URL` 可用 `?api=` 覆盖并持久化到 localStorage。
-导入后端（:8765）`BACKEND_URL` 可用 `?backend=` 覆盖并持久化到 localStorage。
+导入后端（:8765）`BACKEND_URL` 可用 `?backend=` 覆盖并持久化到 localStorage；`POST /import/video`（同步）与 `POST /import/avatar`（202 异步 + 任务轮询）双路，`GET /import/jobs` 统一返回 `kind:"video"|"avatar"` 的任务记录。
 Session 历史存于浏览器 localStorage（`kinex.sessions.v1`），不上送后端。
 内置种子只保留 squat（绑定真实 CoachClip `single_leg_squat.json`，118 帧）；deadlift / baduanjin / street / basketball 已下架，评分权重保留在 `MOTION_METRIC_TEMPLATES` 供导入动作复用。
 所有坐标必须米制，所有旋转必须 `[x, y, z, w]`。
@@ -188,5 +198,6 @@ VFR / UGC 视频逐物理帧处理、断线低帧率兜底、答辩脚本。
 项目具备复赛演示能力：完整产品骨架（库 / 练 / 报告 / 创作），完全离线可用（字体降级无碍）。
 项目具备与后端合体的稳定数据边界。
 3D 渲染、MediaPipe、评分、标定、Session 门禁与存档、AI 教练、视频导入均已上真，不再纯 mock。
+照片 → LHM-1B → 浏览器实时 3DGS 数字分身全链路已通（含产品化上传入口与种子「分身」显示模式）。
 帧流 WebSocket 客户端就绪，真实后端缺席。
 当前最重要的原则是帧数据隔离、渲染层独立、数据契约稳定与视觉规范严格执行。
