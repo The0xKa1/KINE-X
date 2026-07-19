@@ -1,7 +1,9 @@
 
 import {
+  AsyncGenerationGuard,
   AvatarRegistryClient,
   AvatarRegistryOfflineError,
+  AvatarRenameDraftStore,
 
 } from "../../core/avatar/AvatarRegistryClient.js";
 import { GaussianAvatar } from "../../core/avatar/GaussianAvatar.js";
@@ -42,6 +44,8 @@ export class AvatarVaultPage                 {
           dragging = false;
           pointerX = 0;
           pointerY = 0;
+                   lifecycle = new AsyncGenerationGuard();
+                   renameDrafts = new AvatarRenameDraftStore();
 
   constructor(options                        ) {
     this.el = options.el;
@@ -51,10 +55,15 @@ export class AvatarVaultPage                 {
   }
 
   enter()       {
-    this.restartWatch(true);
+    const generation = this.lifecycle.enter();
+    this.uploading = false;
+    this.syncUploadButton();
+    this.restartWatch(true, generation);
   }
 
   leave()       {
+    this.lifecycle.leave();
+    this.uploading = false;
     this.stopWatch?.();
     this.stopWatch = null;
     this.disposePreview();
@@ -169,7 +178,8 @@ export class AvatarVaultPage                 {
     );
   }
 
-          restartWatch(showLoading = false)       {
+          restartWatch(showLoading = false, generation = this.lifecycle.capture())       {
+    if (!this.lifecycle.isCurrent(generation)) return;
     this.stopWatch?.();
     if (showLoading && this.records.length === 0) {
       this.loadState = "loading";
@@ -177,13 +187,19 @@ export class AvatarVaultPage                 {
     }
     this.stopWatch = this.client.watch(
       (records) => {
+        if (!this.lifecycle.isCurrent(generation)) return;
         this.records = records;
+        if (this.renamingId && !records.some((record) => record.avatarId === this.renamingId)) {
+          this.renameDrafts.finish(this.renamingId);
+          this.renamingId = null;
+        }
         this.loadState = "ready";
         this.loadError = "";
         this.renderGallery();
         this.syncSelection();
       },
       (error) => {
+        if (!this.lifecycle.isCurrent(generation)) return;
         this.loadState = error instanceof AvatarRegistryOfflineError ? "offline" : "error";
         this.loadError = error instanceof Error ? error.message : "加载分身档案失败";
         this.renderGallery();
@@ -201,27 +217,35 @@ export class AvatarVaultPage                 {
       fileInput.focus();
       return;
     }
+    const generation = this.lifecycle.capture();
+    if (!this.lifecycle.isCurrent(generation)) return;
     this.uploading = true;
     this.syncUploadButton();
     this.setNotice("照片上传中，身份重建将在 GPU 队列中开始。", false);
     try {
       const created = await this.client.upload(photo, nameInput.value);
+      if (!this.lifecycle.isCurrent(generation)) return;
       this.records = [created, ...this.records.filter((record) => record.avatarId !== created.avatarId)];
       fileInput.value = "";
       nameInput.value = "";
       this.requireElement             ("#avatarVaultFileLabel").textContent = "选择全身照片";
       this.setNotice(`“${created.name}”已进入重建队列。`, false);
       this.renderGallery();
-      this.restartWatch();
+      this.restartWatch(false, generation);
     } catch (error) {
-      this.setNotice(error instanceof Error ? error.message : "上传失败，请重试。", true);
+      if (this.lifecycle.isCurrent(generation)) {
+        this.setNotice(error instanceof Error ? error.message : "上传失败，请重试。", true);
+      }
     } finally {
-      this.uploading = false;
-      this.syncUploadButton();
+      if (this.lifecycle.isCurrent(generation)) {
+        this.uploading = false;
+        this.syncUploadButton();
+      }
     }
   }
 
           renderGallery()       {
+    this.captureRenameDraft();
     const list = this.requireElement             ("#avatarVaultList");
     const count = this.requireElement             ("#avatarVaultCount");
     count.textContent = String(this.records.length).padStart(2, "0");
@@ -267,6 +291,7 @@ export class AvatarVaultPage                 {
     list.innerHTML = banner + this.records.map((record, index) => this.renderCard(record, index)).join("");
     list.querySelector                   ("[data-retry-list]")?.addEventListener("click", () => this.restartWatch());
     this.bindCardActions(list);
+    this.restoreRenameDraftFocus();
   }
 
           renderCard(record                      , index        )         {
@@ -279,10 +304,11 @@ export class AvatarVaultPage                 {
       ? `<img src="${escapeAttribute(record.previewUrl)}" alt="${escapeAttribute(record.name)} 的重建预览" loading="lazy" />`
       : `<div class="avatar-card-placeholder" aria-hidden="true"><i></i><i></i><i></i></div>`;
     const statusLabel = record.status === "queued" ? "QUEUED" : record.status.toUpperCase();
+    const draft = this.renameDrafts.read(record.avatarId, record.name);
     const rename = this.renamingId === record.avatarId
       ? `<form class="avatar-card-rename" data-rename-form="${escapeAttribute(record.avatarId)}">
           <label for="rename-${escapeAttribute(record.avatarId)}">新名称</label>
-          <input id="rename-${escapeAttribute(record.avatarId)}" data-rename-input value="${escapeAttribute(record.name)}" maxlength="48" />
+          <input id="rename-${escapeAttribute(record.avatarId)}" data-rename-input value="${escapeAttribute(draft.value)}" maxlength="48" />
           <button type="submit">保存</button><button type="button" data-cancel-rename>取消</button>
         </form>`
       : "";
@@ -307,7 +333,7 @@ export class AvatarVaultPage                 {
         ${building ? `<div class="avatar-card-progress" aria-label="重建进度 ${progress}%"><i style="transform:scaleX(${progress / 100})"></i></div>` : ""}
         ${failed ? `<p class="avatar-card-error">${escapeHtml(record.error || "重建未完成，请换一张照片重新提交。")}</p>` : ""}
         <div class="avatar-card-actions">
-          ${failed ? `<button type="button" data-retry-upload>重新上传</button>` : ""}
+          ${failed ? `<button type="button" data-replacement-upload>上传替代照片</button>` : ""}
           <button type="button" data-rename-avatar="${escapeAttribute(record.avatarId)}">重命名</button>
           <button type="button" data-delete-avatar="${escapeAttribute(record.avatarId)}">删除</button>
         </div>
@@ -325,12 +351,16 @@ export class AvatarVaultPage                 {
         this.syncSelection();
       });
     });
-    list.querySelectorAll                   ("[data-retry-upload]").forEach((button) => {
+    list.querySelectorAll                   ("[data-replacement-upload]").forEach((button) => {
       button.addEventListener("click", () => this.requireElement                  ("#avatarVaultFile").click());
     });
     list.querySelectorAll                   ("[data-rename-avatar]").forEach((button) => {
       button.addEventListener("click", () => {
-        this.renamingId = button.dataset.renameAvatar ?? null;
+        const nextId = button.dataset.renameAvatar ?? null;
+        if (this.renamingId) this.renameDrafts.finish(this.renamingId);
+        this.renamingId = nextId;
+        const record = this.records.find((candidate) => candidate.avatarId === nextId);
+        if (nextId && record) this.renameDrafts.begin(nextId, record.name);
         this.deletingId = null;
         this.renderGallery();
         this.el.querySelector                  ("[data-rename-input]")?.focus();
@@ -338,6 +368,7 @@ export class AvatarVaultPage                 {
     });
     list.querySelectorAll                   ("[data-delete-avatar]").forEach((button) => {
       button.addEventListener("click", () => {
+        if (this.renamingId) this.renameDrafts.finish(this.renamingId);
         this.deletingId = button.dataset.deleteAvatar ?? null;
         this.renamingId = null;
         this.renderGallery();
@@ -346,6 +377,7 @@ export class AvatarVaultPage                 {
     });
     list.querySelectorAll                   ("[data-cancel-rename]").forEach((button) => {
       button.addEventListener("click", () => {
+        if (this.renamingId) this.renameDrafts.finish(this.renamingId);
         this.renamingId = null;
         this.renderGallery();
       });
@@ -378,21 +410,30 @@ export class AvatarVaultPage                 {
       this.setNotice("分身名称不能为空。", true);
       return;
     }
+    const generation = this.lifecycle.capture();
+    if (!this.lifecycle.isCurrent(generation)) return;
     try {
       const updated = await this.client.rename(avatarId, trimmed);
+      if (!this.lifecycle.isCurrent(generation)) return;
       this.records = this.records.map((record) => record.avatarId === avatarId ? updated : record);
+      this.renameDrafts.finish(avatarId);
       this.renamingId = null;
       this.setNotice(`已重命名为“${updated.name}”。`, false);
       this.renderGallery();
       if (this.selectedId === avatarId) this.renderPreviewMetadata(updated);
     } catch (error) {
-      this.setNotice(error instanceof Error ? error.message : "重命名失败。", true);
+      if (this.lifecycle.isCurrent(generation)) {
+        this.setNotice(error instanceof Error ? error.message : "重命名失败。", true);
+      }
     }
   }
 
           async deleteAvatar(avatarId        )                {
+    const generation = this.lifecycle.capture();
+    if (!this.lifecycle.isCurrent(generation)) return;
     try {
       await this.client.remove(avatarId);
+      if (!this.lifecycle.isCurrent(generation)) return;
       this.records = this.records.filter((record) => record.avatarId !== avatarId);
       this.deletingId = null;
       if (this.selectedId === avatarId) {
@@ -403,7 +444,9 @@ export class AvatarVaultPage                 {
       this.renderGallery();
       this.syncSelection();
     } catch (error) {
-      this.setNotice(error instanceof Error ? error.message : "删除失败。", true);
+      if (this.lifecycle.isCurrent(generation)) {
+        this.setNotice(error instanceof Error ? error.message : "删除失败。", true);
+      }
     }
   }
 
@@ -425,6 +468,8 @@ export class AvatarVaultPage                 {
   }
 
           async mountPreview(record                      )                {
+    const generation = this.lifecycle.capture();
+    if (!this.lifecycle.isCurrent(generation)) return;
     this.disposePreview();
     const identityUrl = record.identityUrl;
     if (!identityUrl) return;
@@ -447,7 +492,11 @@ export class AvatarVaultPage                 {
       this.positionPreviewCamera();
 
       const avatar = await GaussianAvatar.loadIdentity(identityUrl);
-      if (token !== this.previewToken || this.activePreviewId !== record.avatarId) {
+      if (
+        token !== this.previewToken ||
+        this.activePreviewId !== record.avatarId ||
+        !this.lifecycle.isCurrent(generation)
+      ) {
         avatar.dispose();
         return;
       }
@@ -459,7 +508,7 @@ export class AvatarVaultPage                 {
       this.requireElement             ("#avatarPreviewState").hidden = true;
       this.previewRaf = requestAnimationFrame(() => this.tickPreview());
     } catch (error) {
-      if (token !== this.previewToken) return;
+      if (token !== this.previewToken || !this.lifecycle.isCurrent(generation)) return;
       this.disposePreview();
       this.renderPreviewStandby(
         "3D 预览不可用",
@@ -556,6 +605,31 @@ export class AvatarVaultPage                 {
     const button = this.requireElement                   ("#avatarVaultSubmit");
     button.disabled = this.uploading;
     button.textContent = this.uploading ? "上传中…" : "开始重建";
+  }
+
+          captureRenameDraft()       {
+    if (!this.renamingId) return;
+    const input = this.el.querySelector                  ("[data-rename-input]");
+    if (!input) return;
+    this.renameDrafts.capture(
+      this.renamingId,
+      input.value,
+      document.activeElement === input,
+      input.selectionStart,
+      input.selectionEnd,
+    );
+  }
+
+          restoreRenameDraftFocus()       {
+    if (!this.renamingId) return;
+    const draft = this.renameDrafts.read(this.renamingId, "");
+    if (!draft.focused) return;
+    const input = this.el.querySelector                  ("[data-rename-input]");
+    if (!input) return;
+    input.focus({ preventScroll: true });
+    if (draft.selectionStart !== null && draft.selectionEnd !== null) {
+      input.setSelectionRange(draft.selectionStart, draft.selectionEnd);
+    }
   }
 
           requireElement                   (selector        )    {

@@ -26,6 +26,74 @@
 
 
 
+
+
+
+
+
+
+
+
+export class AsyncGenerationGuard {
+          generation = 0;
+          active = false;
+
+  enter()         {
+    this.active = true;
+    this.generation += 1;
+    return this.generation;
+  }
+
+  leave()       {
+    this.active = false;
+    this.generation += 1;
+  }
+
+  capture()         {
+    return this.generation;
+  }
+
+  isCurrent(generation        )          {
+    return this.active && generation === this.generation;
+  }
+}
+
+export class AvatarRenameDraftStore {
+                   drafts = new Map                           ();
+
+  begin(avatarId        , value        )       {
+    this.drafts.set(avatarId, {
+      value,
+      focused: false,
+      selectionStart: null,
+      selectionEnd: null,
+    });
+  }
+
+  capture(
+    avatarId        ,
+    value        ,
+    focused         ,
+    selectionStart               ,
+    selectionEnd               ,
+  )       {
+    this.drafts.set(avatarId, { value, focused, selectionStart, selectionEnd });
+  }
+
+  read(avatarId        , fallback        )                    {
+    return this.drafts.get(avatarId) ?? {
+      value: fallback,
+      focused: false,
+      selectionStart: null,
+      selectionEnd: null,
+    };
+  }
+
+  finish(avatarId        )       {
+    this.drafts.delete(avatarId);
+  }
+}
+
 export class AvatarRegistryHttpError extends Error {
            status        ;
 
@@ -49,6 +117,7 @@ export class AvatarRegistryClient {
                    schedule              ;
                    cancelSchedule                    ;
                    pollIntervalMs        ;
+                   maxPollIntervalMs        ;
 
   constructor(baseUrl        , options                              = {}) {
     this.baseUrl = baseUrl.replace(/\/$/, "");
@@ -56,6 +125,7 @@ export class AvatarRegistryClient {
     this.schedule = options.schedule ?? ((callback, delayMs) => window.setTimeout(callback, delayMs));
     this.cancelSchedule = options.cancelSchedule ?? ((handle) => window.clearTimeout(handle));
     this.pollIntervalMs = options.pollIntervalMs ?? 2000;
+    this.maxPollIntervalMs = Math.max(this.pollIntervalMs, options.maxPollIntervalMs ?? 8000);
   }
 
   list()                                  {
@@ -90,17 +160,36 @@ export class AvatarRegistryClient {
   )             {
     let active = true;
     let scheduled                = null;
+    let failureCount = 0;
+    let shouldRecover = true;
+
+    const scheduleNext = (delayMs        )       => {
+      scheduled = this.schedule(() => {
+        scheduled = null;
+        void tick();
+      }, delayMs);
+    };
 
     const tick = async ()                => {
+      if (!active) return;
       try {
         const records = await this.list();
         if (!active) return;
+        failureCount = 0;
         onRecords(records);
-        if (records.some((record) => record.status === "queued" || record.status === "running")) {
-          scheduled = this.schedule(() => void tick(), this.pollIntervalMs);
-        }
+        shouldRecover = records.some((record) => record.status === "queued" || record.status === "running");
+        if (shouldRecover) scheduleNext(this.pollIntervalMs);
       } catch (error) {
-        if (active) onError(error);
+        if (!active) return;
+        onError(error);
+        if (shouldRecover) {
+          const retryDelay = Math.min(
+            this.pollIntervalMs * 2 ** failureCount,
+            this.maxPollIntervalMs,
+          );
+          failureCount += 1;
+          scheduleNext(retryDelay);
+        }
       }
     };
 

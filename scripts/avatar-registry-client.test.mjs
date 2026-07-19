@@ -135,3 +135,110 @@ test("network failures are labeled as offline errors", async () => {
     },
   );
 });
+
+test("watch retries transient list failures with bounded backoff until records are terminal", async () => {
+  const responses = [
+    () => jsonResponse([{ avatarId: "av-1", name: "Kai", status: "running", progress: 42, createdAt: 1 }]),
+    () => { throw new TypeError("temporary network loss"); },
+    () => { throw new TypeError("temporary network loss"); },
+    () => jsonResponse([{ avatarId: "av-1", name: "Kai", status: "ready", progress: 100, createdAt: 1 }]),
+  ];
+  const queue = [];
+  const delays = [];
+  const updates = [];
+  const errors = [];
+  const client = new AvatarRegistryClient("http://backend.test", {
+    fetch: async () => responses.shift()(),
+    schedule: (callback, delayMs) => {
+      delays.push(delayMs);
+      queue.push(callback);
+      return delays.length;
+    },
+    cancelSchedule: () => {},
+    pollIntervalMs: 100,
+    maxPollIntervalMs: 150,
+  });
+
+  const stop = client.watch(
+    (records) => updates.push(records),
+    (error) => errors.push(error),
+  );
+  await flushAsync();
+  queue.shift()();
+  await flushAsync();
+  queue.shift()();
+  await flushAsync();
+  queue.shift()();
+  await flushAsync();
+
+  assert.deepEqual(delays, [100, 100, 150]);
+  assert.equal(errors.length, 2);
+  assert.equal(updates.length, 2);
+  assert.equal(queue.length, 0, "terminal records stop retry polling");
+  stop();
+});
+
+test("stopping watch prevents a queued callback from issuing another request", async () => {
+  const queued = [];
+  let fetchCount = 0;
+  const client = new AvatarRegistryClient("http://backend.test", {
+    fetch: async () => {
+      fetchCount += 1;
+      return jsonResponse([{ avatarId: "av-1", name: "Kai", status: "running", progress: 42, createdAt: 1 }]);
+    },
+    schedule: (callback) => {
+      queued.push(callback);
+      return queued.length;
+    },
+    cancelSchedule: () => {},
+  });
+
+  const stop = client.watch(() => {});
+  await flushAsync();
+  const staleCallback = queued.shift();
+  stop();
+  staleCallback();
+  await flushAsync();
+
+  assert.equal(fetchCount, 1);
+});
+
+test("generation guard invalidates stale completions across leave and re-enter", async () => {
+  const module = await import("../dist/core/avatar/AvatarRegistryClient.js");
+  const guard = new module.AsyncGenerationGuard();
+
+  const first = guard.enter();
+  guard.leave();
+  const second = guard.enter();
+
+  assert.equal(guard.isCurrent(first), false);
+  assert.equal(guard.isCurrent(second), true);
+  guard.leave();
+  assert.equal(guard.isCurrent(second), false);
+});
+
+test("rename drafts preserve unsaved value and focus metadata across server refreshes", async () => {
+  const module = await import("../dist/core/avatar/AvatarRegistryClient.js");
+  const drafts = new module.AvatarRenameDraftStore();
+  drafts.begin("av-1", "Server name");
+  drafts.capture("av-1", "Unsaved draft", true, 3, 8);
+
+  assert.deepEqual(drafts.read("av-1", "Refreshed server name"), {
+    value: "Unsaved draft",
+    focused: true,
+    selectionStart: 3,
+    selectionEnd: 8,
+  });
+
+  drafts.finish("av-1");
+  assert.deepEqual(drafts.read("av-1", "Refreshed server name"), {
+    value: "Refreshed server name",
+    focused: false,
+    selectionStart: null,
+    selectionEnd: null,
+  });
+});
+
+function flushAsync() {
+  return new Promise((resolve) => setImmediate(resolve));
+}

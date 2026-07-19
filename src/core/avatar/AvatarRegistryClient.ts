@@ -24,6 +24,74 @@ interface AvatarRegistryClientOptions {
   schedule?: ScheduleLike;
   cancelSchedule?: CancelScheduleLike;
   pollIntervalMs?: number;
+  maxPollIntervalMs?: number;
+}
+
+export interface AvatarRenameDraft {
+  value: string;
+  focused: boolean;
+  selectionStart: number | null;
+  selectionEnd: number | null;
+}
+
+export class AsyncGenerationGuard {
+  private generation = 0;
+  private active = false;
+
+  enter(): number {
+    this.active = true;
+    this.generation += 1;
+    return this.generation;
+  }
+
+  leave(): void {
+    this.active = false;
+    this.generation += 1;
+  }
+
+  capture(): number {
+    return this.generation;
+  }
+
+  isCurrent(generation: number): boolean {
+    return this.active && generation === this.generation;
+  }
+}
+
+export class AvatarRenameDraftStore {
+  private readonly drafts = new Map<string, AvatarRenameDraft>();
+
+  begin(avatarId: string, value: string): void {
+    this.drafts.set(avatarId, {
+      value,
+      focused: false,
+      selectionStart: null,
+      selectionEnd: null,
+    });
+  }
+
+  capture(
+    avatarId: string,
+    value: string,
+    focused: boolean,
+    selectionStart: number | null,
+    selectionEnd: number | null,
+  ): void {
+    this.drafts.set(avatarId, { value, focused, selectionStart, selectionEnd });
+  }
+
+  read(avatarId: string, fallback: string): AvatarRenameDraft {
+    return this.drafts.get(avatarId) ?? {
+      value: fallback,
+      focused: false,
+      selectionStart: null,
+      selectionEnd: null,
+    };
+  }
+
+  finish(avatarId: string): void {
+    this.drafts.delete(avatarId);
+  }
 }
 
 export class AvatarRegistryHttpError extends Error {
@@ -49,6 +117,7 @@ export class AvatarRegistryClient {
   private readonly schedule: ScheduleLike;
   private readonly cancelSchedule: CancelScheduleLike;
   private readonly pollIntervalMs: number;
+  private readonly maxPollIntervalMs: number;
 
   constructor(baseUrl: string, options: AvatarRegistryClientOptions = {}) {
     this.baseUrl = baseUrl.replace(/\/$/, "");
@@ -56,6 +125,7 @@ export class AvatarRegistryClient {
     this.schedule = options.schedule ?? ((callback, delayMs) => window.setTimeout(callback, delayMs));
     this.cancelSchedule = options.cancelSchedule ?? ((handle) => window.clearTimeout(handle));
     this.pollIntervalMs = options.pollIntervalMs ?? 2000;
+    this.maxPollIntervalMs = Math.max(this.pollIntervalMs, options.maxPollIntervalMs ?? 8000);
   }
 
   list(): Promise<AvatarIdentityRecord[]> {
@@ -90,17 +160,36 @@ export class AvatarRegistryClient {
   ): () => void {
     let active = true;
     let scheduled: number | null = null;
+    let failureCount = 0;
+    let shouldRecover = true;
+
+    const scheduleNext = (delayMs: number): void => {
+      scheduled = this.schedule(() => {
+        scheduled = null;
+        void tick();
+      }, delayMs);
+    };
 
     const tick = async (): Promise<void> => {
+      if (!active) return;
       try {
         const records = await this.list();
         if (!active) return;
+        failureCount = 0;
         onRecords(records);
-        if (records.some((record) => record.status === "queued" || record.status === "running")) {
-          scheduled = this.schedule(() => void tick(), this.pollIntervalMs);
-        }
+        shouldRecover = records.some((record) => record.status === "queued" || record.status === "running");
+        if (shouldRecover) scheduleNext(this.pollIntervalMs);
       } catch (error) {
-        if (active) onError(error);
+        if (!active) return;
+        onError(error);
+        if (shouldRecover) {
+          const retryDelay = Math.min(
+            this.pollIntervalMs * 2 ** failureCount,
+            this.maxPollIntervalMs,
+          );
+          failureCount += 1;
+          scheduleNext(retryDelay);
+        }
       }
     };
 
