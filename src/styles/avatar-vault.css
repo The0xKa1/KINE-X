@@ -578,6 +578,10 @@
   pointer-events: none;
 }
 
+.avatar-preview-state[hidden] {
+  display: none;
+}
+
 .avatar-preview-state strong {
   font: 400 clamp(20px, 2.5vw, 34px)/1 var(--display);
   letter-spacing: -0.04em;

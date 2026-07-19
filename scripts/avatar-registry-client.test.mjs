@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
 import test from "node:test";
 
 import { AvatarRegistryClient, AvatarRegistryHttpError } from "../dist/core/avatar/AvatarRegistryClient.js";
@@ -242,3 +243,13 @@ test("rename drafts preserve unsaved value and focus metadata across server refr
 function flushAsync() {
   return new Promise((resolve) => setImmediate(resolve));
 }
+
+test("preview state author styles preserve the hidden contract", async () => {
+  const css = await readFile(new URL("../src/styles/avatar-vault.css", import.meta.url), "utf8");
+
+  assert.match(
+    css,
+    /\.avatar-preview-state\[hidden\]\s*\{[^}]*display\s*:\s*none\s*;/s,
+    "the page-local display rule must not override hidden preview overlays",
+  );
+});
