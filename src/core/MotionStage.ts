@@ -517,8 +517,10 @@ export class MotionStage {
       return;
     }
     avatar.object3d.visible = true;
-    const wrapped = ((frame.progress % 1) + 1) % 1;
-    const idx = Math.min(avatar.frameCount - 1, Math.floor(wrapped * avatar.frameCount));
+    // Clamp (not wrap) so the avatar holds the final frame at session end,
+    // in line with the skeleton/mesh/video layers.
+    const clamped = Math.max(0, Math.min(1, frame.progress));
+    const idx = Math.min(avatar.frameCount - 1, Math.floor(clamped * avatar.frameCount));
     if (idx !== this.lastAvatarFrame) {
       this.lastAvatarFrame = idx;
       avatar.setFrame(idx);

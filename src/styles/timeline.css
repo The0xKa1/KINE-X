@@ -29,6 +29,7 @@
 }
 
 .timeline-frames {
+  position: relative;
   display: flex;
   gap: 0;
   border-top: var(--hairline);
@@ -38,6 +39,23 @@
   scroll-behavior: smooth;
   scroll-snap-type: x proximity;
   -webkit-overflow-scrolling: touch;
+  /* Horizontal drags mean scrub, not native pan; vertical stays native. */
+  touch-action: pan-y;
+  user-select: none;
+  -webkit-user-select: none;
+  cursor: ew-resize;
+}
+
+.timeline-playhead {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 2px;
+  background: var(--hot);
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.35);
+  pointer-events: none;
+  z-index: 3;
 }
 
 .timeline-frames::-webkit-scrollbar { height: 6px; }

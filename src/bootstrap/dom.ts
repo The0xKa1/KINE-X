@@ -134,7 +134,7 @@ export interface DomRefs {
   playIcon: SVGElement;
   stressToggle: HTMLInputElement;
   speedSlider: HTMLInputElement;
-  timeSlider: HTMLInputElement;
+  speedValue: HTMLElement;
   cameraButton: HTMLButtonElement;
   finishButton: HTMLElement;
   demoPerfectButton: HTMLButtonElement;
@@ -269,7 +269,7 @@ export function collectDomRefs(): DomRefs {
     playIcon: $("#playIcon") as unknown as SVGElement,
     stressToggle: $("#stressToggle") as HTMLInputElement,
     speedSlider: $("#speedSlider") as HTMLInputElement,
-    timeSlider: $("#timeSlider") as HTMLInputElement,
+    speedValue: $("#speedValue"),
     cameraButton: $("#cameraButton") as HTMLButtonElement,
     finishButton: $("#finishButton"),
     demoPerfectButton: $("#demoPerfect") as HTMLButtonElement,

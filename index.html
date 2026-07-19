@@ -200,7 +200,7 @@
                 <svg id="playIcon" aria-hidden="true" viewBox="0 0 24 24"><path d="m8 5 11 7-11 7V5Z" /></svg>
               </button>
               <label class="range-field">
-                <span>Tempo</span>
+                <span>Tempo <b id="speedValue" class="tempo-value">×0.65</b></span>
                 <input id="speedSlider" type="range" min="25" max="125" value="65" aria-label="速度" />
               </label>
               <label class="toggle-field">
@@ -268,10 +268,7 @@
 
             <div class="bay-playbar">
               <span class="hud">PUSH · DRAG · ZOOM</span>
-              <label class="range-field">
-                <span>Timeline</span>
-                <input id="timeSlider" type="range" min="0" max="1000" value="120" aria-label="时间轴" />
-              </label>
+              <span class="playbar-hint">进度在下方 TIMELINE 拖动 / 点帧跳转</span>
               <button id="finishButton" class="secondary-button" type="button" title="结算本回合">
                 <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M5 12h14M13 6l6 6-6 6" /></svg>
                 结算

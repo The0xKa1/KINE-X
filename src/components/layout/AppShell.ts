@@ -6,13 +6,11 @@ interface AppShellOptions {
   playIcon: SVGElement;
   stressToggle: HTMLInputElement;
   speedSlider: HTMLInputElement;
-  timeSlider: HTMLInputElement;
   cameraButton: HTMLButtonElement;
   onViewChange(view: CameraView): void;
   onPlayChange(playing: boolean): void;
   onStressChange(enabled: boolean): void;
   onSpeedChange(speed: number): void;
-  onScrub(progress: number): void;
   onCameraToggle(): void;
 }
 
@@ -25,10 +23,6 @@ export class AppShell {
     this.options = options;
     this.bind();
     this.renderPlayIcon();
-  }
-
-  setProgress(progress: number): void {
-    this.options.timeSlider.value = String(Math.round(progress * 1000));
   }
 
   setPlaying(playing: boolean, notify: boolean = true): void {
@@ -48,9 +42,7 @@ export class AppShell {
     // Note: speed slider stays live during active — users may want to dial
     // the coach tempo while performing.
     this.options.playButton.disabled = locked;
-    this.options.timeSlider.disabled = locked;
     this.options.playButton.classList.toggle("is-locked", locked);
-    this.options.timeSlider.classList.toggle("is-locked", locked);
   }
 
   isLocked(): boolean {
@@ -72,10 +64,6 @@ export class AppShell {
 
     this.options.stressToggle.addEventListener("change", () => this.options.onStressChange(this.options.stressToggle.checked));
     this.options.speedSlider.addEventListener("input", () => this.options.onSpeedChange(Number(this.options.speedSlider.value) / 100));
-    this.options.timeSlider.addEventListener("input", () => {
-      this.setPlaying(false);
-      this.options.onScrub(Number(this.options.timeSlider.value) / 1000);
-    });
     this.options.cameraButton.addEventListener("click", () => this.options.onCameraToggle());
   }
 

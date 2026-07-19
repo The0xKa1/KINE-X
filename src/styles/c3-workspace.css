@@ -59,6 +59,8 @@ body { background: var(--bg); }
 .bay-empty span { color: var(--ink); font-weight: 700; }
 .bay-playbar { min-height: 60px; padding: 10px 14px; border-top: 3px solid var(--ink); background: var(--paper); }
 .bay-playbar .range-field { gap: 1px; }
+.playbar-hint { flex: 1; font-family: var(--mono); font-size: 9px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--muted); text-align: center; }
+.tempo-value { margin-left: 4px; font-family: var(--mono); font-size: 10px; color: var(--hot); }
 .range-field span { color: var(--ink); font-weight: 700; }
 .toggle-field { color: var(--ink); font-weight: 700; }
 input[type="range"]::-webkit-slider-runnable-track { height: 5px; }

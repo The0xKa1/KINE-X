@@ -75,8 +75,10 @@ async function fetchArrayBuffer(url        , expectedBytes        )             
 }
 
 export function sampleFrameIndex(clip          , progress        )         {
-  const wrapped = ((progress % 1) + 1) % 1;
-  const idx = Math.floor(wrapped * clip.meta.frameCount);
+  // Clamp like sampleClip: upstream wraps the preview loop, so 1 means
+  // "session finished" and must hold the last frame.
+  const clamped = Math.max(0, Math.min(1, progress));
+  const idx = Math.floor(clamped * clip.meta.frameCount);
   return idx >= clip.meta.frameCount ? clip.meta.frameCount - 1 : idx;
 }
 

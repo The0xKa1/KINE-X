@@ -80,7 +80,11 @@ function resolveBackendUrl()         {
   if (stored) return stored.replace(/\/$/, "");
   const protocol = window.location.protocol || "http:";
   const hostname = window.location.hostname || "localhost";
-  return `${protocol}//${hostname}:8765`;
+  // The dev static server (5173) has no API — talk to the backend on 8765.
+  // Everywhere else the backend serves the frontend itself (single-port
+  // deployment), so the API lives on the same origin.
+  if (window.location.port === "5173") return `${protocol}//${hostname}:8765`;
+  return window.location.origin.replace(/\/$/, "");
 }
 import { collectDomRefs } from "./bootstrap/dom.js";
 import { ConnectionIndicator, renderDnaList, beatsPerMinute } from "./bootstrap/uiHelpers.js";
@@ -192,7 +196,12 @@ let currentView             = "front";
 const coachVideo = new CoachVideo({
   video: dom.coachVideo,
   bus,
-  getPlayback: () => ({ progress: state.progress, speed: state.speed, playing: state.playing }),
+  getPlayback: () => ({
+    progress: state.progress,
+    speed: state.speed,
+    playing: state.playing,
+    durationSeconds: exercises[state.exerciseId]?.durationSeconds ?? 0,
+  }),
   getView: () => currentView,
 });
 
@@ -223,7 +232,7 @@ realtime = new RealtimeStream({
   coachHistory,
   exercises,
   state,
-  onProgressTick: (progress) => shell.setProgress(progress),
+  onProgressTick: (progress) => timeline.setPlayhead(progress),
   onSessionFinished: () => resultsScreen.open(),
 });
 
@@ -509,7 +518,6 @@ const shell = new AppShell({
   playIcon: dom.playIcon,
   stressToggle: dom.stressToggle,
   speedSlider: dom.speedSlider,
-  timeSlider: dom.timeSlider,
   cameraButton: dom.cameraButton,
   onViewChange: (view) => {
     currentView = view;
@@ -524,10 +532,8 @@ const shell = new AppShell({
   onStressChange: (enabled) => stage.setStress(enabled),
   onSpeedChange: (nextSpeed) => {
     state.speed = nextSpeed;
+    dom.speedValue.textContent = `×${nextSpeed.toFixed(2)}`;
     if (state.playing) audio.startBgm(currentBpm());
-  },
-  onScrub: (nextProgress) => {
-    realtime?.setProgress(nextProgress);
   },
   onCameraToggle: () => {
     audio.enable();
@@ -866,20 +872,44 @@ async function hydrateCoachClips()                {
 
 
 async function hydrateImportedJobs()                {
-  let payload                     ;
-  try {
-    // 4s timeout — if the backend isn't reachable (e.g. port-forward without
-    // :8765) we want to drop the work, not block the carousel forever.
-    const ctrl = new AbortController();
-    const timer = window.setTimeout(() => ctrl.abort(), 4000);
-    const resp = await fetch(`${BACKEND_URL}/import/jobs`, { signal: ctrl.signal });
-    window.clearTimeout(timer);
-    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-    payload = (await resp.json())                       ;
-  } catch (err) {
-    console.warn("[imported-jobs] skip:", err);
-    return;
+  // Wait out the initial resource storm: dozens of module/asset fetches can
+  // saturate a port-forwarded connection, and a fetch fired in that window
+  // dies even though the backend is healthy. Capped so a slow asset can't
+  // postpone hydration forever.
+  if (document.readyState !== "complete") {
+    await new Promise((resolve) => {
+      const timer = window.setTimeout(resolve, 8000);
+      window.addEventListener(
+        "load",
+        () => {
+          window.clearTimeout(timer);
+          resolve(undefined);
+        },
+        { once: true },
+      );
+    });
   }
+  let payload                             = null;
+  // Retry with backoff: a cold backend (checkpoint still loading) or a flaky
+  // tunnel can kill the first fetch even though it answers fine moments
+  // later. The loop stays fire-and-forget — boot never awaits it.
+  for (let attempt = 0; attempt < 5 && payload === null; attempt += 1) {
+    try {
+      const ctrl = new AbortController();
+      const timer = window.setTimeout(() => ctrl.abort(), 5000);
+      const resp = await fetch(`${BACKEND_URL}/import/jobs`, { signal: ctrl.signal });
+      window.clearTimeout(timer);
+      if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+      payload = (await resp.json())                       ;
+    } catch (err) {
+      if (attempt === 4) {
+        console.warn("[imported-jobs] skip:", err);
+        return;
+      }
+      await new Promise((resolve) => window.setTimeout(resolve, 2000 * 2 ** attempt));
+    }
+  }
+  if (!payload) return;
   const motionJobs = payload.jobs.filter(isPersistedMotionJob);
   await Promise.all(motionJobs.map((job) => hydrateOneJob(job)));
 

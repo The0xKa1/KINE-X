@@ -269,7 +269,7 @@ export function collectDomRefs()          {
     playIcon: $("#playIcon")                         ,
     stressToggle: $("#stressToggle")                    ,
     speedSlider: $("#speedSlider")                    ,
-    timeSlider: $("#timeSlider")                    ,
+    speedValue: $("#speedValue"),
     cameraButton: $("#cameraButton")                     ,
     finishButton: $("#finishButton"),
     demoPerfectButton: $("#demoPerfect")                     ,

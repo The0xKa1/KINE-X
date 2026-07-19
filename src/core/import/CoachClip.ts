@@ -36,9 +36,12 @@ export function sampleClip(clip: CoachClip, progress: number): SkeletonPose {
     throw new Error("CoachClip has no frames");
   }
   if (clip.frames.length === 1) return clip.frames[0]!;
-  const wrapped = ((progress % 1) + 1) % 1; // wrap to [0, 1)
+  // Clamp, not wrap: the preview loop already wraps progress upstream in
+  // RealtimeStream, so a value of exactly 1 only arrives at session end —
+  // every layer must hold the final frame there, never snap back to frame 0.
+  const clamped = Math.max(0, Math.min(1, progress));
   const last = clip.frames.length - 1;
-  const f = wrapped * last;
+  const f = clamped * last;
   const lo = Math.floor(f);
   const hi = Math.min(lo + 1, last);
   const a = clip.frames[lo]!;

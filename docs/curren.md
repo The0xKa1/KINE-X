@@ -163,7 +163,7 @@ guardrails 对 `dist/**/*.js` 做语法检查。
 帧流 WS 客户端已就绪（`useWebSocket`：自动重连退避 1s→30s、PING/PONG 心跳 15s/8s 超时、点击连接指示手动重连），默认 `ws://localhost:8000/motion`，`?ws=` 覆盖；但真实帧流后端不在本仓库。
 外部帧与本地帧共用 `consumePacket → pushPacket`；前端 MediaPipe / Scoring 链路保留为后端不可用时的离线方案。
 LLM 一律经 `server/` 代理（:8766）；`API_BASE_URL` 可用 `?api=` 覆盖并持久化到 localStorage。
-导入后端（:8765）`BACKEND_URL` 可用 `?backend=` 覆盖并持久化到 localStorage；`POST /import/video` 返回普通 CoachClip / MeshClip，可选同时建立分身绑定。身份源于 `GET|POST /avatars`，重命名/软删除用 `PATCH|DELETE /avatars/{id}`，绑定用 `GET|POST /avatar-bindings`；`POST /import/avatar` 仅是身份上传兼容别名。
+导入后端（:8765）`BACKEND_URL` 可用 `?backend=` 覆盖并持久化到 localStorage；无覆盖时按端口回退——5173 静态开发服 → `:8765`，其余 → 同源（单端口部署下 :8765 同时服务前端与 API）。`POST /import/video` 返回普通 CoachClip / MeshClip，可选同时建立分身绑定。身份源于 `GET|POST /avatars`，重命名/软删除用 `PATCH|DELETE /avatars/{id}`，绑定用 `GET|POST /avatar-bindings`；`POST /import/avatar` 仅是身份上传兼容别名。
 Session 历史存于浏览器 localStorage（`kinex.sessions.v1`），不上送后端。
 内置种子为 squat（`single_leg_squat.json`，118 帧）与 ugc-squat（SAM3D 真实导入后入库，118 帧）；deadlift / baduanjin / street / basketball 已下架，评分权重保留在 `MOTION_METRIC_TEMPLATES` 供导入动作复用。
 所有坐标必须米制，所有旋转必须 `[x, y, z, w]`。

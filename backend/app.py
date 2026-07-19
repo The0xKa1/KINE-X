@@ -16,6 +16,7 @@ from typing import Optional
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
 from . import avatar, avatar_motion, config, pipeline
@@ -923,3 +924,11 @@ def guess_failure_stage(exc: Exception) -> str:
     if "keypoints" in text or "coach" in text:
         return "coach"
     return "pipeline"
+
+
+# --- Static frontend, mounted last so every API route above wins -------------
+# Serving the KINE-X root through Starlette gives the frontend HTTP Range
+# support: `python -m http.server` has none, and without Range the coach
+# videos are non-seekable — timeline scrubbing could never move the video.
+_FRONTEND_ROOT = Path(__file__).resolve().parent.parent
+app.mount("/", StaticFiles(directory=_FRONTEND_ROOT, html=True), name="frontend")
