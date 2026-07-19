@@ -1,4 +1,4 @@
-                                                                                                       
+
 
 const JOINT_NAMES              = [
   "pelvis",

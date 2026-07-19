@@ -1,19 +1,19 @@
-                                                 
+
 import { formatCm } from "../../core/coordinates.js";
 import { buildDiagnosisMessages, buildFallbackText,                   } from "../../core/llm/buildPrompt.js";
 import { streamChat,                  } from "../../core/llm/LLMClient.js";
 import { renderMarkdown } from "../../core/llm/renderMarkdown.js";
 import { AiCoachPanel } from "../gameui/AiCoachPanel.js";
-                                                                                            
-                                                                          
-                                                            
 
-                             
-                  
-                          
-                                            
-                                 
- 
+
+
+
+
+
+
+
+
+
 
 const PHASES                                              = [
   { key: "intro", label: "INTRO" },

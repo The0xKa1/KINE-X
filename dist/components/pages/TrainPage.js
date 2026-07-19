@@ -1,15 +1,15 @@
-                                                 
-                                                             
-                                                                   
 
-                            
-                  
-                     
-                           
-                                 
-                                       
-                                          
- 
+
+
+
+
+
+
+
+
+
+
+
 
 /**
  * Thin lifecycle wrapper around the existing stage: pauses rendering and

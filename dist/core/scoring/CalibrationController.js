@@ -1,18 +1,18 @@
-                                                                  
+
 import { normalizeMediaPipeWorld } from "./normalize.js";
-                                                          
+
 import { UserProfileStore,                  } from "./UserProfile.js";
 
 const REQUIRED_FRAMES = 30; // ~1s at 30Hz
 const STABILITY_THRESHOLD = 0.05; // meters peak-to-peak Y deviation allowed during sampling
 const MAX_FRAME_AGE_MS = 200;
 
-                               
-                     
-                                        
-                                           
-                                           
-                                        
+
+
+
+
+
+
 
 export class CalibrationController {
           userPose                ;

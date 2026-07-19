@@ -1,7 +1,7 @@
 import { THREE } from "./three-compat.js";
 
-                                                                 
-                                                           
+
+
 
 export class ThreeResourceTracker {
           geometries                    = [];

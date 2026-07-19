@@ -2,24 +2,24 @@
 // (b) detect out-of-distribution MediaPipe frames where bone lengths suddenly
 // disagree with the calibrated user.
 
-                              
-                       
-                             
-                        
-                          
-                                                                                        
-                     
-                
-                   
-                  
-                   
-                  
-                      
-                     
-                      
-                     
-    
- 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 const STORAGE_KEY = "kinex.userProfile.v1";
 

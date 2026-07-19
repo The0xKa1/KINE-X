@@ -140,12 +140,8 @@
   font-variant-numeric: tabular-nums;
 }
 
-/* Branch tabs (video coach vs photo avatar) ------------------------------- */
-
 /* Class-level display rules beat the UA [hidden] style — restore it here
  * (same pattern as .page[hidden] / .session-idle[hidden]). */
-.create-grid[hidden],
-.create-steps[hidden],
 .create-block .primary-button[hidden],
 .create-block .import-preview[hidden] {
   display: none;
@@ -157,82 +153,144 @@
   justify-items: end;
 }
 
-.create-tabs {
-  display: inline-flex;
-  border: 2px solid var(--ink);
-}
-
-.create-tabs button {
+.create-vault-cta {
   display: grid;
-  gap: 2px;
-  padding: 8px 16px;
-  border: 0;
-  border-right: 2px solid var(--ink);
+  gap: 3px;
+  min-width: min(280px, 100%);
+  padding: 10px 14px;
+  border: 2px solid var(--ink);
   background: var(--paper);
   color: var(--ink);
-  font-family: var(--sans);
-  font-size: 13px;
-  font-weight: 800;
-  letter-spacing: 0.02em;
-  cursor: pointer;
-  transition: background 140ms linear, color 140ms linear;
+  text-decoration: none;
+  transition: background 140ms linear, transform 140ms ease;
 }
 
-.create-tabs button:last-child {
-  border-right: 0;
+.create-vault-cta:hover,
+.create-vault-cta:focus-visible {
+  background: var(--hot);
+  transform: translate(-2px, -2px);
+  outline: none;
 }
 
-.create-tabs button span {
-  font-family: var(--mono);
-  font-size: 9px;
-  font-weight: 400;
+.create-vault-cta span {
+  font: 500 9px/1 var(--mono);
   letter-spacing: 0.18em;
   color: var(--muted);
 }
 
-.create-tabs button:hover {
-  background: var(--hot);
-  color: var(--ink);
+.create-vault-cta strong {
+  font: 800 13px/1.2 var(--sans);
 }
 
-.create-tabs button.is-active {
-  background: var(--ink);
-  color: var(--paper);
-}
-
-.create-tabs button.is-active span {
-  color: var(--paper);
-  opacity: 0.7;
-}
-
-/* Avatar branch ------------------------------------------------------------ */
-
-.settings-field input {
-  width: 100%;
-  height: 42px;
-  padding: 0 10px;
-  border: 2px solid var(--ink);
-  background: var(--paper);
-  font-family: var(--sans);
-  font-size: 13px;
-  font-weight: 700;
-  color: var(--ink);
-  box-sizing: border-box;
-}
-
-.settings-field input:focus {
-  outline: none;
-  background: var(--hot);
-}
-
-.settings-field input:disabled {
+.create-vault-cta small {
+  font: 500 9px/1.35 var(--mono);
   color: var(--muted);
-  border-style: dashed;
-  background: var(--surface);
 }
 
-.avatar-preview {
-  object-fit: contain;
+/* Optional reusable identity picker ----------------------------------------- */
+
+.create-avatar-picker {
+  display: grid;
+  gap: 10px;
+  margin: 2px 0 0;
+  padding: 12px;
+  border: 2px solid var(--ink);
+  min-width: 0;
+}
+
+.create-avatar-picker legend {
+  padding: 0 6px;
+  font: 800 10px/1 var(--mono);
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+
+.create-avatar-picker-head,
+.create-avatar-picker-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.create-avatar-picker-head span,
+.create-avatar-picker-head a,
+.create-avatar-picker-foot .text-button {
+  font: 700 10px/1.35 var(--mono);
+}
+
+.create-avatar-picker-head span {
+  color: var(--muted);
+}
+
+.create-avatar-picker-head a,
+.create-avatar-picker-foot .text-button {
+  color: var(--ink);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.create-avatar-picker-foot .text-button {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+}
+
+.create-avatar-picker-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(132px, 1fr));
+  gap: 8px;
+}
+
+.create-avatar-choice {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 8px;
+  align-items: start;
+  min-height: 58px;
+  padding: 9px;
   border: 2px solid var(--ink);
   background: var(--paper);
+  cursor: pointer;
+}
+
+.create-avatar-choice:has(input:checked) {
+  background: var(--hot);
+}
+
+.create-avatar-choice.is-disabled {
+  border-style: dashed;
+  color: var(--muted);
+  background: var(--surface);
+  cursor: not-allowed;
+}
+
+.create-avatar-choice input {
+  margin: 2px 0 0;
+  accent-color: var(--ink);
+}
+
+.create-avatar-choice span {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.create-avatar-choice strong,
+.create-avatar-choice small {
+  overflow-wrap: anywhere;
+}
+
+.create-avatar-choice strong {
+  font: 800 12px/1.2 var(--sans);
+}
+
+.create-avatar-choice small {
+  font: 500 9px/1.35 var(--mono);
+  color: var(--muted);
+}
+
+.create-avatar-picker-foot .settings-hint {
+  margin: 0;
 }

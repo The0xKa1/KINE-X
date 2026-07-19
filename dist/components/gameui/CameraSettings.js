@@ -1,50 +1,50 @@
-             
-                                   
-           
-                
-                                     
-                                                                                                         
-                                                                                         
-                                                                          
-                                                                  
+
+
+
+
+
+
+
+
+
 import { drawerStack } from "../../core/DrawerStack.js";
 
-                                          
-                                           
- 
 
-                                 
-                        
-                                   
-                                     
-                                 
-                      
-                       
-                           
-                                  
-                                      
-                               
-                                 
-                                   
-                                 
-                                       
-                                       
-                                       
-                                       
-                                      
-                                   
-                                     
- 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 const STORAGE_KEY = "kinex.cameraSettings.v1";
 
-                             
-                           
-                    
-                   
-                                             
-                         
- 
+
+
+
+
+
+
+
 
 const RESOLUTION_PRESETS                                                                         = [
   { value: "960x540", label: "960 × 540 (轻量)", width: 960, height: 540 },

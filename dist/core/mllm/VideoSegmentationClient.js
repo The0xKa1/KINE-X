@@ -1,36 +1,36 @@
 import { API_BASE_URL } from "../../config.js";
-                                                            
 
-                                                         
 
-                                   
-             
-               
-                      
-                   
-                 
-                     
-                                
-                
- 
 
-                                              
-                               
-                       
-                  
- 
 
-                               
-                  
-                       
- 
 
-                                           
-                    
-                          
-                         
-                       
- 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 /**
  * Sample frames at a fixed time interval from the seeker. Returns at least one
@@ -161,7 +161,7 @@ export function normalizeSegmentationContent(content        , durationSeconds   
   };
 }
 
-                                                                         
+
 
 function tryNormalizeSegment(value         , index        , durationSeconds        )                 {
   if (!isRecord(value)) return { reason: "not an object" };

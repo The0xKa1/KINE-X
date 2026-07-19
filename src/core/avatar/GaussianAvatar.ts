@@ -1,4 +1,17 @@
 import { THREE, type MotionVector3 } from "../three-compat.js";
+import {
+  AVATAR_JOINT_COUNT,
+  assertReusableIdentity,
+  buildSkinningMatrices,
+  createSkinningScratch,
+  parseAvatarIdentity,
+  parseGaussianMotion,
+  parseLegacyGaussianAsset,
+  progressFrame,
+  type AvatarIdentity,
+  type GaussianMotionAsset,
+  type SkinningScratch,
+} from "./AvatarAssets.js";
 
 /**
  * GaussianAvatar — frame-deformable 3DGS (3D Gaussian Splatting) digital human.
@@ -20,37 +33,15 @@ import { THREE, type MotionVector3 } from "../three-compat.js";
  *   T_posed F*55*16 f32 (column-major mat4 per joint per frame) | trans F*3 f32.
  */
 
-const MAGIC = "KINEXGS1";
-const JOINT_COUNT = 55;
+const JOINT_COUNT = AVATAR_JOINT_COUNT;
 const MAT4_FLOATS = 16;
 /** Texels per gaussian inside the static data texture. */
 const DATA_STRIDE = 9;
 const DATA_TEX_WIDTH = 1024;
 /** Depth sort packs (depth16 << 16) | index16, so N is capped at 2^16. */
-const MAX_GAUSSIANS = 65536;
 
-interface GaussianAvatarData {
-  meta: Record<string, unknown>;
-  count: number;
+interface LegacyMotionData {
   frames: number;
-  /** N*3 zero-pose (bind-shape) gaussian centres, meters. */
-  centers: Float32Array;
-  /** N*4 canonical rotation quaternions, wxyz. */
-  quats: Float32Array;
-  /** N*3 gaussian standard deviations, meters. */
-  scales: Float32Array;
-  /** N*1 opacity, already sigmoid-ed. */
-  opacities: Float32Array;
-  /** N*3 colour, already sigmoid-ed. */
-  colors: Float32Array;
-  /** N*9 A_null_rot blend rotation, row-major rows (not strictly orthogonal). */
-  blendRot: Float32Array;
-  /** N*4 top-4 joint indices. */
-  lbsIndex: Uint8Array;
-  /** N*4 top-4 LBS weights, normalised to sum 1. */
-  lbsWeight: Float32Array;
-  /** N*1 constrain bit: 1 forces the rigid part of the frame rotation to identity. */
-  constrain: Uint8Array;
   /** F*55*16 posed joint offset matrices, column-major. */
   tPosed: Float32Array;
   /** F*3 root translation. */
@@ -226,12 +217,44 @@ void main() {
 }
 `;
 
+/** Fetchable reusable motion wrapper consumed by GaussianAvatar. */
+export class GaussianMotion implements GaussianMotionAsset {
+  readonly meta: Record<string, unknown>;
+  readonly frameCount: number;
+  readonly jointCount: number;
+  readonly localRotations: Float32Array;
+  readonly translations: Float32Array;
+  readonly stageTranslations: Float32Array;
+  readonly stageLinear: Float32Array;
+
+  static async load(url: string): Promise<GaussianMotion> {
+    const response = await fetch(url);
+    if (!response.ok) throw new Error(`[GaussianMotion] fetch ${url} -> HTTP ${response.status}`);
+    return GaussianMotion.parse(await response.arrayBuffer());
+  }
+
+  static parse(buffer: ArrayBuffer): GaussianMotion {
+    return new GaussianMotion(parseGaussianMotion(buffer));
+  }
+
+  private constructor(asset: GaussianMotionAsset) {
+    this.meta = asset.meta;
+    this.frameCount = asset.frameCount;
+    this.jointCount = asset.jointCount;
+    this.localRotations = asset.localRotations;
+    this.translations = asset.translations;
+    this.stageTranslations = asset.stageTranslations;
+    this.stageLinear = asset.stageLinear;
+  }
+}
+
 export class GaussianAvatar {
   /** Mount point for any THREE.Scene. Assumes an identity transform (world-space data). */
   readonly object3d: InstanceType<typeof THREE.Mesh>;
   readonly meta: Record<string, unknown>;
+  readonly supportsReusableMotion: boolean;
 
-  private readonly data: GaussianAvatarData;
+  private readonly identity: AvatarIdentity;
   private readonly geometry: InstanceType<typeof THREE.InstancedBufferGeometry>;
   private readonly material: InstanceType<typeof THREE.ShaderMaterial>;
   private readonly dataTexture: InstanceType<typeof THREE.DataTexture>;
@@ -243,6 +266,11 @@ export class GaussianAvatar {
   private readonly depths: Float32Array;
   private readonly transVec: MotionVector3;
   private readonly viewportVec: InstanceType<typeof THREE.Vector2>;
+  private readonly fkScratch: SkinningScratch = createSkinningScratch();
+
+  private motion: GaussianMotion | null = null;
+  private legacyMotion: LegacyMotionData | null;
+  private frameCountValue: number;
 
   private frameIndex = -1;
   private sortDirty = true;
@@ -259,81 +287,30 @@ export class GaussianAvatar {
     return GaussianAvatar.parse(buffer);
   }
 
-  static parse(buffer: ArrayBuffer): GaussianAvatar {
-    if (buffer.byteLength < 24) throw new Error("[GaussianAvatar] file too small");
-    const magicBytes = new Uint8Array(buffer, 0, 8);
-    let magic = "";
-    for (let i = 0; i < 8; i++) magic += String.fromCharCode(magicBytes[i]!);
-    if (magic !== MAGIC) throw new Error(`[GaussianAvatar] bad magic "${magic}" (want ${MAGIC})`);
-
-    const view = new DataView(buffer);
-    const count = view.getUint32(8, true);
-    const frames = view.getUint32(12, true);
-    const joints = view.getUint32(16, true);
-    const headerLen = view.getUint32(20, true);
-    if (joints !== JOINT_COUNT) throw new Error(`[GaussianAvatar] J=${joints}, want ${JOINT_COUNT}`);
-    if (count < 1 || count > MAX_GAUSSIANS) {
-      throw new Error(`[GaussianAvatar] N=${count} outside 1..${MAX_GAUSSIANS} (16-bit sort index)`);
-    }
-    if (frames < 1) throw new Error("[GaussianAvatar] F must be >= 1");
-
-    const metaBytes = new Uint8Array(buffer, 24, headerLen);
-    const meta = JSON.parse(new TextDecoder().decode(metaBytes)) as Record<string, unknown>;
-
-    // Arrays are 4-byte aligned in well-formed files; fall back to an aligned
-    // copy of the whole array region when the JSON header length breaks that.
-    let base = 24 + headerLen;
-    let pool = buffer;
-    if (base % 4 !== 0) {
-      pool = buffer.slice(base);
-      base = 0;
-    }
-    if (pool.byteLength < base) throw new Error("[GaussianAvatar] truncated header");
-
-    const f32 = (floats: number): Float32Array => {
-      if (base + floats * 4 > pool.byteLength) throw new Error("[GaussianAvatar] truncated arrays");
-      let out: Float32Array;
-      if (base % 4 === 0) {
-        out = new Float32Array(pool, base, floats);
-      } else {
-        // Rare misalignment (e.g. N % 4 != 0 shifts later sections): copy.
-        out = new Float32Array(floats);
-        new Uint8Array(out.buffer).set(new Uint8Array(pool, base, floats * 4));
-      }
-      base += floats * 4;
-      return out;
-    };
-    const u8 = (bytes: number): Uint8Array => {
-      if (base + bytes > pool.byteLength) throw new Error("[GaussianAvatar] truncated arrays");
-      const out = new Uint8Array(pool, base, bytes);
-      base += bytes;
-      return out;
-    };
-
-    const data: GaussianAvatarData = {
-      meta,
-      count,
-      frames,
-      centers: f32(count * 3),
-      quats: f32(count * 4),
-      scales: f32(count * 3),
-      opacities: f32(count),
-      colors: f32(count * 3),
-      blendRot: f32(count * 9),
-      lbsIndex: u8(count * 4),
-      lbsWeight: f32(count * 4),
-      constrain: u8(count),
-      tPosed: f32(frames * JOINT_COUNT * MAT4_FLOATS),
-      trans: f32(frames * 3),
-    };
-    return new GaussianAvatar(data);
+  static async loadIdentity(url: string): Promise<GaussianAvatar> {
+    const response = await fetch(url);
+    if (!response.ok) throw new Error(`[GaussianAvatar] fetch ${url} -> HTTP ${response.status}`);
+    return GaussianAvatar.fromIdentity(parseAvatarIdentity(await response.arrayBuffer()));
   }
 
-  private constructor(data: GaussianAvatarData) {
-    this.data = data;
-    this.meta = data.meta;
+  static fromIdentity(identity: AvatarIdentity): GaussianAvatar {
+    return new GaussianAvatar(identity, null);
+  }
 
-    const { count } = data;
+  /** Legacy combined-asset adapter retained for the committed demo and old jobs. */
+  static parse(buffer: ArrayBuffer): GaussianAvatar {
+    const legacy = parseLegacyGaussianAsset(buffer);
+    return new GaussianAvatar(legacy.identity, legacy);
+  }
+
+  private constructor(identity: AvatarIdentity, legacyMotion: LegacyMotionData | null) {
+    this.identity = identity;
+    this.legacyMotion = legacyMotion;
+    this.frameCountValue = legacyMotion?.frames ?? 1;
+    this.meta = identity.meta;
+    this.supportsReusableMotion = identity.reusableMotion;
+
+    const { count } = identity;
 
     // ---- static gaussian data texture (stride DATA_STRIDE texels per gaussian) ----
     const texHeight = Math.ceil((count * DATA_STRIDE) / DATA_TEX_WIDTH);
@@ -343,31 +320,31 @@ export class GaussianAvatar {
       const c3 = g * 3;
       const q4 = g * 4;
       const a9 = g * 9;
-      texels[t] = data.centers[c3]!;
-      texels[t + 1] = data.centers[c3 + 1]!;
-      texels[t + 2] = data.centers[c3 + 2]!;
-      texels[t + 3] = data.opacities[g]!;
-      texels[t + 4] = data.quats[q4]!;
-      texels[t + 5] = data.quats[q4 + 1]!;
-      texels[t + 6] = data.quats[q4 + 2]!;
-      texels[t + 7] = data.quats[q4 + 3]!;
-      texels[t + 8] = data.scales[c3]!;
-      texels[t + 9] = data.scales[c3 + 1]!;
-      texels[t + 10] = data.scales[c3 + 2]!;
-      texels[t + 11] = data.constrain[g]! > 0 ? 1 : 0;
-      texels[t + 12] = data.colors[c3]!;
-      texels[t + 13] = data.colors[c3 + 1]!;
-      texels[t + 14] = data.colors[c3 + 2]!;
+      texels[t] = identity.centers[c3]!;
+      texels[t + 1] = identity.centers[c3 + 1]!;
+      texels[t + 2] = identity.centers[c3 + 2]!;
+      texels[t + 3] = identity.opacities[g]!;
+      texels[t + 4] = identity.quats[q4]!;
+      texels[t + 5] = identity.quats[q4 + 1]!;
+      texels[t + 6] = identity.quats[q4 + 2]!;
+      texels[t + 7] = identity.quats[q4 + 3]!;
+      texels[t + 8] = identity.scales[c3]!;
+      texels[t + 9] = identity.scales[c3 + 1]!;
+      texels[t + 10] = identity.scales[c3 + 2]!;
+      texels[t + 11] = identity.constrain[g]! > 0 ? 1 : 0;
+      texels[t + 12] = identity.colors[c3]!;
+      texels[t + 13] = identity.colors[c3 + 1]!;
+      texels[t + 14] = identity.colors[c3 + 2]!;
       // texels[t + 15] spare
-      for (let r = 0; r < 9; r++) texels[t + 16 + r + Math.floor(r / 3)] = data.blendRot[a9 + r]!;
-      texels[t + 28] = data.lbsIndex[q4]!;
-      texels[t + 29] = data.lbsIndex[q4 + 1]!;
-      texels[t + 30] = data.lbsIndex[q4 + 2]!;
-      texels[t + 31] = data.lbsIndex[q4 + 3]!;
-      texels[t + 32] = data.lbsWeight[q4]!;
-      texels[t + 33] = data.lbsWeight[q4 + 1]!;
-      texels[t + 34] = data.lbsWeight[q4 + 2]!;
-      texels[t + 35] = data.lbsWeight[q4 + 3]!;
+      for (let r = 0; r < 9; r++) texels[t + 16 + r + Math.floor(r / 3)] = identity.blendRot[a9 + r]!;
+      texels[t + 28] = identity.lbsIndex[q4]!;
+      texels[t + 29] = identity.lbsIndex[q4 + 1]!;
+      texels[t + 30] = identity.lbsIndex[q4 + 2]!;
+      texels[t + 31] = identity.lbsIndex[q4 + 3]!;
+      texels[t + 32] = identity.lbsWeight[q4]!;
+      texels[t + 33] = identity.lbsWeight[q4 + 1]!;
+      texels[t + 34] = identity.lbsWeight[q4 + 2]!;
+      texels[t + 35] = identity.lbsWeight[q4 + 3]!;
     }
     this.dataTexture = new THREE.DataTexture(texels, DATA_TEX_WIDTH, texHeight, THREE.RGBAFormat, THREE.FloatType);
     this.dataTexture.magFilter = THREE.NearestFilter;
@@ -426,11 +403,19 @@ export class GaussianAvatar {
   }
 
   get frameCount(): number {
-    return this.data.frames;
+    return this.frameCountValue;
   }
 
   get count(): number {
-    return this.data.count;
+    return this.identity.count;
+  }
+
+  get currentFrameIndex(): number {
+    return this.frameIndex;
+  }
+
+  get currentTranslation(): readonly [number, number, number] {
+    return [this.transVec.x, this.transVec.y, this.transVec.z];
   }
 
   /** Exponential moving average of the CPU depth sort, ms. */
@@ -438,17 +423,49 @@ export class GaussianAvatar {
     return this.sortMsEma;
   }
 
+  /** Replace the current animation while retaining the identity's static textures. */
+  setMotion(motion: GaussianMotion | null): void {
+    if (motion) assertReusableIdentity(this.identity);
+    this.motion = motion;
+    this.legacyMotion = null;
+    this.frameCountValue = motion?.frameCount ?? 1;
+    this.frameIndex = -1;
+    this.setFrame(0);
+  }
+
+  setProgress(progress: number): void {
+    this.setFrame(progressFrame(progress, this.frameCountValue));
+  }
+
   /** Upload frame i's 55 joint matrices to the bone texture and re-sort. */
   setFrame(index: number): void {
-    const clamped = Math.min(Math.max(Math.floor(index), 0), this.data.frames - 1);
+    if (!Number.isFinite(index)) throw new Error("[GaussianAvatar] frame index must be finite");
+    const clamped = Math.min(Math.max(Math.floor(index), 0), this.frameCountValue - 1);
     if (clamped === this.frameIndex) return;
     this.frameIndex = clamped;
-    const jointFloats = JOINT_COUNT * MAT4_FLOATS;
-    const start = clamped * jointFloats;
-    this.boneTexels.set(this.data.tPosed.subarray(start, start + jointFloats));
+    if (this.motion) {
+      buildSkinningMatrices(this.identity, this.motion, clamped, this.boneTexels, this.fkScratch);
+      const offset = clamped * 3;
+      this.transVec.set(
+        this.motion.stageTranslations[offset]!,
+        this.motion.stageTranslations[offset + 1]!,
+        this.motion.stageTranslations[offset + 2]!,
+      );
+    } else if (this.legacyMotion) {
+      const jointFloats = JOINT_COUNT * MAT4_FLOATS;
+      const start = clamped * jointFloats;
+      this.boneTexels.set(this.legacyMotion.tPosed.subarray(start, start + jointFloats));
+      const offset = clamped * 3;
+      this.transVec.set(
+        this.legacyMotion.trans[offset]!,
+        this.legacyMotion.trans[offset + 1]!,
+        this.legacyMotion.trans[offset + 2]!,
+      );
+    } else {
+      writeIdentityMatrices(this.boneTexels);
+      this.transVec.set(0, 0, 0);
+    }
     this.boneTexture.needsUpdate = true;
-    const t = clamped * 3;
-    this.transVec.set(this.data.trans[t]!, this.data.trans[t + 1]!, this.data.trans[t + 2]!);
     this.sortDirty = true;
     if (this.lastCamera) this.sortFor(this.lastCamera);
   }
@@ -524,14 +541,11 @@ export class GaussianAvatar {
     dy /= len;
     dz /= len;
 
-    const { centers, lbsIndex, lbsWeight, tPosed, trans, count } = this.data;
-    const jointFloats = JOINT_COUNT * MAT4_FLOATS;
-    const frame = this.frameIndex < 0 ? 0 : this.frameIndex;
-    const T = tPosed.subarray(frame * jointFloats, (frame + 1) * jointFloats);
-    const t3 = frame * 3;
-    const tx = trans[t3]!;
-    const ty = trans[t3 + 1]!;
-    const tz = trans[t3 + 2]!;
+    const { centers, lbsIndex, lbsWeight, count } = this.identity;
+    const T = this.boneTexels;
+    const tx = this.transVec.x;
+    const ty = this.transVec.y;
+    const tz = this.transVec.z;
     const depths = this.depths;
 
     let minDepth = Infinity;
@@ -588,5 +602,16 @@ export class GaussianAvatar {
     const elapsed = performance.now() - started;
     this.lastSortMs = elapsed;
     this.sortMsEma = this.sortMsEma === 0 ? elapsed : this.sortMsEma * 0.9 + elapsed * 0.1;
+  }
+}
+
+function writeIdentityMatrices(target: Float32Array): void {
+  target.fill(0);
+  for (let joint = 0; joint < JOINT_COUNT; joint++) {
+    const offset = joint * MAT4_FLOATS;
+    target[offset] = 1;
+    target[offset + 5] = 1;
+    target[offset + 10] = 1;
+    target[offset + 15] = 1;
   }
 }

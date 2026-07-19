@@ -1,17 +1,17 @@
-                                                       
-                                                     
-                                                         
 
-                             
-                
-                       
-                     
-                     
-                     
-                      
-                 
-                              
- 
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 const PERFECT_THRESHOLD = 80;
 const PERFECT_THROTTLE_MS = 600;

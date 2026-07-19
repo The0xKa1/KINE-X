@@ -16,14 +16,22 @@ from typing import Optional
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from pydantic import BaseModel
 
-from . import avatar, config, pipeline
+from . import avatar, avatar_motion, config, pipeline
+from .avatar_registry import AvatarRegistry
 
 logger = logging.getLogger("kinex.backend")
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(name)s: %(message)s")
 
 VALID_MOTIONS = {"squat", "hinge", "flow", "bounce", "throw"}
 ALLOWED_IMAGE_TYPES = {"image/jpeg", "image/png", "image/webp"}
+IMAGE_SUFFIXES = {"image/jpeg": ".jpg", "image/png": ".png", "image/webp": ".webp"}
+_ACTIVE_IDENTITY_STATUSES = {"queued", "running"}
+_IDENTITY_RECOVERY_ERROR = (
+    "Avatar import could not resume after restart because its source photo or "
+    "motion settings are missing. Delete this identity and upload a replacement photo."
+)
 
 # Avatar job registry (jobId → record). Done/error records are also persisted
 # as <AVATAR_JOBS_DIR>/<jobId>.json so they survive a restart.
@@ -31,6 +39,18 @@ _AVATAR_JOBS: dict[str, dict] = {}
 # The LHM export peaks at ~19.6 GiB VRAM — serialize avatar jobs so two
 # concurrent exports cannot OOM the GPU. Queued jobs stay status="queued".
 _AVATAR_EXPORT_LOCK = threading.Lock()
+_SCHEDULED_AVATAR_IDENTITIES: set[str] = set()
+_SCHEDULED_AVATAR_IDENTITIES_LOCK = threading.Lock()
+_AVATAR_REGISTRY = AvatarRegistry(config.AVATAR_REGISTRY_ROOT)
+
+
+class AvatarRenameRequest(BaseModel):
+    name: str
+
+
+class AvatarBindingRequest(BaseModel):
+    avatarId: str
+    motionId: str
 
 
 @asynccontextmanager
@@ -57,6 +77,17 @@ async def lifespan(app: FastAPI):
         app.state.estimator = None
         app.state.estimator_device = None
         app.state.estimator_loaded_at = None
+    loop = asyncio.get_running_loop()
+    recovered = _recover_motion_bindings(
+        lambda function, *args: loop.run_in_executor(None, function, *args)
+    )
+    if recovered:
+        logger.info("recovered %d unfinished avatar motion job(s)", recovered)
+    recovered_identities = _recover_avatar_identities(
+        lambda function, *args: loop.run_in_executor(None, function, *args)
+    )
+    if recovered_identities:
+        logger.info("recovered %d unfinished avatar identity job(s)", recovered_identities)
     yield
     app.state.estimator = None
 
@@ -74,7 +105,7 @@ app = FastAPI(title="KINE//X import service", lifespan=lifespan)
 app.add_middleware(
     CORSMiddleware,
     allow_origin_regex=r"^https?://(localhost|127\.0\.0\.1)(:\d+)?$",
-    allow_methods=["GET", "POST", "OPTIONS"],
+    allow_methods=["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
     allow_headers=["*"],
 )
 
@@ -175,53 +206,398 @@ def _persist_avatar_meta(record: dict) -> None:
         logger.warning("[%s] failed to persist avatar meta", record.get("jobId"))
 
 
-def _run_avatar_job(job_id: str, photo_path: Path, workdir: Path, motion_params: str) -> None:
-    """Worker-thread entry: run the avatar pipeline and track it in _AVATAR_JOBS."""
-    record = _AVATAR_JOBS[job_id]
+def _find_identity(avatar_id: str) -> dict | None:
+    return next(
+        (
+            record
+            for record in _AVATAR_REGISTRY.list_identities(include_deleted=True)
+            if record.get("avatarId") == avatar_id
+        ),
+        None,
+    )
+
+
+def _require_active_identity(avatar_id: str) -> dict:
+    try:
+        record = _find_identity(avatar_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail={"error": str(exc)}) from exc
+    if record is None:
+        raise HTTPException(
+            status_code=404, detail={"error": f"identity '{avatar_id}' does not exist"}
+        )
+    if record.get("deletedAt") is not None:
+        raise HTTPException(
+            status_code=409, detail={"error": f"identity '{avatar_id}' is deleted"}
+        )
+    return record
+
+
+def _motion_record(motion_id: str) -> dict:
+    path = _AVATAR_REGISTRY._motion_path(motion_id)
+    try:
+        with path.open("r", encoding="utf-8") as handle:
+            record = json.load(handle)
+    except FileNotFoundError as exc:
+        raise KeyError(f"motion '{motion_id}' does not exist") from exc
+    except (OSError, json.JSONDecodeError) as exc:
+        raise ValueError(f"motion '{motion_id}' has an invalid manifest") from exc
+    if not isinstance(record, dict):
+        raise ValueError(f"motion '{motion_id}' has an invalid manifest")
+    return record
+
+
+def _asset_url(path: Path) -> str:
+    try:
+        return config.relative_to_repo(path)
+    except ValueError:
+        # Tests and explicit out-of-repo registry overrides still get a stable,
+        # non-source URL rooted at the configured Avatar Vault directory.
+        return path.resolve().relative_to(_AVATAR_REGISTRY.root.resolve()).as_posix()
+
+
+def _sync_binding_status(binding: dict) -> dict:
+    motion = _motion_record(binding["motionId"])
+    if binding.get("status") in {"ready", "error", "cancelled"}:
+        return binding
+    if motion.get("status") == "ready":
+        identity = _require_active_identity(binding["avatarId"])
+        return _AVATAR_REGISTRY.update_binding(
+            binding["bindingId"],
+            status="ready",
+            progress=100,
+            identityUrl=identity.get("identityUrl") or identity.get("avatarBinUrl"),
+            motionAssetUrl=motion.get("motionAssetUrl") or motion.get("motionUrl"),
+            error=None,
+        )
+    if motion.get("status") == "error":
+        return _AVATAR_REGISTRY.update_binding(
+            binding["bindingId"],
+            status="error",
+            error=motion.get("error") or "motion preparation failed",
+        )
+    return binding
+
+
+def _run_motion_binding_job(
+    avatar_id: str,
+    motion_id: str,
+    binding_id: str,
+    source_video: Path,
+    coach_clip: Path,
+    motion_path: Path,
+    fps: float,
+) -> None:
+    """Background LHM worker; ordinary SAM import has already completed."""
+    def progress(current: int, total: int, note: str) -> None:
+        pct = max(0, min(99, round(current * 100 / total))) if total else 0
+        _AVATAR_REGISTRY.upsert_motion(motion_id, progress=pct, progressNote=note)
+        _AVATAR_REGISTRY.update_binding(binding_id, progress=pct, progressNote=note)
+        logger.info("[%s] motion %d%% %s", motion_id, pct, note)
+
+    try:
+        started_at = time.time()
+        _AVATAR_REGISTRY.upsert_motion(
+            motion_id, status="running", progress=0, startedAt=started_at, error=None
+        )
+        _AVATAR_REGISTRY.update_binding(
+            binding_id, status="running", progress=0, startedAt=started_at, error=None
+        )
+        metadata = avatar_motion.prepare_motion_asset(
+            source_video,
+            coach_clip,
+            motion_path,
+            fps=fps,
+            progress=progress,
+        )
+        if not motion_path.is_file():
+            raise RuntimeError("motion pack returned without publishing motion.bin")
+        motion_url = _asset_url(motion_path)
+        finished_at = time.time()
+        _AVATAR_REGISTRY.upsert_motion(
+            motion_id,
+            status="ready",
+            progress=100,
+            motionAssetUrl=motion_url,
+            frameCount=metadata.get("frames"),
+            fps=metadata.get("fps"),
+            stageTransform=metadata.get("stageTransform"),
+            error=None,
+            finishedAt=finished_at,
+        )
+        identity = _find_identity(avatar_id)
+        _AVATAR_REGISTRY.update_binding(
+            binding_id,
+            status="ready",
+            progress=100,
+            identityUrl=(identity or {}).get("identityUrl")
+            or (identity or {}).get("avatarBinUrl"),
+            motionAssetUrl=motion_url,
+            error=None,
+            finishedAt=finished_at,
+        )
+        logger.info("[%s] reusable motion ready: %s", motion_id, motion_url)
+    except Exception as exc:  # noqa: BLE001
+        finished_at = time.time()
+        message = str(exc) or repr(exc)
+        _AVATAR_REGISTRY.upsert_motion(
+            motion_id,
+            status="error",
+            error=message,
+            finishedAt=finished_at,
+        )
+        _AVATAR_REGISTRY.update_binding(
+            binding_id,
+            status="error",
+            error=message,
+            finishedAt=finished_at,
+        )
+        logger.exception("[%s] avatar motion preparation failed", motion_id)
+    finally:
+        _remove_private_source(Path(source_video))
+
+
+def _remove_private_source(source_path: Path | None) -> None:
+    if source_path is None:
+        return
+    source_path = Path(source_path)
+    source_path.unlink(missing_ok=True)
+    try:
+        source_path.parent.rmdir()
+    except OSError:
+        pass
+
+
+def _remove_private_job(job_id: str | None, source_path: Path | None) -> None:
+    _remove_private_source(source_path)
+    if not isinstance(job_id, str) or pipeline.safe_name(job_id) != job_id:
+        return
+    job_dir = (config.AVATAR_PRIVATE_JOBS_DIR / job_id).resolve()
+    try:
+        job_dir.relative_to(config.AVATAR_PRIVATE_JOBS_DIR.resolve())
+        job_dir.rmdir()
+    except (OSError, ValueError):
+        pass
+
+
+def _recover_motion_bindings(submit) -> int:
+    """Resume durable queued/running motion jobs after a process restart."""
+    recovered = 0
+    scheduled_motions: set[str] = set()
+    bindings = sorted(
+        _AVATAR_REGISTRY.list_bindings(),
+        key=lambda record: float(record.get("createdAt") or 0),
+    )
+    for binding in bindings:
+        if binding.get("status") not in {"queued", "running"}:
+            continue
+        motion_id = binding.get("motionId")
+        if not isinstance(motion_id, str) or motion_id in scheduled_motions:
+            continue
+        try:
+            motion = _motion_record(motion_id)
+        except (KeyError, ValueError):
+            continue
+        motion_status = motion.get("status")
+        job_id = motion.get("jobId")
+        source_video = (
+            pipeline.find_persisted_source(job_id)
+            if isinstance(job_id, str)
+            else None
+        )
+        if motion_status in {"ready", "error"}:
+            _sync_binding_status(binding)
+            _remove_private_job(job_id, source_video)
+            recovered += 1
+            continue
+        if motion_status not in {"queued", "running"}:
+            continue
+        if source_video is None:
+            message = "private source video missing during startup recovery"
+            _AVATAR_REGISTRY.upsert_motion(
+                motion_id, status="error", error=message, finishedAt=time.time()
+            )
+            _AVATAR_REGISTRY.update_binding(
+                binding["bindingId"], status="error", error=message
+            )
+            continue
+        coach_clip = config.PUBLIC_JOBS_DIR / job_id / "coach.json"
+        motion_path = _AVATAR_REGISTRY.motions_dir / motion_id / "motion.bin"
+        submit(
+            _run_motion_binding_job,
+            binding["avatarId"],
+            motion_id,
+            binding["bindingId"],
+            source_video,
+            coach_clip,
+            motion_path,
+            float(motion.get("fps") or config.DEFAULT_TARGET_FPS),
+        )
+        scheduled_motions.add(motion_id)
+        recovered += 1
+    return recovered
+
+
+def _resolve_identity_source(record: dict) -> Path | None:
+    """Resolve a persisted source photo without allowing escape from its identity."""
+    avatar_id = record.get("avatarId")
+    source_name = record.get("sourcePhoto")
+    if not isinstance(avatar_id, str) or not isinstance(source_name, str) or not source_name:
+        return None
+    try:
+        identity_dir = _AVATAR_REGISTRY._identity_path(avatar_id).parent.resolve()
+        source_path = (identity_dir / source_name).resolve()
+        source_path.relative_to(identity_dir)
+    except (OSError, ValueError):
+        return None
+    return source_path if source_path.is_file() else None
+
+
+def _fail_identity_recovery(avatar_id: str) -> None:
+    _AVATAR_REGISTRY.update_identity_if_active(
+        avatar_id,
+        expected_statuses=_ACTIVE_IDENTITY_STATUSES,
+        status="error",
+        error=_IDENTITY_RECOVERY_ERROR,
+        finishedAt=time.time(),
+    )
+
+
+def _submit_avatar_job(submit, avatar_id: str, photo_path: Path, motion_params: str) -> bool:
+    """Submit at most one in-process future for an identity."""
+    with _SCHEDULED_AVATAR_IDENTITIES_LOCK:
+        if avatar_id in _SCHEDULED_AVATAR_IDENTITIES:
+            return False
+        _SCHEDULED_AVATAR_IDENTITIES.add(avatar_id)
+    try:
+        submit(_run_avatar_job, avatar_id, photo_path, motion_params)
+    except Exception:
+        with _SCHEDULED_AVATAR_IDENTITIES_LOCK:
+            _SCHEDULED_AVATAR_IDENTITIES.discard(avatar_id)
+        raise
+    return True
+
+
+def _recover_avatar_identities(submit) -> int:
+    """Resume durable queued/running identity jobs after a process restart."""
+    recovered = 0
+    identities = sorted(
+        _AVATAR_REGISTRY.list_identities(include_deleted=True),
+        key=lambda record: float(record.get("createdAt") or 0),
+    )
+    for identity in identities:
+        if identity.get("deletedAt") is not None:
+            continue
+        if identity.get("status") not in _ACTIVE_IDENTITY_STATUSES:
+            continue
+        avatar_id = identity.get("avatarId")
+        motion_params = identity.get("motionParams")
+        source_path = _resolve_identity_source(identity)
+        if (
+            not isinstance(avatar_id, str)
+            or not isinstance(motion_params, str)
+            or not motion_params.strip()
+            or source_path is None
+        ):
+            if isinstance(avatar_id, str):
+                _fail_identity_recovery(avatar_id)
+            continue
+        try:
+            avatar.motion_params_dir(motion_params)
+        except (FileNotFoundError, ValueError):
+            _fail_identity_recovery(avatar_id)
+            continue
+        claimed = _AVATAR_REGISTRY.update_identity_if_active(
+            avatar_id,
+            expected_statuses=_ACTIVE_IDENTITY_STATUSES,
+            status="running",
+            startedAt=time.time(),
+            error=None,
+        )
+        if claimed is None:
+            continue
+        try:
+            scheduled = _submit_avatar_job(
+                submit, avatar_id, source_path, motion_params
+            )
+        except Exception:  # noqa: BLE001
+            _fail_identity_recovery(avatar_id)
+            logger.exception("[%s] failed to resubmit avatar identity", avatar_id)
+            continue
+        if not scheduled:
+            continue
+        recovered += 1
+    return recovered
+
+
+def _run_avatar_job(avatar_id: str, photo_path: Path, motion_params: str) -> None:
+    """Worker-thread entry for serialized, identity-only LHM reconstruction."""
     with _AVATAR_EXPORT_LOCK:
-        record["status"] = "running"
-        record["startedAt"] = time.time()
+        record = _AVATAR_REGISTRY.update_identity_if_active(
+            avatar_id,
+            expected_statuses=_ACTIVE_IDENTITY_STATUSES,
+            status="running",
+            startedAt=time.time(),
+        )
+        if record is None:
+            with _SCHEDULED_AVATAR_IDENTITIES_LOCK:
+                _SCHEDULED_AVATAR_IDENTITIES.discard(avatar_id)
+            return
 
         def progress(stage: str, current: int, total: int, note: str) -> None:
             if total > 0:
                 pct = max(0, min(100, round(current * 100 / total)))
                 record["progress"] = max(int(record.get("progress") or 0), pct)
-            logger.info("[%s] %-7s %s%% %s", job_id, stage, record["progress"], note)
+                _AVATAR_REGISTRY.update_identity_if_active(
+                    avatar_id,
+                    expected_statuses=_ACTIVE_IDENTITY_STATUSES,
+                    progress=record["progress"],
+                )
+            logger.info("[%s] %-7s %s%% %s", avatar_id, stage, record["progress"], note)
 
         try:
             result = avatar.run_avatar_pipeline(
                 photo_path,
-                job_id,
+                avatar_id,
                 name=record["name"],
-                seed_id=record["seedId"],
                 motion_params=motion_params,
+                identity_dir=_AVATAR_REGISTRY.identities_dir / avatar_id,
                 progress=progress,
             )
-            record["status"] = "done"
-            record["progress"] = 100
-            record["avatarBinUrl"] = result["avatarBinUrl"]
-            record["alignment"] = result.get("alignment")
-            record["error"] = None
-            logger.info("[%s] avatar done: %s", job_id, result["avatarBinUrl"])
+            published = _AVATAR_REGISTRY.update_identity_if_active(
+                avatar_id,
+                expected_statuses=_ACTIVE_IDENTITY_STATUSES,
+                status="ready",
+                progress=100,
+                identityUrl=result["identityUrl"],
+                previewUrl=result["previewUrl"],
+                alignment=result.get("alignment"),
+                error=None,
+                finishedAt=time.time(),
+            )
+            if published is None:
+                logger.info("[%s] identity deleted before publish; discarding completion", avatar_id)
+                return
+            logger.info("[%s] avatar identity ready: %s", avatar_id, result["identityUrl"])
         except Exception as exc:  # noqa: BLE001
-            record["status"] = "error"
-            record["error"] = str(exc) or repr(exc)
-            logger.exception("[%s] avatar pipeline failed", job_id)
+            _AVATAR_REGISTRY.update_identity_if_active(
+                avatar_id,
+                expected_statuses=_ACTIVE_IDENTITY_STATUSES,
+                status="error",
+                error=str(exc) or repr(exc),
+                finishedAt=time.time(),
+            )
+            logger.exception("[%s] avatar identity pipeline failed", avatar_id)
         finally:
-            record["finishedAt"] = time.time()
-            _persist_avatar_meta(record)
-            shutil.rmtree(workdir, ignore_errors=True)
+            with _SCHEDULED_AVATAR_IDENTITIES_LOCK:
+                _SCHEDULED_AVATAR_IDENTITIES.discard(avatar_id)
 
 
-@app.post("/import/avatar", status_code=202)
-async def import_avatar(
-    photo: UploadFile = File(...),
-    name: Optional[str] = Form(None),
-    seedId: Optional[str] = Form("ugc-squat"),
-    motionParams: Optional[str] = Form("test_video"),
-):
-    """Queue a photo → 3DGS avatar import. Returns the job record immediately;
-    poll GET /import/jobs for status/progress until done|error."""
+async def _queue_avatar_identity(
+    photo: UploadFile,
+    name: str | None,
+    motion_params: str | None,
+) -> JSONResponse:
     content_type = (photo.content_type or "").lower()
     if content_type not in ALLOWED_IMAGE_TYPES:
         raise HTTPException(
@@ -232,44 +608,146 @@ async def import_avatar(
     if not data:
         raise HTTPException(status_code=400, detail={"error": "empty upload", "stage": "input"})
     if len(data) > config.AVATAR_MAX_PHOTO_BYTES:
-        # Drain the rest of the upload first: responding while the client is
-        # still sending the body gets the connection reset and the 400 lost.
         while await photo.read(1 << 20):
             pass
         raise HTTPException(
             status_code=400,
             detail={"error": f"photo exceeds {config.AVATAR_MAX_PHOTO_BYTES // (1024 * 1024)}MB", "stage": "input"},
         )
-    motion_params = motionParams or "test_video"
+
+    resolved_motion_params = motion_params or "test_video"
     try:
-        avatar.motion_params_dir(motion_params)
+        avatar.motion_params_dir(resolved_motion_params)
     except FileNotFoundError as exc:
-        raise HTTPException(status_code=400, detail={"error": str(exc), "stage": "input"}) from exc
+        raise HTTPException(
+            status_code=400, detail={"error": str(exc), "stage": "input"}
+        ) from exc
 
-    job_id = f"avatar-{time.strftime('%Y%m%d-%H%M%S')}-{uuid.uuid4().hex[:6]}"
-    suffix = Path(photo.filename or "photo.png").suffix or ".png"
-    workdir = Path(tempfile.mkdtemp(prefix=f"kinex-avatar-{job_id}-"))
-    photo_path = workdir / f"photo{suffix}"
-    photo_path.write_bytes(data)
+    requested_name = (name or Path(photo.filename or "avatar").stem).strip()
+    if not requested_name:
+        requested_name = "Avatar"
+    source_name = f"source-photo{IMAGE_SUFFIXES[content_type]}"
+    record = _AVATAR_REGISTRY.create_identity(
+        requested_name,
+        identityUrl=None,
+        previewUrl=None,
+        sourcePhoto=source_name,
+        motionParams=resolved_motion_params,
+        error=None,
+    )
+    avatar_id = record["avatarId"]
+    photo_path = _AVATAR_REGISTRY.identities_dir / avatar_id / source_name
+    try:
+        photo_path.write_bytes(data)
+    except OSError as exc:
+        _AVATAR_REGISTRY.update_identity(
+            avatar_id, status="error", error=str(exc), finishedAt=time.time()
+        )
+        raise HTTPException(
+            status_code=500, detail={"error": "failed to store photo", "stage": "input"}
+        ) from exc
 
-    record = {
-        "jobId": job_id,
-        "kind": "avatar",
-        "name": name or Path(photo.filename or "avatar").stem,
-        "seedId": seedId or "ugc-squat",
-        "status": "queued",
-        "progress": 0,
-        "avatarBinUrl": None,
-        "error": None,
-        "createdAt": time.time(),
-    }
-    _AVATAR_JOBS[job_id] = record
-    logger.info("[%s] queued avatar import '%s' (%.1f KB) motionParams=%s stub=%s",
-                job_id, record["name"], len(data) / 1024, motion_params,
-                config.avatar_export_stub())
+    logger.info(
+        "[%s] queued avatar identity '%s' (%.1f KB) motionParams=%s stub=%s",
+        avatar_id,
+        record["name"],
+        len(data) / 1024,
+        resolved_motion_params,
+        config.avatar_export_stub(),
+    )
     loop = asyncio.get_running_loop()
-    loop.run_in_executor(None, _run_avatar_job, job_id, photo_path, workdir, motion_params)
+    _submit_avatar_job(
+        lambda function, *args: loop.run_in_executor(None, function, *args),
+        avatar_id,
+        photo_path,
+        resolved_motion_params,
+    )
     return JSONResponse(record, status_code=202)
+
+
+@app.get("/avatars")
+def list_avatars() -> list[dict]:
+    return _AVATAR_REGISTRY.list_identities()
+
+
+@app.post("/avatars", status_code=202)
+async def create_avatar(
+    photo: UploadFile = File(...),
+    name: Optional[str] = Form(None),
+    motionParams: Optional[str] = Form("test_video"),
+):
+    return await _queue_avatar_identity(photo, name, motionParams)
+
+
+@app.post("/import/avatar", status_code=202)
+async def import_avatar(
+    photo: UploadFile = File(...),
+    name: Optional[str] = Form(None),
+    seedId: Optional[str] = Form("ugc-squat"),
+    motionParams: Optional[str] = Form("test_video"),
+):
+    """Compatibility alias. ``seedId`` is accepted but deliberately ignored."""
+    _ = seedId
+    return await _queue_avatar_identity(photo, name, motionParams)
+
+
+@app.patch("/avatars/{avatar_id}")
+def rename_avatar(avatar_id: str, request: AvatarRenameRequest) -> dict:
+    name = request.name.strip()
+    if not name:
+        raise HTTPException(status_code=400, detail={"error": "name must not be empty"})
+    try:
+        return _AVATAR_REGISTRY.update_identity(avatar_id, name=name)
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail={"error": str(exc)}) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail={"error": str(exc)}) from exc
+
+
+@app.delete("/avatars/{avatar_id}")
+def delete_avatar(avatar_id: str) -> dict:
+    try:
+        record = _AVATAR_REGISTRY.soft_delete_identity(avatar_id)
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail={"error": str(exc)}) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail={"error": str(exc)}) from exc
+
+    source_name = record.get("sourcePhoto")
+    if isinstance(source_name, str) and Path(source_name).name == source_name:
+        (_AVATAR_REGISTRY.identities_dir / avatar_id / source_name).unlink(missing_ok=True)
+    return record
+
+
+@app.get("/avatar-bindings")
+def list_avatar_bindings(
+    avatarId: Optional[str] = None,
+    motionId: Optional[str] = None,
+) -> list[dict]:
+    try:
+        records = _AVATAR_REGISTRY.list_bindings(
+            avatar_id=avatarId, motion_id=motionId
+        )
+        return [_sync_binding_status(record) for record in records]
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail={"error": str(exc)}) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail={"error": str(exc)}) from exc
+
+
+@app.post("/avatar-bindings")
+def create_avatar_binding(request: AvatarBindingRequest) -> dict:
+    _require_active_identity(request.avatarId)
+    try:
+        binding = _AVATAR_REGISTRY.create_binding(
+            request.avatarId, request.motionId
+        )
+        return _sync_binding_status(binding)
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail={"error": str(exc)}) from exc
+    except ValueError as exc:
+        status = 409 if "deleted" in str(exc).lower() else 400
+        raise HTTPException(status_code=status, detail={"error": str(exc)}) from exc
 
 
 @app.post("/import/video")
@@ -280,6 +758,7 @@ async def import_video(
     name: Optional[str] = Form(None),
     startSec: Optional[float] = Form(None),
     endSec: Optional[float] = Form(None),
+    avatarId: Optional[str] = Form(None),
 ):
     if app.state.estimator is None:
         raise HTTPException(status_code=503, detail={"error": "SAM model unavailable", "stage": "startup"})
@@ -289,6 +768,10 @@ async def import_video(
         raise HTTPException(status_code=400, detail={"error": "startSec must be >= 0", "stage": "input"})
     if startSec is not None and endSec is not None and endSec <= startSec:
         raise HTTPException(status_code=400, detail={"error": "endSec must be > startSec", "stage": "input"})
+    selected_identity = None
+    if avatarId and avatarId.strip():
+        avatarId = avatarId.strip()
+        selected_identity = _require_active_identity(avatarId)
 
     job_id = f"{time.strftime('%Y%m%d-%H%M%S')}-{uuid.uuid4().hex[:6]}"
     suffix = Path(file.filename or "upload.mp4").suffix or ".mp4"
@@ -326,6 +809,78 @@ async def import_video(
                     ),
                 ),
             )
+            if selected_identity is not None:
+                motion = _AVATAR_REGISTRY.upsert_motion(
+                    job_id,
+                    status="queued",
+                    progress=0,
+                    jobId=job_id,
+                    name=result.get("name"),
+                    coachClipUrl=result.get("coachClipUrl"),
+                    meshClipMetaUrl=result.get("meshClipMetaUrl"),
+                    motionAssetUrl=None,
+                    error=None,
+                )
+                try:
+                    binding = _AVATAR_REGISTRY.create_binding(
+                        selected_identity["avatarId"], motion["motionId"]
+                    )
+                except ValueError as exc:
+                    if "deleted" not in str(exc).lower():
+                        raise
+                    message = "selected identity became unavailable during import"
+                    _AVATAR_REGISTRY.upsert_motion(
+                        motion["motionId"],
+                        status="cancelled",
+                        error=message,
+                        finishedAt=time.time(),
+                    )
+                    result.update(
+                        {
+                            "motionId": motion["motionId"],
+                            "bindingStatus": "cancelled",
+                            "bindingError": message,
+                        }
+                    )
+                    logger.info("[%s] %s", job_id, message)
+                else:
+                    motion_path = (
+                        _AVATAR_REGISTRY.motions_dir / motion["motionId"] / "motion.bin"
+                    )
+                    coach_path = config.PUBLIC_JOBS_DIR / job_id / "coach.json"
+                    try:
+                        source_video = pipeline.persist_source_video(upload_path, job_id)
+                    except Exception as exc:  # noqa: BLE001
+                        message = str(exc) or repr(exc)
+                        _AVATAR_REGISTRY.upsert_motion(
+                            motion["motionId"],
+                            status="error",
+                            error=message,
+                            finishedAt=time.time(),
+                        )
+                        binding = _AVATAR_REGISTRY.update_binding(
+                            binding["bindingId"], status="error", error=message
+                        )
+                        logger.exception("[%s] failed to persist private avatar source", job_id)
+                    else:
+                        loop.run_in_executor(
+                            None,
+                            _run_motion_binding_job,
+                            selected_identity["avatarId"],
+                            motion["motionId"],
+                            binding["bindingId"],
+                            source_video,
+                            coach_path,
+                            motion_path,
+                            float(result.get("fps") or targetFps or config.DEFAULT_TARGET_FPS),
+                        )
+                    result.update(
+                        {
+                            "motionId": motion["motionId"],
+                            "bindingId": binding["bindingId"],
+                            "bindingStatus": binding["status"],
+                        }
+                    )
         except FileNotFoundError as exc:
             pipeline.cleanup_job(job_id)
             raise HTTPException(status_code=500, detail={"error": str(exc), "stage": "assets"}) from exc

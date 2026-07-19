@@ -9,6 +9,7 @@ import { DnaExport } from "./components/gameui/DnaExport.js";
 import { DnaDrawer } from "./components/gameui/DnaDrawer.js";
 import { CameraSettings } from "./components/gameui/CameraSettings.js";
 import { CreatePage } from "./components/pages/CreatePage.js";
+import { AvatarVaultPage } from "./components/pages/AvatarVaultPage.js";
 import { AiCoachPanel } from "./components/gameui/AiCoachPanel.js";
 import { SessionStartOverlay } from "./components/gameui/SessionStartOverlay.js";
 import { BootSequence } from "./components/gameui/BootSequence.js";
@@ -31,18 +32,31 @@ import { ReportPage } from "./components/pages/ReportPage.js";
 import { UserPoseSource } from "./core/scoring/UserPoseSource.js";
 import { UserProfileStore } from "./core/scoring/UserProfile.js";
 import { WebCamManager } from "./core/WebCamManager.js";
-import { exerciseOrder, exercises as builtinExercises, MOTION_METRIC_TEMPLATES, pipeline } from "./data/exercises.js";
-import { GaussianAvatar } from "./core/avatar/GaussianAvatar.js";
+import {
+  exerciseOrder,
+  exercises as builtinExercises,
+  hasPlayableAvatar,
+  MOTION_METRIC_TEMPLATES,
+  pipeline,
+
+} from "./data/exercises.js";
+import { GaussianAvatar, GaussianMotion } from "./core/avatar/GaussianAvatar.js";
+import { AvatarRegistryClient } from "./core/avatar/AvatarRegistryClient.js";
+import {
+  AvatarBindingController,
+  describeAvatarBinding,
+
+} from "./core/avatar/AvatarBindingController.js";
 import { Router } from "./core/Router.js";
 import { TrainPage } from "./components/pages/TrainPage.js";
 import { LibraryPage } from "./components/pages/LibraryPage.js";
 import { useWebSocket } from "./hooks/useWebSocket.js";
 
-const exercises                                 = { ...builtinExercises };
+const exercises                                       = { ...builtinExercises };
 const exerciseOrderList           = [...exerciseOrder];
 const meshClipBySeed = new Map                  ();
-const avatarBySeed = new Map                                                 ();
-const avatarLoads = new Map                                        ();
+const avatarBySeed = new Map                                                      ();
+const avatarLoads = new Map                                                                       ();
 let defaultMeshClip                  = null;
 const BACKEND_URL = resolveBackendUrl();
 
@@ -74,9 +88,12 @@ import { formatCm } from "./core/coordinates.js";
 import { buildFrameThumbnails, buildFrameThumbnailsFromMeta, getCoachClipManifest, loadCoachClip } from "./core/import/loadCoachClip.js";
 import { renderMeshThumbnails } from "./core/import/renderMeshThumbs.js";
 import { loadMeshClip,               } from "./core/import/MeshClip.js";
-                                                                                                             
+
 
 const dom = collectDomRefs();
+const avatarBindingStatusSurface = createAvatarBindingStatusSurface(
+  dom.stageTitle.parentElement ?? dom.stageBay,
+);
 const bus = new EventBus();
 drawerStack.init(dom.drawerBackdrop);
 const frameBuffer = new MotionFrameBuffer();
@@ -392,16 +409,52 @@ const sessionStartOverlay = new SessionStartOverlay({
   gestureBar: dom.sessionGestureBar,
   isCameraActive: () => webcam.isActive() && webcam.getMode() === "camera",
   isCalibrationReady: () => calibrationReady,
-  isClipReady: () => Boolean(exercises[state.exerciseId].clip),
+  isClipReady: () => Boolean(exercises[state.exerciseId]?.clip),
 });
 void sessionStartOverlay;
+
+const avatarBindingController = new AvatarBindingController({
+  backendUrl: BACKEND_URL,
+  onUpdate: (record) => applyBindingSnapshotToSeed(record),
+  onReady: (record) => {
+    applyBindingSnapshotToSeed(record);
+    if (record.seedId !== state.exerciseId) return;
+    applyAvatarForSeed(record.seedId);
+    syncAvatarModeButton();
+    connection.set("分身动作已就绪 · 可切换分身模式", "ready");
+  },
+  onTerminalError: (record) => {
+    applyBindingSnapshotToSeed(record);
+    if (record.seedId !== state.exerciseId) return;
+    syncAvatarModeButton();
+    connection.set(`分身准备失败 · ${record.error ?? "普通教练仍可使用"}`, "ready");
+  },
+  onNetworkError: (error) => {
+    console.warn("[avatar-binding] status refresh failed; ordinary coach remains available", error);
+  },
+});
 
 const createPage = new CreatePage({
   el: dom.pageCreate,
   backendUrl: BACKEND_URL,
-  onApply: ({ id, name, clip, meshClip, motion, hint }) => {
+  onApply: ({
+    id,
+    name,
+    clip,
+    meshClip,
+    motion,
+    hint,
+    avatarId,
+    motionId,
+    bindingId,
+    bindingStatus,
+    bindingProgress,
+    bindingError,
+    identityUrl,
+    motionAssetUrl,
+  }) => {
     const newId = `imported-${id}`;
-    const config                 = {
+    const config                       = {
       id: newId,
       name,
       discipline: "Imported",
@@ -417,26 +470,35 @@ const createPage = new CreatePage({
       },
       metrics: pickMetricsForMotion(motion),
       clip,
+      avatarId,
+      motionId,
+      bindingId,
+      avatarBindingStatus: bindingStatus,
+      avatarBindingProgress: bindingProgress,
+      avatarBindingError: bindingError,
+      identityUrl,
+      motionAssetUrl,
     };
     exercises[newId] = config;
     seedCarousel.addSeed(newId, config);
     if (meshClip) meshClipBySeed.set(newId, meshClip);
     else meshClipBySeed.delete(newId);
+    if (avatarId && motionId && bindingStatus) {
+      avatarBindingController.track({
+        seedId: newId,
+        bindingId,
+        avatarId,
+        motionId,
+        status: bindingStatus,
+        progress: bindingProgress ?? (bindingStatus === "ready" ? 100 : 0),
+        error: bindingError,
+        identityUrl,
+        motionAssetUrl,
+      });
+    }
     shell.setPlaying(false);
     setExercise(newId, `Imported · ${name}`);
     router.navigate(`#/train/${newId}`);
-  },
-  onAvatarReady: ({ seedId, avatarBinUrl }) => {
-    applyAvatarUrlToSeed(seedId, avatarBinUrl);
-  },
-  onAvatarEnter: ({ seedId, name }) => {
-    router.navigate(`#/train/${seedId}`);
-    // setExercise flashes its own "cache refreshed" line ~420ms after the
-    // seed swap — land the avatar hint after that so it actually sticks.
-    window.setTimeout(
-      () => connection.set(`分身「${name}」已就位 · 点「分身」模式查看`, "ready"),
-      700,
-    );
   },
 });
 dom.importButton.addEventListener("click", () => router.navigate("#/create"));
@@ -630,12 +692,17 @@ const reportPage = new ReportPage({
   exercises,
   getPersona: () => cameraSettings.getPersona(),
 });
+const avatarVaultPage = new AvatarVaultPage({
+  el: dom.pageAvatars,
+  client: new AvatarRegistryClient(BACKEND_URL),
+});
 const router = new Router({
   pages: {
     library: libraryPage,
     train: trainPage,
     report: reportPage,
     create: createPage,
+    avatars: avatarVaultPage,
   },
   onNavigate: (route) => {
     dom.railItems.forEach((item) => item.classList.toggle("is-active", item.dataset.route === route.name));
@@ -649,6 +716,7 @@ dom.railItems.forEach((button) => {
     else if (route === "train") router.navigate(`#/train/${state.exerciseId}`);
     else if (route === "report") router.navigate("#/report");
     else if (route === "create") router.navigate("#/create");
+    else if (route === "avatars") router.navigate("#/avatars");
   });
 });
 
@@ -685,13 +753,15 @@ void (async () => {
   boot.tick("stream", "STANDBY");
   // Fire-and-forget so a slow/unreachable backend (port-forward without :8765)
   // doesn't block stage.start() — imported seeds drop into the carousel later.
-  void hydrateImportedJobs().then(() => {
-    // Honor the original deep link — but only if the user hasn't already
-    // switched to another seed by hand.
-    if (pendingSeed && exercises[pendingSeed] && state.exerciseId === initialSeed) {
-      setExercise(pendingSeed, "Imported seed hydrated");
-    }
-  });
+  void hydrateImportedJobs()
+    .then(() => {
+      // Honor the original deep link — but only if the user hasn't already
+      // switched to another seed by hand.
+      if (pendingSeed && exercises[pendingSeed] && state.exerciseId === initialSeed) {
+        setExercise(pendingSeed, "Imported seed hydrated");
+      }
+    })
+    .finally(() => avatarBindingController.resume());
 })();
 
 async function probeMediapipeRuntime()                   {
@@ -765,6 +835,7 @@ async function hydrateCoachClips()                {
         const thumbs = buildFrameThumbnails(entry);
         if (thumbs.length > 0) clip.thumbnails = thumbs;
         const current = exercises[entry.exercise];
+        if (!current) return;
         exercises[entry.exercise] = {
           ...current,
           clip,
@@ -778,38 +849,22 @@ async function hydrateCoachClips()                {
   );
 }
 
-                        
-                
-                       
-                          
-                    
-                       
-                     
-                          
-                          
-              
-               
-                     
- 
 
-/** Photo-avatar jobs (kind === "avatar") attach a baked KINEXGS1 binary to an
- * existing seed — usually a built-in one like ugc-squat — instead of creating
- * a new seed card. */
-                              
-                
-                 
-                
-                  
-                  
-                    
-                        
-                 
-                     
-                      
- 
+
+
+
+
+
+
+
+
+
+
+
+
 
 async function hydrateImportedJobs()                {
-  let payload                                                    ;
+  let payload                     ;
   try {
     // 4s timeout — if the backend isn't reachable (e.g. port-forward without
     // :8765) we want to drop the work, not block the carousel forever.
@@ -818,41 +873,34 @@ async function hydrateImportedJobs()                {
     const resp = await fetch(`${BACKEND_URL}/import/jobs`, { signal: ctrl.signal });
     window.clearTimeout(timer);
     if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-    payload = (await resp.json())                                                      ;
+    payload = (await resp.json())                       ;
   } catch (err) {
     console.warn("[imported-jobs] skip:", err);
     return;
   }
-  // Avatar jobs attach to existing seeds. Per seed only the NEWEST done job
-  // wins — the jobs list order is backend-defined, so pick by finishedAt.
-  const newestAvatarBySeed = new Map                            ();
-  payload.jobs.forEach((job) => {
-    const avatarJob = job                      ;
-    if (avatarJob.kind !== "avatar" || avatarJob.status !== "done" || !avatarJob.avatarBinUrl || !avatarJob.seedId) {
-      return;
-    }
-    const seedId = avatarJob.seedId;
-    const prev = newestAvatarBySeed.get(seedId);
-    const stamp = avatarJob.finishedAt ?? avatarJob.createdAt ?? 0;
-    const prevStamp = prev ? (prev.finishedAt ?? prev.createdAt ?? 0) : -1;
-    if (!prev || stamp > prevStamp) newestAvatarBySeed.set(seedId, avatarJob);
-  });
-  newestAvatarBySeed.forEach((job) => hydrateAvatarJob(job));
+  const motionJobs = payload.jobs.filter(isPersistedMotionJob);
+  await Promise.all(motionJobs.map((job) => hydrateOneJob(job)));
 
-  await Promise.all(
-    payload.jobs
-      .filter((job) => (job                      ).kind !== "avatar")
-      .map((job) => hydrateOneJob(job                )),
+  // localStorage is only a cache. A fresh browser can rebuild the import's
+  // selected binding by joining the backend's canonical motion id back to the
+  // stable imported seed id. Ordinary coach/mesh hydration above never waits
+  // on this optional avatar request.
+  const seedByMotion = new Map(
+    motionJobs.map((job) => [`motion-${job.jobId}`, `imported-${job.jobId}`]),
   );
+  await avatarBindingController.discover(seedByMotion);
   // LibraryPage renders once on enter() and has no subscriptions; boot starts
   // the router before this hydration finishes, so a direct refresh would
   // never show imported seeds. Re-render if the user is sitting on #/.
   if (router.currentRoute().name === "library") libraryPage.enter();
 }
 
-function hydrateAvatarJob(job                    )       {
-  if (job.status !== "done" || !job.avatarBinUrl || !job.seedId) return;
-  applyAvatarUrlToSeed(job.seedId, job.avatarBinUrl);
+function isPersistedMotionJob(job         )                      {
+  if (!job || typeof job !== "object") return false;
+  const candidate = job                         ;
+  return typeof candidate.jobId === "string"
+    && typeof candidate.coachClipUrl === "string"
+    && typeof candidate.meshClipMetaUrl === "string";
 }
 
 async function hydrateOneJob(job              )                {
@@ -871,7 +919,7 @@ async function hydrateOneJob(job              )                {
       thumbnailCount: job.thumbnailCount,
     });
     const newId = `imported-${job.jobId}`;
-    const config                 = {
+    const config                       = {
       id: newId,
       name: job.name,
       discipline: "Imported",
@@ -888,6 +936,8 @@ async function hydrateOneJob(job              )                {
       metrics: pickMetricsForMotion(job.motion),
       clip,
     };
+    const storedBinding = avatarBindingController.get(newId);
+    if (storedBinding) assignBindingSnapshot(config, storedBinding);
     exercises[newId] = config;
     seedCarousel.addSeed(newId, config);
     if (meshClip) meshClipBySeed.set(newId, meshClip);
@@ -900,13 +950,14 @@ function setMode(nextMode            )       {
   state.mode = nextMode;
   stage.setMode(nextMode);
   seedCarousel.setMode(nextMode);
+  if (nextMode === "avatar") applyAvatarForSeed(state.exerciseId);
   syncStagePrimary();
 }
 
-/** The 分身 mode button only exists when the current seed ships an avatarUrl.
- * If the mode is left dangling on a seed without one, fall back to coach. */
+/** Keep pending/error reusable bindings out of avatar mode while preserving
+ * legacy KINEXGS1 visibility. */
 function syncAvatarModeButton()       {
-  const hasAvatar = Boolean(exercises[state.exerciseId]?.avatarUrl);
+  const hasAvatar = hasPlayableAvatar(exercises[state.exerciseId]);
   dom.modeButtons.forEach((button) => {
     if (button.dataset.mode === "avatar") button.hidden = !hasAvatar;
   });
@@ -921,6 +972,7 @@ function setExercise(nextId        , message        )       {
   const exercise = exercises[nextId];
   if (!exercise) return;
   state.exerciseId = nextId;
+  syncAvatarBindingSurface(exercise);
   applyMeshForSeed(nextId);
   applyAvatarForSeed(nextId);
   connection.set(message, "busy");
@@ -933,53 +985,163 @@ function setExercise(nextId        , message        )       {
 }
 
 function applyAvatarForSeed(seedId        )       {
-  const url = exercises[seedId]?.avatarUrl;
-  if (!url) {
+  const asset = avatarAssetForSeed(seedId);
+  if (!asset) {
     stage.setAvatar(null);
     return;
   }
-  // Cache is validated against the CURRENT url — a hydrated job may have
-  // replaced the seed's avatarUrl since the last load.
   const cached = avatarBySeed.get(seedId);
-  if (cached && cached.url === url) {
+  if (cached && cached.assetKey === asset.key) {
     stage.setAvatar(cached.avatar);
+    if (state.mode === "avatar") dom.loadingOverlay.classList.add("is-hidden");
     return;
   }
   // Skeleton/mesh fallback stays on stage while the avatar streams in.
   stage.setAvatar(null);
+  if (state.mode === "avatar") dom.loadingOverlay.classList.remove("is-hidden");
   let pending = avatarLoads.get(seedId);
-  if (!pending) {
-    pending = GaussianAvatar.load(url)
+  if (!pending || pending.assetKey !== asset.key) {
+    const promise = loadAvatarAsset(asset)
       .then((avatar) => {
-        avatarBySeed.set(seedId, { url, avatar });
+        if (avatarAssetForSeed(seedId)?.key !== asset.key) {
+          avatar.dispose();
+          return null;
+        }
+        avatarBySeed.set(seedId, { assetKey: asset.key, avatar });
         return avatar;
       })
       .catch((err) => {
         console.warn(`[gs-avatar] load failed for ${seedId}:`, err);
+        const exercise = exercises[seedId];
+        if (exercise) exercise.avatarBindingError = err instanceof Error ? err.message : String(err);
+        if (state.exerciseId === seedId) {
+          setLoadingCopy("分身资源载入失败", "教练与骨骼模式仍可正常使用");
+          connection.set("分身资源载入失败 · 普通教练仍可使用", "ready");
+        }
         return null;
       });
+    pending = { assetKey: asset.key, promise };
     avatarLoads.set(seedId, pending);
   }
-  void pending.then((avatar) => {
-    avatarLoads.delete(seedId);
-    // Ignore stale loads after the user switched seeds or the url moved on.
-    if (avatar && state.exerciseId === seedId && exercises[seedId]?.avatarUrl === url) {
+  const pendingLoad = pending;
+  void pending.promise.then((avatar) => {
+    if (avatarLoads.get(seedId) === pendingLoad) avatarLoads.delete(seedId);
+    // Ignore stale loads after the user switched seeds or either reusable URL moved.
+    if (avatar && state.exerciseId === seedId && avatarAssetForSeed(seedId)?.key === asset.key) {
       stage.setAvatar(avatar);
+      if (state.mode === "avatar") dom.loadingOverlay.classList.add("is-hidden");
     }
   });
 }
 
-/** Attach a baked 3DGS avatar binary to a seed at runtime (photo-avatar
- * branch, hydrated avatar jobs). When it's the live seed, swap the stage
- * avatar in and light up the 分身 mode button immediately. */
-function applyAvatarUrlToSeed(seedId        , avatarBinUrl        )       {
+
+
+
+
+function avatarAssetForSeed(seedId        )                     {
   const exercise = exercises[seedId];
-  if (!exercise) return;
-  exercise.avatarUrl = avatarBinUrl;
-  if (seedId === state.exerciseId) {
-    applyAvatarForSeed(seedId);
-    syncAvatarModeButton();
+  if (!exercise) return null;
+  if (
+    exercise.identityUrl &&
+    exercise.motionAssetUrl &&
+    exercise.avatarBindingStatus !== "error" &&
+    exercise.avatarBindingStatus !== "cancelled"
+  ) {
+    return {
+      key: `reusable:${exercise.identityUrl}|${exercise.motionAssetUrl}`,
+      kind: "reusable",
+      identityUrl: exercise.identityUrl,
+      motionAssetUrl: exercise.motionAssetUrl,
+    };
   }
+  return exercise.avatarUrl
+    ? { key: `legacy:${exercise.avatarUrl}`, kind: "legacy", url: exercise.avatarUrl }
+    : null;
+}
+
+async function loadAvatarAsset(asset             )                          {
+  if (asset.kind === "legacy") return GaussianAvatar.load(asset.url);
+  const avatar = await GaussianAvatar.loadIdentity(asset.identityUrl);
+  try {
+    const motion = await GaussianMotion.load(asset.motionAssetUrl);
+    avatar.setMotion(motion);
+    return avatar;
+  } catch (error) {
+    avatar.dispose();
+    throw error;
+  }
+}
+
+function applyBindingSnapshotToSeed(record                       )       {
+  const exercise = exercises[record.seedId];
+  if (!exercise) return;
+  if (exercise.bindingId && record.bindingId && exercise.bindingId !== record.bindingId) return;
+  assignBindingSnapshot(exercise, record);
+  if (record.seedId !== state.exerciseId) return;
+  syncAvatarBindingSurface(exercise);
+  syncAvatarModeButton();
+}
+
+function assignBindingSnapshot(
+  exercise                      ,
+  record                       ,
+)       {
+  exercise.avatarId = record.avatarId;
+  exercise.motionId = record.motionId;
+  exercise.bindingId = record.bindingId;
+  exercise.avatarBindingStatus = record.status;
+  exercise.avatarBindingProgress = record.progress;
+  exercise.avatarBindingError = record.error;
+  exercise.identityUrl = record.identityUrl;
+  exercise.motionAssetUrl = record.motionAssetUrl;
+}
+
+function syncAvatarBindingSurface(exercise                      )       {
+  const status = exercise.avatarBindingStatus;
+  const presentation = describeAvatarBinding(exercise);
+  avatarBindingStatusSurface.root.hidden = !presentation.visible;
+  avatarBindingStatusSurface.root.dataset.tone = presentation.tone;
+  avatarBindingStatusSurface.title.textContent = presentation.title;
+  avatarBindingStatusSurface.detail.textContent = presentation.detail;
+  dom.loadingOverlay.dataset.avatarBindingStatus = status ?? "none";
+  if (presentation.visible) {
+    setLoadingCopy(presentation.title, presentation.detail);
+    return;
+  }
+  setLoadingCopy("初始化全息舱…", "预加载 SMPL-Lite 骨骼 / 校准动作 DNA");
+}
+
+
+
+
+
+
+
+function createAvatarBindingStatusSurface(parent             )                             {
+  const root = document.createElement("div");
+  root.className = "avatar-binding-status";
+  root.hidden = true;
+  root.setAttribute("role", "status");
+  root.setAttribute("aria-live", "polite");
+  root.setAttribute("aria-atomic", "true");
+
+  const marker = document.createElement("i");
+  marker.setAttribute("aria-hidden", "true");
+  const copy = document.createElement("span");
+  const title = document.createElement("strong");
+  const detail = document.createElement("small");
+  copy.append(title, detail);
+  root.append(marker, copy);
+  parent.appendChild(root);
+  return { root, title, detail };
+}
+
+function setLoadingCopy(title        , detail        )       {
+  const strong = document.createElement("strong");
+  strong.textContent = title;
+  const span = document.createElement("span");
+  span.textContent = detail;
+  dom.loadingOverlay.replaceChildren(strong, span);
 }
 
 function applyMeshForSeed(seedId        )       {
@@ -1001,5 +1163,5 @@ function pickMetricsForMotion(motion            )                    {
 }
 
 function currentBpm()         {
-  return beatsPerMinute(exercises[state.exerciseId].motion, state.speed);
+  return beatsPerMinute(exercises[state.exerciseId]?.motion ?? "squat", state.speed);
 }

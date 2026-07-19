@@ -33,7 +33,7 @@ import {
   Vector3 as ThreeVector3,
   WebGLRenderer as ThreeWebGLRenderer,
 } from "three";
-                                                          
+
 
 export const THREE = {
   AmbientLight: ThreeAmbientLight,
@@ -71,9 +71,9 @@ export const THREE = {
   WebGLRenderer: ThreeWebGLRenderer,
 };
 
-                                         
-                                                                     
-                                                               
+
+
+
 
 export function quaternionFromTuple(tuple                 , target = new THREE.Quaternion())                   {
   return target.set(tuple[0], tuple[1], tuple[2], tuple[3]).normalize();

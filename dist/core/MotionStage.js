@@ -1,7 +1,7 @@
 import { WORLD_SPACE } from "./coordinates.js";
-                                                        
-                                              
-                                                          
+
+
+
 import { ThreeResourceTracker } from "./ThreeResourceTracker.js";
 import { THREE,                                           } from "./three-compat.js";
 import { bones } from "./motion/skeleton.js";
@@ -10,22 +10,22 @@ import {
   buildMeshPrimitive,
   copyFrameVerticesInto,
   sampleFrameIndex,
-                
-} from "./import/MeshClip.js";
-                                                                 
-                                                                                          
 
-                        
-                            
-                              
-                                 
-                
-                   
-                   
-                  
-                                      
-                                
- 
+} from "./import/MeshClip.js";
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 void WORLD_SPACE;
 
@@ -57,28 +57,28 @@ const STRESS_JOINTS_BY_METRIC                              = {
 };
 const STRESS_COLOR = 0xff5500;
 
-                    
-                                        
-                                                            
-                               
-                             
- 
 
-                     
-                                        
-                                                            
- 
 
-                           
-                 
-                                        
-                                            
-                                                             
-                                                      
-                                                            
-                          
-                         
- 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 export class MotionStage {
           canvas                   ;

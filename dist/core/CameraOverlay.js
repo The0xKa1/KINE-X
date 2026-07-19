@@ -1,7 +1,7 @@
-                                                       
-                                                                                   
-                                                                  
-                                                                  
+
+
+
+
 
 const LANDMARK_BONES                          = [
   [11, 12],
@@ -56,14 +56,14 @@ const FACE_OVAL           = [
 // Key facial feature points: eye corners, nose tip, mouth corners.
 const FACE_FEATURE_POINTS           = [1, 33, 263, 61, 291, 199, 159, 386];
 
-                                
-                            
-                           
-                                              
-                            
-                                                     
-                                                                   
- 
+
+
+
+
+
+
+
+
 
 export class CameraOverlay {
           canvas                   ;

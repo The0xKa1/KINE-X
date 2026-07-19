@@ -1,5 +1,5 @@
 import { THREE, quaternionFromTuple } from "./three-compat.js";
-                                                                                                  
+
 
 const orderedJoints              = [
   "pelvis",

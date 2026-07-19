@@ -1,6 +1,6 @@
 import { OneEuroFilter, DEFAULT_ONE_EURO_PARAMS } from "../scoring/OneEuroFilter.js";
 import { JOINT_NAMES } from "./CoachClip.js";
-                                                                                 
+
 
 const TARGET_HEIGHT_METERS = 1.0;
 

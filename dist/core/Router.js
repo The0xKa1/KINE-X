@@ -1,20 +1,20 @@
-                                                                 
 
-                        
-                 
-                                 
- 
 
-                       
-                  
-                                               
-                 
- 
 
-                         
-                                
-                                  
- 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 /**
  * Minimal hash router. Pages live in the same DOM and are shown/hidden — no
@@ -74,6 +74,7 @@ export class Router {
     if (parts[0] === "train") return { name: "train", params: { seedId: parts[1] ?? "" } };
     if (parts[0] === "report") return { name: "report", params: { sessionId: parts[1] ?? "" } };
     if (parts[0] === "create") return { name: "create", params: {} };
+    if (parts[0] === "avatars") return { name: "avatars", params: {} };
     return { name: "library", params: {} };
   }
 }

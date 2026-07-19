@@ -1,16 +1,16 @@
 import { clamp, lerp, meters } from "../core/coordinates.js";
 import { quaternionFromAxisAmount } from "../core/three-compat.js";
-             
-                 
-                    
-              
-            
-             
-              
-             
-                  
-               
-                            
+
+
+
+
+
+
+
+
+
+
+
 
 const identityQuat                  = [0, 0, 0, 1];
 const jointOrder              = [
@@ -33,14 +33,14 @@ const jointOrder              = [
   "rAnkle",
 ];
 
-                                   
-                           
-                   
-                   
-                
-                      
-                           
- 
+
+
+
+
+
+
+
+
 
 function metricRisk(score        )             {
   if (score < 68) return "risk";

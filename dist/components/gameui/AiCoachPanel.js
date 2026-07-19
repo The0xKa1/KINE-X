@@ -1,16 +1,16 @@
-                               
-                    
-                      
-                        
-                              
- 
+
+
+
+
+
+
 
 import { renderMarkdown } from "../../core/llm/renderMarkdown.js";
 
-                     
-                                   
-                      
-                     
+
+
+
+
 
 export class AiCoachPanel {
           options                     ;

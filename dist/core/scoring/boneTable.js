@@ -1,14 +1,14 @@
-                                                       
 
-                                                           
 
-                              
-                  
-                
-                   
-                 
-                      
- 
+
+
+
+
+
+
+
+
+
 
 export const SCORING_BONES                = [
   { from: "lHip", to: "lKnee", mpFrom: 23, mpTo: 25, metricIds: ["knee", "hip"] },

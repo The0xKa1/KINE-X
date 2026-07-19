@@ -1,41 +1,51 @@
 import type { Page } from "../../core/Router.js";
 import { ImportFlow, type ImportApplyPayload, type ImportFlowState } from "../../core/import/ImportFlow.js";
-import { AvatarImportFlow, type AvatarApplyPayload } from "../../core/import/AvatarImportFlow.js";
+import {
+  buildAvatarPickerChoices,
+  type AvatarPickerChoice,
+} from "../../core/avatar/AvatarBindingController.js";
+import { AvatarRegistryClient } from "../../core/avatar/AvatarRegistryClient.js";
 import { $ } from "../../bootstrap/dom.js";
 
 interface CreatePageOptions {
   el: HTMLElement;
   backendUrl: string;
   onApply(payload: ImportApplyPayload): void;
-  onAvatarReady(payload: AvatarApplyPayload): void;
-  onAvatarEnter(payload: AvatarApplyPayload): void;
 }
 
-type CreateTab = "video" | "avatar";
-
 /**
- * Creation studio wizard, two branches:
- *  - 视频教练: upload → optional MLLM segmentation → backend parse → library.
- *  - 照片分身: single photo → LHM 3DGS avatar → attaches to the UGC Squat seed.
- * The heavy lifting lives in ImportFlow / AvatarImportFlow; this page renders
- * the step rail, the tab switch and wires the DOM.
+ * Creation studio for video coaches: upload → optional MLLM segmentation →
+ * backend parse → library. Reusable photo identities live in the dedicated
+ * Avatar Vault; this page only offers an optional existing-identity picker.
  */
 export class CreatePage implements Page {
   el: HTMLElement;
   private options: CreatePageOptions;
   private initialized = false;
-  private tab: CreateTab = "video";
+  private readonly avatarClient: AvatarRegistryClient;
+  private selectedAvatarId: string | null = null;
+  private pickerGeneration = 0;
+  private active = false;
 
   constructor(options: CreatePageOptions) {
     this.options = options;
     this.el = options.el;
+    this.avatarClient = new AvatarRegistryClient(options.backendUrl);
   }
 
   enter(): void {
-    if (this.initialized) return;
-    this.initialized = true;
-    this.render();
-    this.initFlow();
+    this.active = true;
+    if (!this.initialized) {
+      this.initialized = true;
+      this.render();
+      this.initFlow();
+    }
+    void this.refreshAvatarPicker();
+  }
+
+  leave(): void {
+    this.active = false;
+    this.pickerGeneration += 1;
   }
 
   private render(): void {
@@ -47,14 +57,11 @@ export class CreatePage implements Page {
             <h2 id="createTitle">视频 → 虚拟教练</h2>
           </div>
           <div class="create-head-side">
-            <div class="create-tabs" role="tablist" aria-label="创作类型">
-              <button type="button" class="is-active" data-create-tab="video" role="tab" aria-selected="true">
-                视频教练<span>VIDEO → COACH</span>
-              </button>
-              <button type="button" data-create-tab="avatar" role="tab" aria-selected="false">
-                照片分身<span>PHOTO → AVATAR</span>
-              </button>
-            </div>
+            <a class="create-vault-cta" href="#/avatars">
+              <span>PHOTO → AVATAR</span>
+              <strong>前往分身身份库 →</strong>
+              <small>上传与管理分身，不中断当前视频导入</small>
+            </a>
             <ol class="create-steps" id="createSteps">
               <li data-step="file"><b>01</b>上传</li>
               <li data-step="segment"><b>02</b>分片</li>
@@ -64,7 +71,7 @@ export class CreatePage implements Page {
           </div>
         </header>
 
-        <div class="create-grid" id="createVideoGrid">
+        <div class="create-grid">
           <section class="create-block">
             <div class="create-block-head"><h3>01 · SOURCE</h3><span>standard motion clip</span></div>
             <label id="createDrop" class="import-drop" for="createFile">
@@ -83,6 +90,18 @@ export class CreatePage implements Page {
                 <option value="throw">Throw · 投掷</option>
               </select>
             </label>
+            <fieldset class="create-avatar-picker" aria-describedby="createAvatarPickerStatus">
+              <legend>可选分身</legend>
+              <div class="create-avatar-picker-head">
+                <span>选择一个已有身份，动作导入不会等待分身准备</span>
+                <a href="#/avatars">管理身份库</a>
+              </div>
+              <div id="createAvatarPicker" class="create-avatar-picker-list"></div>
+              <div class="create-avatar-picker-foot">
+                <p id="createAvatarPickerStatus" class="settings-hint">正在读取身份库…</p>
+                <button id="createAvatarPickerRetry" class="text-button" type="button" hidden>重试</button>
+              </div>
+            </fieldset>
           </section>
 
           <section class="create-block">
@@ -108,59 +127,14 @@ export class CreatePage implements Page {
           </section>
         </div>
 
-        <div class="create-grid" id="createAvatarGrid" hidden>
-          <section class="create-block">
-            <div class="create-block-head"><h3>01 · PHOTO</h3><span>single full-body photo</span></div>
-            <label id="avatarDrop" class="import-drop" for="avatarFile">
-              <strong>选择照片或拖拽到这里</strong>
-              <span>单人正面全身照，光线均匀、无遮挡，jpg / png</span>
-              <input id="avatarFile" type="file" accept="image/*" hidden />
-            </label>
-            <img id="avatarPreview" class="import-preview avatar-preview" alt="分身照片预览" hidden />
-          </section>
-
-          <section class="create-block">
-            <div class="create-block-head"><h3>02 · IDENTITY</h3><span>name your twin</span></div>
-            <label class="settings-field">
-              <span>分身名</span>
-              <input id="avatarName" type="text" maxlength="24" placeholder="例如：阿凯的分身" />
-            </label>
-            <label class="settings-field">
-              <span>目标种子（v1 固定）</span>
-              <input type="text" value="UGC Squat Import" disabled />
-            </label>
-            <p class="settings-hint">分身将学会 UGC Squat 的动作，生成后挂载到该种子；训练舱内切「分身」模式即可见到它。</p>
-          </section>
-
-          <section class="create-block">
-            <div class="create-block-head"><h3>03 · SUMMON</h3><span id="avatarStatus">等待选择照片</span></div>
-            <div class="import-progress"><i id="avatarProgress"></i></div>
-            <div class="import-progress-label" id="avatarProgressLabel">—</div>
-            <button id="avatarSubmit" class="secondary-button" type="button">生成 3D 分身</button>
-            <button id="avatarEnter" class="primary-button" type="button" hidden>进入训练舱 · 切「分身」模式 →</button>
-            <p class="settings-hint">照片上传到 LHM 重建后端，GPU 上重建可动高斯分身，约 1-2 分钟。</p>
-          </section>
-        </div>
       </div>
     `;
 
-    this.el.querySelectorAll<HTMLButtonElement>("[data-create-tab]").forEach((button) => {
-      button.addEventListener("click", () => this.setTab(button.dataset.createTab as CreateTab));
-    });
-  }
-
-  private setTab(next: CreateTab): void {
-    if (this.tab === next) return;
-    this.tab = next;
-    this.el.querySelectorAll<HTMLButtonElement>("[data-create-tab]").forEach((button) => {
-      const active = button.dataset.createTab === next;
-      button.classList.toggle("is-active", active);
-      button.setAttribute("aria-selected", String(active));
-    });
-    ($("#createVideoGrid") as HTMLElement).hidden = next !== "video";
-    ($("#createAvatarGrid") as HTMLElement).hidden = next !== "avatar";
-    ($("#createSteps") as HTMLElement).hidden = next !== "video";
-    ($("#createTitle") as HTMLElement).textContent = next === "video" ? "视频 → 虚拟教练" : "照片 → 数字分身";
+    this.renderAvatarPicker(buildAvatarPickerChoices([]));
+    ($("#createAvatarPickerRetry") as HTMLButtonElement).addEventListener(
+      "click",
+      () => void this.refreshAvatarPicker(),
+    );
   }
 
   private initFlow(): void {
@@ -178,24 +152,68 @@ export class CreatePage implements Page {
       statusLabel: $("#createStatus"),
       preview: $("#createPreview") as HTMLVideoElement,
       backendUrl: this.options.backendUrl,
+      getSelectedAvatarId: () => this.selectedAvatarId,
       onApply: (payload) => this.options.onApply(payload),
       onStateChange: (state) => this.syncSteps(state),
     });
+  }
 
-    new AvatarImportFlow({
-      fileInput: $("#avatarFile") as HTMLInputElement,
-      dropZone: $("#avatarDrop"),
-      preview: $("#avatarPreview") as HTMLImageElement,
-      nameInput: $("#avatarName") as HTMLInputElement,
-      submitButton: $("#avatarSubmit") as HTMLButtonElement,
-      enterButton: $("#avatarEnter") as HTMLButtonElement,
-      progressBar: $("#avatarProgress"),
-      progressLabel: $("#avatarProgressLabel"),
-      statusLabel: $("#avatarStatus"),
-      backendUrl: this.options.backendUrl,
-      seedId: "ugc-squat",
-      onReady: (payload) => this.options.onAvatarReady(payload),
-      onEnter: (payload) => this.options.onAvatarEnter(payload),
+  private async refreshAvatarPicker(): Promise<void> {
+    const generation = ++this.pickerGeneration;
+    const status = $("#createAvatarPickerStatus");
+    const retry = $("#createAvatarPickerRetry") as HTMLButtonElement;
+    status.textContent = "正在读取身份库…";
+    retry.hidden = true;
+    try {
+      const records = await this.avatarClient.list();
+      if (!this.active || generation !== this.pickerGeneration) return;
+      const choices = buildAvatarPickerChoices(records);
+      const selected = choices.find(
+        (choice) => choice.avatarId === this.selectedAvatarId && !choice.disabled,
+      );
+      if (!selected) this.selectedAvatarId = null;
+      this.renderAvatarPicker(choices);
+      const readyCount = choices.filter((choice) => choice.avatarId && !choice.disabled).length;
+      status.textContent = readyCount > 0
+        ? `${readyCount} 个身份可用；不选择时只生成普通教练。`
+        : "暂无可用身份；仍可正常生成普通教练。";
+    } catch (error) {
+      if (!this.active || generation !== this.pickerGeneration) return;
+      this.selectedAvatarId = null;
+      this.renderAvatarPicker(buildAvatarPickerChoices([]));
+      status.textContent = error instanceof Error
+        ? `${error.message}；动作仍可正常解析。`
+        : "分身服务暂不可用；动作仍可正常解析。";
+      retry.hidden = false;
+    }
+  }
+
+  private renderAvatarPicker(choices: AvatarPickerChoice[]): void {
+    const host = $("#createAvatarPicker");
+    host.textContent = "";
+    choices.forEach((choice) => {
+      const label = document.createElement("label");
+      label.className = "create-avatar-choice";
+      label.classList.toggle("is-disabled", choice.disabled);
+
+      const input = document.createElement("input");
+      input.type = "radio";
+      input.name = "createAvatarIdentity";
+      input.value = choice.avatarId ?? "";
+      input.disabled = choice.disabled;
+      input.checked = choice.avatarId === this.selectedAvatarId;
+      input.addEventListener("change", () => {
+        if (input.checked) this.selectedAvatarId = choice.avatarId;
+      });
+
+      const copy = document.createElement("span");
+      const name = document.createElement("strong");
+      name.textContent = choice.label;
+      const detail = document.createElement("small");
+      detail.textContent = pickerDetail(choice);
+      copy.append(name, detail);
+      label.append(input, copy);
+      host.appendChild(label);
     });
   }
 
@@ -218,4 +236,13 @@ export class CreatePage implements Page {
       li.classList.toggle("is-active", stepNo === active);
     });
   }
+}
+
+function pickerDetail(choice: AvatarPickerChoice): string {
+  if (choice.status === "none") return "只导入 CoachClip 与 SMPL-X 网格";
+  if (choice.status === "ready") return "身份已就绪，可在动作导入后后台绑定";
+  if (choice.status === "queued") return "身份等待生成";
+  if (choice.status === "running") return `身份生成中 · ${Math.round(choice.progress)}%`;
+  if (choice.status === "cancelled") return "身份已取消";
+  return "身份生成失败";
 }

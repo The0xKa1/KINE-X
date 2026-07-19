@@ -1,11 +1,11 @@
 import { prefersReducedMotion } from "../../core/motionPrefs.js";
 
-                                                                    
 
-                               
-                    
-                      
- 
+
+
+
+
+
 
 const ALL_CHECKS                 = ["clip", "mesh", "mediapipe", "stream"];
 const ALL_CLEAR_DELAY_MS = 640;

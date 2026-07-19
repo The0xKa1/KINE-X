@@ -1,4 +1,24 @@
 import type { ExerciseConfig, ExerciseId, JointMetricSeed, PipelineStep, SeedMotion } from "../types/motion.js";
+import { hasPlayableAvatarAsset } from "../core/avatar/AvatarBindingController.js";
+
+export type AvatarBindingStatus = "queued" | "running" | "ready" | "error" | "cancelled";
+
+export interface AvatarExerciseConfig extends ExerciseConfig {
+  avatarId?: string | undefined;
+  motionId?: string | undefined;
+  bindingId?: string | undefined;
+  avatarBindingStatus?: AvatarBindingStatus | undefined;
+  avatarBindingProgress?: number | undefined;
+  avatarBindingError?: string | undefined;
+  identityUrl?: string | undefined;
+  motionAssetUrl?: string | undefined;
+}
+
+export function hasPlayableAvatar(
+  exercise: Partial<AvatarExerciseConfig> | null | undefined,
+): boolean {
+  return hasPlayableAvatarAsset(exercise);
+}
 
 // Metric weight templates per motion category, used both by the built-in seed
 // and to score imported clips. Retired built-in seeds live on here as
@@ -39,7 +59,7 @@ export const MOTION_METRIC_TEMPLATES: Record<SeedMotion, JointMetricSeed[]> = {
 
 export const exerciseOrder: ExerciseId[] = ["squat", "ugc-squat"];
 
-export const exercises: Record<ExerciseId, ExerciseConfig> = {
+export const exercises: Record<ExerciseId, AvatarExerciseConfig> = {
   squat: {
     id: "squat",
     name: "Deep Squat Tutor",

@@ -1,6 +1,6 @@
-                                                         
 
-                                                   
+
+
 
 export class ConnectionIndicator {
           text             ;

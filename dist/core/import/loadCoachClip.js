@@ -1,20 +1,20 @@
-                                                                                                        
 
-                                         
-                   
-              
-                     
-                      
-                        
-                          
- 
 
-                                     
-                    
-                       
-                     
-                                      
- 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 const COACH_CLIP_MANIFEST                           = [
   {
@@ -35,21 +35,21 @@ const COACH_CLIP_MANIFEST                           = [
   },
 ];
 
-                    
-                                     
-                                             
- 
 
-                   
-             
-               
-              
-                          
-                                          
-                     
-                     
-                       
- 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 const JOINT_NAMES              = [
   "pelvis",

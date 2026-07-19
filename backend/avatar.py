@@ -17,7 +17,10 @@ import time
 from pathlib import Path
 from typing import Callable
 
+import numpy as np
+
 from . import config
+from .avatar_assets import split_legacy_asset
 from .pipeline import safe_name
 
 # The exporter prints "== stage N: ... ==" markers on stdout; map them to the
@@ -26,6 +29,12 @@ STAGE_PROGRESS = {1: 20, 2: 45, 3: 60, 4: 80, 5: 82, 6: 85, 7: 87, 8: 88}
 STAGE_RE = re.compile(r"== stage (\d+)")
 ALIGN_PROGRESS = 90
 ERROR_TAIL_CHARS = 500
+SMPLX_55_PARENTS = (
+    -1, 0, 0, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 9, 9, 12, 13, 14,
+    16, 17, 18, 19, 15, 15, 15, 20, 25, 26, 20, 28, 29, 20, 31, 32,
+    20, 34, 35, 20, 37, 38, 21, 40, 41, 21, 43, 44, 21, 46, 47, 21,
+    49, 50, 21, 52, 53,
+)
 
 ProgressCb = Callable[[str, int, int, str], None]
 
@@ -140,31 +149,34 @@ def _run_alignment(debug_npz: Path, raw_bin: Path, final_bin: Path, report_path:
 
 def run_avatar_pipeline(
     photo_path: Path,
-    job_id: str,
+    avatar_id: str,
     *,
     name: str,
-    seed_id: str,
     motion_params: str,
+    identity_dir: Path | None = None,
     progress: ProgressCb | None = None,
 ) -> dict:
-    """Blocking pipeline. Returns the public result fields for the job record."""
+    """Build and publish one reusable identity without attaching a motion seed."""
     photo_path = Path(photo_path).resolve()
     if not photo_path.exists():
         raise FileNotFoundError(photo_path)
     motion_dir = motion_params_dir(motion_params)
+    identity_dir = Path(identity_dir or (config.AVATAR_IDENTITIES_DIR / avatar_id))
 
     def emit(stage: str, current: int, total: int, note: str = "") -> None:
         if progress:
             progress(stage, current, total, note)
 
-    config.AVATAR_JOBS_DIR.mkdir(parents=True, exist_ok=True)
-    final_bin = config.AVATAR_JOBS_DIR / f"{job_id}.bin"
-    workdir = Path(tempfile.mkdtemp(prefix=f"kinex-avatar-{job_id}-"))
+    identity_dir.mkdir(parents=True, exist_ok=True)
+    workdir = Path(tempfile.mkdtemp(prefix=f"kinex-avatar-{avatar_id}-"))
     try:
         raw_bin = workdir / "avatar_raw.bin"
         debug_npz = workdir / "avatar_debug.npz"
         viz_path = workdir / "avatar_viz.png"
         report_path = workdir / "alignment_report.json"
+        aligned_bin = workdir / "avatar_aligned.bin"
+        discarded_motion = workdir / "motion.bin"
+        identity_path = identity_dir / "identity.bin"
 
         if config.avatar_export_stub():
             emit("export", 20, 100, "stub: reusing baked bin+npz")
@@ -175,15 +187,36 @@ def run_avatar_pipeline(
             _run_export(photo_path, motion_dir, raw_bin, debug_npz, viz_path, emit)
 
         emit("align", ALIGN_PROGRESS, 100, "solve_alignment")
-        alignment = _run_alignment(debug_npz, raw_bin, final_bin, report_path)
-        emit("done", 100, 100, final_bin.name)
+        alignment = _run_alignment(debug_npz, raw_bin, aligned_bin, report_path)
+        try:
+            with np.load(debug_npz, allow_pickle=False) as exporter_meta:
+                joint_null = np.asarray(exporter_meta["joint_null"], dtype=np.float32)
+        except KeyError as exc:
+            raise ValueError("LHM exporter metadata is missing joint_null") from exc
+        split_legacy_asset(
+            aligned_bin,
+            identity_path,
+            discarded_motion,
+            joint_null,
+            SMPLX_55_PARENTS,
+            stage_transform_baked=True,
+        )
+
+        preview_source = viz_path if viz_path.is_file() else photo_path
+        preview_suffix = preview_source.suffix.lower()
+        if preview_suffix not in {".jpg", ".jpeg", ".png", ".webp"}:
+            preview_suffix = ".jpg"
+        if preview_suffix == ".jpeg":
+            preview_suffix = ".jpg"
+        preview_path = identity_dir / f"preview{preview_suffix}"
+        shutil.copyfile(preview_source, preview_path)
+        emit("done", 100, 100, identity_path.name)
 
         return {
-            "jobId": job_id,
-            "kind": "avatar",
+            "avatarId": avatar_id,
             "name": name,
-            "seedId": seed_id,
-            "avatarBinUrl": config.relative_to_repo(final_bin),
+            "identityUrl": config.relative_to_repo(identity_path),
+            "previewUrl": config.relative_to_repo(preview_path),
             "alignment": alignment,
         }
     finally:

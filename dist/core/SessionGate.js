@@ -1,9 +1,9 @@
-                                                                                          
 
-                              
-                
-                            
- 
+
+
+
+
+
 
 const DEFAULT_COUNTDOWN_SECONDS = 3;
 

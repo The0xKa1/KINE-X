@@ -39,6 +39,29 @@ with `torch + sam_3d_body` already installed. The dev host has these wired up:
 
 Override any of them with same-named env vars.
 
+Avatar Vault adds the following path and timeout settings. The defaults match
+the AutoDL development host; override them when the LHM checkout or persistent
+asset root lives elsewhere.
+
+| Variable | Default / purpose |
+|---|---|
+| `LHM_PYTHON` | `/root/autodl-tmp/envs/lhm/bin/python` |
+| `LHM_EXPORT_SCRIPT` | LHM photo-to-3DGS exporter |
+| `LHM_MOTION_SCRIPT` | LHM `video2motion.py` entrypoint |
+| `LHM_MOTION_MODEL_PATH` | LHM human-model assets |
+| `LHM_WORKDIR` | `/root/autodl-tmp/LHM` |
+| `AVATAR_REGISTRY_ROOT` | `<repo>/public/coach_clips` |
+| `AVATAR_IDENTITIES_DIR` | `<registry>/avatar-identities` |
+| `AVATAR_MOTIONS_DIR` | `<registry>/motions` |
+| `AVATAR_BINDINGS_DIR` | `<registry>/avatar-bindings` |
+| `AVATAR_PRIVATE_JOBS_DIR` | `~/.local/share/kinex/avatar-jobs`; uploaded source videos stay outside the static web root |
+| `AVATAR_MAX_PHOTO_BYTES` | `10485760` |
+| `AVATAR_EXPORT_TIMEOUT_SEC` | `1200` |
+| `AVATAR_ALIGN_TIMEOUT_SEC` | `180` |
+| `LHM_MOTION_TIMEOUT_SEC` | `1800` |
+| `AVATAR_EXPORT_STUB` | set to `1` only for explicit smoke tests |
+| `AVATAR_STUB_BIN` / `AVATAR_STUB_NPZ` | baked legacy bin and rig-debug pair used in stub mode |
+
 Install the Python deps **once** inside the conda env that already has
 `torch + cv2 + sam_3d_body`. On the dev host this is the `HabitatGs` env:
 
@@ -103,6 +126,8 @@ Multipart form:
 | `motion`    | no       | One of `squat / hinge / flow / bounce / throw` (default `squat`)        |
 | `targetFps` | no       | Override the ffmpeg extraction fps (default 15)                         |
 | `name`      | no       | Display name for the seed; defaults to the upload filename stem        |
+| `startSec` / `endSec` | no | Optional source-video slice in seconds                              |
+| `avatarId`  | no       | Ready reusable identity; schedules a background identity×motion binding |
 
 Synchronous response (200):
 
@@ -125,45 +150,92 @@ Synchronous response (200):
 
 Errors: `{"detail": {"error": "...", "stage": "extract|infer|pack|bake|coach"}}` with 4xx/5xx.
 
-### `POST /import/avatar`
+### Avatar Vault
 
-Photo → 3DGS digital double (KINEXGS1 bin), via the LHM exporter subprocess
-(`lhm` conda env) + a stage-space alignment bake (`backend/alignment.py`,
-base env, numpy only). Unlike `/import/video` this is **async**: the POST
-returns immediately and the client polls `GET /import/jobs`.
-
-Multipart form:
-
-| Field          | Required | Notes                                                                    |
-|----------------|----------|--------------------------------------------------------------------------|
-| `photo`        | yes      | jpeg/png/webp, ≤ 10 MB                                                    |
-| `name`         | no       | Display name; defaults to the photo filename stem                        |
-| `seedId`       | no       | Seed the avatar attaches to (default `ugc-squat`)                        |
-| `motionParams` | no       | Motion pack under `AVATAR_MOTION_ROOT/<name>/smplx_params` (default `test_video`) |
-
-Immediate response (202):
-
-```json
-{"jobId": "avatar-20260718-221530-a1b2c3", "kind": "avatar", "name": "...", "seedId": "ugc-squat",
- "status": "queued", "progress": 0, "avatarBinUrl": null, "error": null, "createdAt": 177...}
-```
-
-Poll `GET /import/jobs` until `status` flips to `done` (then `avatarBinUrl` =
-`public/coach_clips/jobs/avatar/<jobId>.bin`, served by the `:5173` static
-server) or `error` (message carries the exporter stderr tail, ≤ 500 chars).
-Progress: export stage markers → 20/45/60/80%, alignment → 90%, done → 100%.
-Avatar jobs are serialized (one GPU export at a time; ~4.5 min, ~19.6 GiB
-VRAM). Finished records persist as `jobs/avatar/<jobId>.json` and survive
+Photo reconstruction now creates a reusable **identity**, not a seed-specific
+combined asset. Records and binaries are filesystem-backed and survive process
 restarts.
 
-Set `AVATAR_EXPORT_STUB=1` to skip the GPU export and reuse the baked
-`AVATAR_STUB_BIN`/`AVATAR_STUB_NPZ` pair — the alignment and artifact wiring
-still run, so the full HTTP path is exercisable without GPU time.
+- `GET /avatars` — active identities, newest first.
+- `POST /avatars` — multipart `photo` (required), `name`, and legacy
+  `motionParams`; returns an identity record with HTTP 202. Poll `GET /avatars`
+  until `status` is `ready` or `error`.
+- `PATCH /avatars/{avatarId}` — JSON `{ "name": "..." }`.
+- `DELETE /avatars/{avatarId}` — soft-deletes the identity, removes its private
+  source photo, and cancels only queued/running bindings. Ready bindings and
+  their immutable training assets remain playable.
+- `POST /import/avatar` — compatibility alias for `POST /avatars`. It still
+  accepts `seedId`, but deliberately ignores it and returns an identity record.
+
+Example 202 response:
+
+```json
+{
+  "avatarId": "av-0123...",
+  "name": "Kai",
+  "status": "queued",
+  "progress": 0,
+  "identityUrl": null,
+  "previewUrl": null,
+  "createdAt": 178...
+}
+```
+
+The finished identity is `KINEXGI1`: static Gaussian attributes, the 55-joint
+rest rig, and hierarchy. Motion is a separate `KINEXGM1` asset containing local
+joint quaternions, root translations, and a stage-space similarity transform.
+The browser combines one identity with one motion at runtime. Historical
+`KINEXGS1` combined assets remain readable for built-in compatibility only.
+
+### Avatar bindings
+
+- `GET /avatar-bindings?avatarId=&motionId=` — list all bindings or filter by
+  either stable id.
+- `POST /avatar-bindings` — JSON
+  `{ "avatarId": "av-...", "motionId": "motion-..." }`; returns the existing
+  pair binding or creates a queued one.
+
+`POST /import/video` accepts an optional `avatarId`. The ordinary CoachClip and
+MeshClip response is still produced synchronously first. When an identity was
+selected, the same response also carries `motionId`, `bindingId`, and
+`bindingStatus`; private source-video persistence and LHM motion preparation
+continue in the background. Without `avatarId`, the legacy response shape is
+unchanged.
+
+Registry layout:
+
+```text
+public/coach_clips/
+  avatar-identities/<avatarId>/{record.json,identity.bin,preview.png}
+  motions/<motionId>/{record.json,motion.bin}
+  avatar-bindings/<bindingId>.json
+~/.local/share/kinex/avatar-jobs/<jobId>/.avatar-source.<ext>
+```
+
+The private source-video root must never be placed under `public/`; the static
+frontend server exposes everything below the repository root.
 
 ### `GET /import/jobs`
 
-Every record now carries `kind`: `"video"` (the pre-existing directory scan)
-or `"avatar"`.
+Lists persisted video-import jobs for ordinary CoachClip/MeshClip hydration.
+Avatar Vault state comes from `/avatars` and `/avatar-bindings`; the legacy
+`kind:"avatar"` job shape is compatibility data only.
+
+## Legacy avatar migration
+
+`scripts/migrate-legacy-avatar.py` splits the committed combined demo into one
+reusable identity and motion. It validates the entire conversion in a temporary
+directory on dry run, publishes manifests and binaries atomically, and never
+modifies or deletes the source `KINEXGS1` file.
+
+```bash
+python3 scripts/migrate-legacy-avatar.py --dry-run
+python3 scripts/migrate-legacy-avatar.py
+```
+
+Use `--debug-npz` when `joint_null` cannot be auto-discovered. Re-running the
+same migration is idempotent; conflicting outputs require the explicit
+`--replace` flag, while the legacy source remains protected.
 
 ## Quick smoke test
 
@@ -178,3 +250,11 @@ curl -s http://127.0.0.1:5173/public/coach_clips/jobs/<jobId>/mesh.meta.json
 ```
 
 A successful run takes ~33 s on a single RTX-class GPU for a 118-frame clip.
+
+On 2026-07-19 the remote acceptance run also verified the reusable path: a
+stub photo identity reached `ready`; a 1.5 s / 8-frame video returned the
+ordinary import response in 4.47 s with a queued binding; the real LHM motion
+job then reached `ready`; HTTP assets began with `KINEXGI1` and `KINEXGM1`.
+After soft-deleting that temporary identity, the ready binding and imported
+training seed remained playable. The service was restored to normal CUDA mode
+after the smoke test.

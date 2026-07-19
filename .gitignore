@@ -6,6 +6,8 @@ node_modules/
 
 # Local development state
 .claude/
+.superpowers/
+.worktrees/
 .vscode/
 .idea/
 *.iml
