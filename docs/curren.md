@@ -9,9 +9,9 @@
 ## 阶段
 
 复赛产品化打磨阶段，多页面骨架已落地。
-hash 路由四页：动作库 `#/`、训练舱 `#/train/:seedId`、训练报告 `#/report/:sessionId?`、创作工坊 `#/create`。
+hash 路由五页：动作库 `#/`、训练舱 `#/train/:seedId`、训练报告 `#/report/:sessionId?`、创作工坊 `#/create`、分身身份库 `#/avatars`。
 单 DOM 容器切页，无整页跳转：MediaPipe 资产、WebSocket、摄像头流在页面间存活。
-3D 舞台为真实 Three.js WebGL 渲染（圆柱骨骼 + 球关节 + 可选 SMPL-X mesh clip 回放 + 可选 3DGS 数字分身层——`src/core/avatar/GaussianAvatar.ts` 自研可变形 splat 渲染器，顶点 shader LBS + CPU 深度排序，KINEXGS1 二进制资产）。
+3D 舞台为真实 Three.js WebGL 渲染（圆柱骨骼 + 球关节 + 可选 SMPL-X mesh clip 回放 + 可选 3DGS 数字分身层）。分身身份与动作已拆分为 `KINEXGI1` / `KINEXGM1`，运行时由 `GaussianAvatar` 组合驱动；历史 `KINEXGS1` 仅作内置兼容。
 浏览器内 MediaPipe（Pose / Hand / Face）已落地，可独立完成 live 评测。
 视频 → CoachClip 导入链路走 SAM 3D Body 后端（:8765），可选 MLLM 分片前置（:8766）。
 评分、用户标定、Session 门禁（倒计时 / OK 手势）、结算页、Session 历史存档、AI 教练流式输出已联通。
@@ -20,11 +20,11 @@ hash 路由四页：动作库 `#/`、训练舱 `#/train/:seedId`、训练报告 
 
 ## 信息架构
 
-`src/core/Router.ts`：hash 路由，`parse` 支持 `#/`、`#/train/:seedId`、`#/report/:sessionId?`、`#/create`，未知路由回退 `#/`。
+`src/core/Router.ts`：hash 路由，`parse` 支持 `#/`、`#/train/:seedId`、`#/report/:sessionId?`、`#/create`、`#/avatars`，未知路由回退 `#/`。
 页面接口 `{ el, enter?(params), leave?() }`；路由只切 `hidden` 并调生命周期，首次 apply 隐藏其余全部页面。
 `TrainPage.enter`：`stage.start()` + 恢复播放 + 路由 seed 同步；`leave`：`stage.stop()` + 暂停播放（摄像头流保持，返回即恢复）。
 种子轮播切换 → `router.navigate('#/train/' + id)`；直接访问 `#/train/xxx` → `onSeedRequest` 换种。
-左侧 rail 为页面导航（动作库 / 训练舱 / 报告 / 创作），active 跟随路由；品牌、rail 底部 LIVE、两个抽屉（DNA / 摄像头设置）、结算模态、boot 保持全局。
+左侧 rail 为页面导航（动作库 / 训练舱 / 报告 / 创作 / 分身身份库），active 跟随路由；品牌、rail 底部 LIVE、两个抽屉（DNA / 摄像头设置）、结算模态、boot 保持全局。
 boot 完成后进入初始路由，默认 `#/`。
 `?backend=` / `?api=` / `?ws=` / `?mode=` 查询参数保持原有行为（启动读取一次）。
 
@@ -39,12 +39,13 @@ boot 完成后进入初始路由，默认 `#/`。
 首屏为开机编排：巨型字标 + mono 自检逐行点亮（CoachClip / SMPL-X mesh / MediaPipe / 帧流，全部挂钩真实启动里程碑），退出后各区块交错入场。
 动作库：海报式标题 + 种子卡墙（封面缩略图、时长 / 帧数 / 训练场次与最好成绩）+ 导入入口卡 + 最近训练记录条（点击直达对应报告）。
 训练舱为左右两舱：左舱「现实镜像」摄像头水平镜像 + 2D 骨骼贴合层；右舱「全息标准舱」由数字分身（真人教练视频）与结构蓝图（Three.js 3D 教练）共享——模式决定主视图（教练模式 = 分身主角、蓝图缩为角标小卡；骨骼 / 应力 / 分身模式 = 蓝图主角、视频缩为小卡），点击小卡即换主视图。
-右舱模式行为四键：教练（twin 视频主角）/ 分身（3DGS 数字分身全幅，仅当前种子带 avatarUrl 时显示该键）/ 骨骼（线框 + 骨架）/ 应力（蒙皮 + 风险着色）；分身未加载完时蒙皮占位，无 avatarUrl 时自动回退教练模式。
+右舱模式行为四键：教练（twin 视频主角）/ 分身（3DGS 数字分身全幅，当 `avatarUrl` 或已就绪的 `identityUrl + motionAssetUrl` 存在时显示）/ 骨骼（线框 + 骨架）/ 应力（蒙皮 + 风险着色）；绑定排队或失败不阻塞普通教练与骨骼模式。
 右下 SYNC 巨数区（clamp 72–132px Archivo Black），分数跳变机械闪切；PERFECT 触发全屏描边巨字（描边→填橙）。
 两个 bay 四角 crosshair 角标，右舱左下 mono telemetry 数据带（FRAME / PROG / LAT / Δ），顶栏连接指示带实时延迟读数。
 全站覆盖低透明度 SVG 噪点纹理（multiply），时间轴缩略图印刷化灰度处理（active/hover 恢复全彩）。
 训练报告页：总分巨数 / 印章勋章 / 四宫格统计 / 阶段均分条（最差阶段标橙）/ 历史趋势条（当前场标橙）/ 关节报告表 / AI 教练全文。
-创作工坊：四步向导（01 上传 → 02 分片 → 03 解析 → 04 入库），步骤指示条随 ImportFlow 状态点亮。
+创作工坊：四步向导（01 上传 → 02 分片 → 03 解析 → 04 入库），解析前可选择一个 READY 分身身份；默认为“不使用分身”。
+分身身份库：服务器持久化档案、照片上传、重命名、保守软删除，以及独立 Three.js 实时预览（拖拽环绕 / 滚轮缩放）。
 切页过渡为统一的 pageIn 上浮淡入；控件统一 hover/press 反馈；模态 modalA11y 焦点圈禁 + Esc。
 
 ## 数据流
@@ -79,19 +80,18 @@ EventBus 事件共八类：`score:update` / `pipeline:update` / `seed:update` / 
 创作工坊页（`#/create`）承载视频 → CoachClip / MeshClip 流程，`src/core/import/ImportFlow.ts` 为容器无关的流程控制器：
 1. 上传后可先点「用 MLLM 切片」：`VideoSeeker` 每 1.5s 采一个关键帧，`VideoSegmentationClient` POST 到 :8766 `/api/segment`，渲染可选片段（含中段缩略图）。
 2. 点「开始解析」：`FormData` 上传视频（选中片段时附 `startSec` / `endSec`）到 :8765 `POST /import/video`。
-3. 后端 ffmpeg 抽帧 → SAM 3D Body 逐帧推理 → pack / bake / coach，产出 `coach.json` + `mesh.bin` + 逐帧 jpg；请求同步阻塞返回（~30s/100 帧）。
-4. 前端 `loadCoachClip` + `loadMeshClip` 拉取产物，`buildFrameThumbnailsFromMeta` 等距抽缩略图 URL，`onApply` 生成 `imported-<jobId>` 新种子、加入轮播并跳转 `#/train/<newId>`。
+3. 后端 ffmpeg 抽帧 → SAM 3D Body 逐帧推理 → pack / bake / coach，产出 `coach.json` + `mesh.bin` + 逐帧 jpg；请求同步返回普通动作产物。选了 `avatarId` 时，响应同时带 `motionId / bindingId / bindingStatus`，分身动作在后台继续准备。
+4. 前端 `loadCoachClip` + `loadMeshClip` 拉取产物，`onApply` 立即生成 `imported-<jobId>` 新种子并进入训练；`AvatarBindingController` 低频轮询服务器 manifest，只在身份与动作资产都 ready 后解锁“分身”。
 5. 页面刷新后 `main.ts hydrateImportedJobs()` 从 `GET /import/jobs` 再水合已导入种子（4s 超时静默放弃）。
 6. 旧浏览器端 heavy 模型导入链路（`landmarksToPose.ts` / `postProcess.ts`）已废弃，文件保留但未引用；旧 `ImportDrawer` 已删除，逻辑由 `ImportFlow` 继承。
 
-## 照片分身链路（3DGS 数字人）
+## 可复用分身链路（3DGS 数字人）
 
-创作工坊「照片分身」支路（`src/core/import/AvatarImportFlow.ts`）：单张照片 → LHM-1B 重建 → 可交互 3DGS 数字分身，动作与目标种子共享（v1 固定 UGC Squat 的 squat 动作）。
-1. 选照片 + 命名后 POST 到 :8765 `POST /import/avatar`（multipart：photo/name/seedId/motionParams，202 异步返回 jobId；GPU 导出锁串行化）。
-2. 后端流水线（`backend/avatar.py`）：lhm env 跑 `export_avatar_kinex.py`（LHM-1B 推理 + KINEXGS1 导出，~3 分钟）→ base env 跑 `backend/alignment.py`（坐标对齐烘焙，Kabsch 关节轨迹拟合 + 按 clip 时长裁帧）→ bin 落 `public/coach_clips/jobs/avatar/<jobId>.bin`；progress 按导出 stage 标记推进（0–100）。
-3. 前端 2s 轮询 `/import/jobs`（progress 归一化到 0..1 进度条），done 且带 avatarBinUrl 后把 `exercises[seedId].avatarUrl` 写入运行时并提示切「分身」模式。
-4. 开机水合同时处理分身任务：按 finishedAt 取每个种子**最新 done** 的 avatar job 赋 avatarUrl（服务端 jobs 列表为 newest-first，顺序遍历会让最旧的赢，已踩过）；avatar 实例缓存按 URL 校验（URL 变更后旧缓存失效）。
-5. KINEXGS1 v1 二进制：4 万高斯静态属性（c_pts/q_cano/scale/opacity/rgb/A_null_rot/top-4 LBS 权重/constrain）+ 逐帧 55 关节矩阵 + trans；变形纯 shader LBS，无逐帧神经网络。
+1. `#/avatars` 或兼容端点 `POST /import/avatar` 上传单人全身照；服务端建立稳定 `avatarId`，通过 `GET /avatars` 持久化状态。`seedId` 参数仅兼容接收，不再把身份绑死到种子。
+2. 照片经 LHM 导出、坐标对齐与严格校验后生成 `KINEXGI1` 身份；身份只含静态高斯与 55 关节休息骨架，可被多个动作复用。
+3. 视频导入选择身份后，原始视频私有副本落在 `~/.local/share/kinex/avatar-jobs`，LHM 后台提取 `KINEXGM1` 动作；`GET /avatar-bindings` 记录 `queued / running / ready / error / cancelled`。
+4. 前端分身预览仅加载身份休息姿态；训练舞台把 `KINEXGI1` 与 `KINEXGM1` 组合，通过顶点 shader LBS + CPU 深度排序回放。
+5. 删除身份是保守软删除：从活跃身份库移除并取消未完成绑定，已 ready 的训练绑定和动作产物保留可播放。
 
 ## 评分与标定
 
@@ -163,7 +163,7 @@ guardrails 对 `dist/**/*.js` 做语法检查。
 帧流 WS 客户端已就绪（`useWebSocket`：自动重连退避 1s→30s、PING/PONG 心跳 15s/8s 超时、点击连接指示手动重连），默认 `ws://localhost:8000/motion`，`?ws=` 覆盖；但真实帧流后端不在本仓库。
 外部帧与本地帧共用 `consumePacket → pushPacket`；前端 MediaPipe / Scoring 链路保留为后端不可用时的离线方案。
 LLM 一律经 `server/` 代理（:8766）；`API_BASE_URL` 可用 `?api=` 覆盖并持久化到 localStorage。
-导入后端（:8765）`BACKEND_URL` 可用 `?backend=` 覆盖并持久化到 localStorage；`POST /import/video`（同步）与 `POST /import/avatar`（202 异步 + 任务轮询）双路，`GET /import/jobs` 统一返回 `kind:"video"|"avatar"` 的任务记录。
+导入后端（:8765）`BACKEND_URL` 可用 `?backend=` 覆盖并持久化到 localStorage；`POST /import/video` 返回普通 CoachClip / MeshClip，可选同时建立分身绑定。身份源于 `GET|POST /avatars`，重命名/软删除用 `PATCH|DELETE /avatars/{id}`，绑定用 `GET|POST /avatar-bindings`；`POST /import/avatar` 仅是身份上传兼容别名。
 Session 历史存于浏览器 localStorage（`kinex.sessions.v1`），不上送后端。
 内置种子只保留 squat（绑定真实 CoachClip `single_leg_squat.json`，118 帧）；deadlift / baduanjin / street / basketball 已下架，评分权重保留在 `MOTION_METRIC_TEMPLATES` 供导入动作复用。
 所有坐标必须米制，所有旋转必须 `[x, y, z, w]`。
@@ -177,7 +177,8 @@ Google Fonts 走 CDN，离线时降级到系统等宽 / 系统黑体（three 与
 UI 若直接订阅高频帧，页面会卡顿。
 切换动作如果绕过 `resetForSeed()`，长时间演示存在内存泄露隐患。
 `public/mediapipe/` 约 73MB，仓库 clone 体积偏大；升级 SDK 版本时需手工替换并 bump `WASM_BASE` / 模型路径相关常量。
-导入后端 `POST /import/video` 全程同步阻塞事件循环（30–60s）；其 `config.py` 默认模型路径写死原开发机，需同名环境变量覆盖。
+导入后端 `POST /import/video` 的 SAM 推理在 worker thread 中执行，但 HTTP 请求仍需等普通动作产物完成后才返回；LHM 绑定另行异步。`config.py` 的 SAM / LHM 默认路径面向开发主机，换机时必须用同名环境变量覆盖。
+分身资产以文件系统 manifest 为真源；部署不得使用会删除 `public/coach_clips/avatar-identities`、`motions`、`avatar-bindings` 或私有 `~/.local/share/kinex/avatar-jobs` 的镜像同步。
 LLM 上游报错会被代理吞成静默错误帧，前端表现为 AI 教练空回复、无报错 UI。
 `tsc` 诊断未清零，strict 报错积累会掩盖新引入的类型错误。
 
@@ -188,16 +189,16 @@ LLM 上游报错会被代理吞成静默错误帧，前端表现为 AI 教练空
 清理遗留：删除或归档 `MockStream` / `mockFrameSource` / `landmarksToPose` / `postProcess` / `smpl-lite-rig.gltf`；找回或替换 `single_leg_squat_frames` 原始帧图。
 `tsc --noEmit` 清零（当前 11 个）后纳入 `npm run check` 门禁。
 接入生产级 WebSocket 帧流服务；将 `MotionFrame` 固化为 OpenAPI / JSON Schema 文档。
-导入后端异步化（`run_in_executor` / 任务队列）+ 模型路径配置外移。
+视频导入改为真正的 202 任务队列 + 断点恢复；为 SAM / LHM 加健康分层、队列观测与超时重试策略。
 报告页阶段曲线（帧级分）与多 session 趋势分析；动作库搜索 / 分组。
 VFR / UGC 视频逐物理帧处理、断线低帧率兜底、答辩脚本。
 可选：Google Fonts 本地化（JetBrains Mono / Archivo Black → `public/fonts/`）。
 
 ## 判断
 
-项目具备复赛演示能力：完整产品骨架（库 / 练 / 报告 / 创作），完全离线可用（字体降级无碍）。
+项目具备复赛演示能力：完整产品骨架（库 / 练 / 报告 / 创作 / 分身身份库），完全离线可用（字体降级无碍）。
 项目具备与后端合体的稳定数据边界。
 3D 渲染、MediaPipe、评分、标定、Session 门禁与存档、AI 教练、视频导入均已上真，不再纯 mock。
-照片 → LHM-1B → 浏览器实时 3DGS 数字分身全链路已通（含产品化上传入口与种子「分身」显示模式）。
+照片 → 可复用身份 × 视频动作 → 浏览器实时 3DGS 数字分身全链路已通；2026-07-19 远端验收实测了持久化身份库、拖拽/缩放预览、普通导入先返回、后台 LHM 绑定就绪、训练回放、613931 字节 WebM 导出与软删除后已完成训练保留。
 帧流 WebSocket 客户端就绪，真实后端缺席。
 当前最重要的原则是帧数据隔离、渲染层独立、数据契约稳定与视觉规范严格执行。
