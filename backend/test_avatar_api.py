@@ -278,10 +278,19 @@ class AvatarPipelineTests(unittest.TestCase):
                 Path(target).write_bytes(Path(source).read_bytes())
                 return {"scale": 1}
 
-            def split(source, identity_path, motion_path, actual_joints, parents):
+            def split(
+                source,
+                identity_path,
+                motion_path,
+                actual_joints,
+                parents,
+                *,
+                stage_transform_baked,
+            ):
                 self.assertEqual(Path(source).read_bytes(), b"legacy")
                 np.testing.assert_array_equal(actual_joints, joint_null)
                 self.assertEqual(list(parents), EXPECTED_SMPLX_55_PARENTS)
+                self.assertIs(stage_transform_baked, True)
                 Path(identity_path).parent.mkdir(parents=True, exist_ok=True)
                 Path(identity_path).write_bytes(b"identity")
                 Path(motion_path).write_bytes(b"motion")

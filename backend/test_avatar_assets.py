@@ -19,7 +19,13 @@ from backend.avatar_assets import (
 JOINTS = 55
 
 
-def _legacy_fixture(path: Path, *, meta: dict | None = None, matrices: np.ndarray | None = None) -> bytes:
+def _legacy_fixture(
+    path: Path,
+    *,
+    meta: dict | None = None,
+    matrices: np.ndarray | None = None,
+    trans: np.ndarray | None = None,
+) -> bytes:
     """Write a tiny, valid KINEXGS1 asset and return its static section."""
     count, frames = 2, 2
     meta = meta or {"name": "two-gaussian fixture", "fps": 30}
@@ -33,7 +39,7 @@ def _legacy_fixture(path: Path, *, meta: dict | None = None, matrices: np.ndarra
         (static_floats.tobytes(), lbs_index.tobytes(), lbs_weight.tobytes(), constrain.tobytes())
     )
     matrices = matrices if matrices is not None else np.tile(np.eye(4, dtype=np.float32), (frames, JOINTS, 1, 1))
-    trans = np.array([[0, 0, 0], [1, 2, 3]], dtype=np.float32)
+    trans = trans if trans is not None else np.array([[0, 0, 0], [1, 2, 3]], dtype=np.float32)
     path.write_bytes(
         b"KINEXGS1"
         + struct.pack("<4I", count, frames, JOINTS, len(header))
@@ -149,6 +155,79 @@ class AvatarAssetCodecTests(unittest.TestCase):
             )
             np.testing.assert_allclose(
                 rotations[:, 1], np.broadcast_to(expected_child, rotations[:, 1].shape), rtol=1e-6
+            )
+
+    def test_split_legacy_asset_unbakes_stage_similarity_exactly_once(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            source = root / "aligned.bin"
+            parent_global = np.array(
+                [[0, -1, 0], [1, 0, 0], [0, 0, 1]], dtype=np.float32
+            )
+            child_local = np.array(
+                [[1, 0, 0], [0, 0, -1], [0, 1, 0]], dtype=np.float32
+            )
+            raw_matrices = np.tile(np.eye(4, dtype=np.float32), (2, JOINTS, 1, 1))
+            raw_matrices[:, 0, :3, :3] = parent_global.T
+            raw_matrices[:, 1, :3, :3] = (parent_global @ child_local).T
+            raw_translations = np.array([[0.1, 0.2, 0.3], [1.0, 2.0, 3.0]], dtype=np.float32)
+            stage_transform = {
+                "scale": 1.6,
+                "R": [[0, -1, 0], [1, 0, 0], [0, 0, 1]],
+                "t": [0.2, 1.1, -0.4],
+            }
+            similarity = stage_transform["scale"] * np.asarray(stage_transform["R"])
+            bake_matrix = np.eye(4, dtype=np.float32)
+            bake_matrix[:3, :3] = similarity.T
+            aligned_matrices = raw_matrices @ bake_matrix
+            aligned_translations = (
+                similarity @ raw_translations.T + np.asarray(stage_transform["t"])[:, None]
+            ).T.astype(np.float32)
+            _legacy_fixture(
+                source,
+                meta={"name": "baked aligned fixture", "fps": 30, **stage_transform},
+                matrices=aligned_matrices,
+                trans=aligned_translations,
+            )
+            source_before = source.read_bytes()
+            parents = np.array([-1] + list(range(JOINTS - 1)), dtype=np.int16)
+
+            _, motion_meta = split_legacy_asset(
+                source,
+                root / "identity.bin",
+                root / "motion.bin",
+                np.zeros((JOINTS, 3), dtype=np.float32),
+                parents,
+                stage_transform_baked=True,
+            )
+
+            self.assertEqual(source.read_bytes(), source_before)
+            self.assertEqual(motion_meta["stageTransform"], stage_transform)
+            (frames, _), _, payload = _read_split(root / "motion.bin", b"KINEXGM1")
+            rotations = np.frombuffer(
+                payload[: frames * JOINTS * 4 * 4], dtype="<f4"
+            ).reshape(frames, JOINTS, 4)
+            np.testing.assert_allclose(np.linalg.norm(rotations, axis=-1), 1, atol=1e-6)
+            np.testing.assert_allclose(
+                rotations[:, 0],
+                np.broadcast_to(
+                    np.array([0, 0, np.sqrt(0.5), np.sqrt(0.5)], dtype=np.float32),
+                    rotations[:, 0].shape,
+                ),
+                rtol=1e-6,
+            )
+            np.testing.assert_allclose(
+                rotations[:, 1],
+                np.broadcast_to(
+                    np.array([np.sqrt(0.5), 0, 0, np.sqrt(0.5)], dtype=np.float32),
+                    rotations[:, 1].shape,
+                ),
+                rtol=1e-6,
+            )
+            np.testing.assert_allclose(
+                np.frombuffer(payload[frames * JOINTS * 4 * 4 :], dtype="<f4").reshape(frames, 3),
+                raw_translations,
+                atol=1e-6,
             )
 
     def test_split_legacy_asset_rejects_truncated_payload(self) -> None:

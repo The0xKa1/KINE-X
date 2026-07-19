@@ -199,6 +199,7 @@ def run_avatar_pipeline(
             discarded_motion,
             joint_null,
             SMPLX_55_PARENTS,
+            stage_transform_baked=True,
         )
 
         preview_source = viz_path if viz_path.is_file() else photo_path

@@ -40,15 +40,28 @@ def split_legacy_asset(
     motion_path: str | Path,
     joint_null: Any,
     parents: Any,
+    *,
+    stage_transform_baked: bool = False,
 ) -> tuple[dict, dict]:
-    """Split a legacy KINEXGS1 asset into static identity and local motion files."""
+    """Split a legacy KINEXGS1 asset into static identity and local motion files.
+
+    alignment.py writes the stage similarity into legacy joint matrices and
+    root translations.  Reusable motion stores that similarity separately, so
+    callers that own an aligned asset must opt in to removing the bake before
+    local rotations are derived.
+    """
     raw = Path(source).read_bytes()
     count, frames, meta, static, matrices, trans = _read_legacy(raw)
     joints = JOINT_COUNT
     rest_joints = _float_array(joint_null, (joints, 3), "joint_null")
     parent_array = _parent_array(parents)
 
+    stage_transform = _legacy_stage_transform(meta)
     global_rotations = matrices[:, :, :3, :3].transpose(0, 1, 3, 2)
+    if stage_transform_baked:
+        global_rotations, trans = _unbake_stage_similarity(
+            global_rotations, trans, stage_transform
+        )
     _validate_rotation_matrices(global_rotations)
     local_rotations = np.empty((frames, joints, 4), dtype=np.float32)
     for frame in range(frames):
@@ -66,7 +79,7 @@ def split_legacy_asset(
     motion_meta.update(
         {"format": MOTION_MAGIC.decode(), "jointCount": joints, "frames": frames}
     )
-    motion_meta["stageTransform"] = _legacy_stage_transform(meta)
+    motion_meta["stageTransform"] = stage_transform
 
     identity_payload = static + rest_joints.astype("<f4", copy=False).tobytes() + parent_array.astype("<i2", copy=False).tobytes()
     motion_payload = local_rotations.astype("<f4", copy=False).tobytes() + trans.astype("<f4", copy=False).tobytes()
@@ -264,6 +277,33 @@ def _legacy_stage_transform(meta: dict) -> dict:
     stage_transform["t"] = meta.get("t", stage_transform.get("t", [0, 0, 0]))
     _validate_json_floats(stage_transform, "legacy stage transform")
     return stage_transform
+
+
+def _unbake_stage_similarity(
+    global_rotations: np.ndarray,
+    translations: np.ndarray,
+    stage_transform: dict,
+) -> tuple[np.ndarray, np.ndarray]:
+    """Remove alignment.py's stage bake while keeping metadata authoritative."""
+    scale = stage_transform.get("scale")
+    if (
+        isinstance(scale, bool)
+        or not isinstance(scale, (int, float))
+        or not math.isfinite(float(scale))
+        or float(scale) <= 0
+    ):
+        raise ValueError("legacy stage transform scale must be a positive finite number")
+    stage_rotation = _float_array(stage_transform.get("R"), (3, 3), "legacy stage transform R")
+    stage_translation = _float_array(stage_transform.get("t"), (3,), "legacy stage transform t")
+    _validate_rotation_matrices(stage_rotation[None, None, :, :])
+
+    inverse_similarity = np.linalg.inv(float(scale) * stage_rotation.astype(np.float64))
+    unbaked_rotations = inverse_similarity @ global_rotations.astype(np.float64)
+    unbaked_translations = (
+        inverse_similarity
+        @ (translations.astype(np.float64) - stage_translation.astype(np.float64)).T
+    ).T
+    return unbaked_rotations, unbaked_translations
 
 
 def _extract_translation(frame: dict, path: Path) -> np.ndarray:
