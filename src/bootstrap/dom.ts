@@ -36,6 +36,7 @@ export interface DomRefs {
   pageTrain: HTMLElement;
   pageReport: HTMLElement;
   pageCreate: HTMLElement;
+  pageAvatars: HTMLElement;
 
   metricList: HTMLElement;
   pipelineList: HTMLElement;
@@ -170,6 +171,7 @@ export function collectDomRefs(): DomRefs {
     pageTrain: $("#page-train"),
     pageReport: $("#page-report"),
     pageCreate: $("#page-create"),
+    pageAvatars: $("#page-avatars"),
 
     metricList: $("#metricList"),
     pipelineList: $("#pipelineList"),

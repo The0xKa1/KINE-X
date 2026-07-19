@@ -9,6 +9,7 @@ import { DnaExport } from "./components/gameui/DnaExport.js";
 import { DnaDrawer } from "./components/gameui/DnaDrawer.js";
 import { CameraSettings } from "./components/gameui/CameraSettings.js";
 import { CreatePage } from "./components/pages/CreatePage.js";
+import { AvatarVaultPage } from "./components/pages/AvatarVaultPage.js";
 import { AiCoachPanel } from "./components/gameui/AiCoachPanel.js";
 import { SessionStartOverlay } from "./components/gameui/SessionStartOverlay.js";
 import { BootSequence } from "./components/gameui/BootSequence.js";
@@ -33,6 +34,7 @@ import { UserProfileStore } from "./core/scoring/UserProfile.js";
 import { WebCamManager } from "./core/WebCamManager.js";
 import { exerciseOrder, exercises as builtinExercises, MOTION_METRIC_TEMPLATES, pipeline } from "./data/exercises.js";
 import { GaussianAvatar } from "./core/avatar/GaussianAvatar.js";
+import { AvatarRegistryClient } from "./core/avatar/AvatarRegistryClient.js";
 import { Router } from "./core/Router.js";
 import { TrainPage } from "./components/pages/TrainPage.js";
 import { LibraryPage } from "./components/pages/LibraryPage.js";
@@ -630,12 +632,17 @@ const reportPage = new ReportPage({
   exercises,
   getPersona: () => cameraSettings.getPersona(),
 });
+const avatarVaultPage = new AvatarVaultPage({
+  el: dom.pageAvatars,
+  client: new AvatarRegistryClient(BACKEND_URL),
+});
 const router = new Router({
   pages: {
     library: libraryPage,
     train: trainPage,
     report: reportPage,
     create: createPage,
+    avatars: avatarVaultPage,
   },
   onNavigate: (route) => {
     dom.railItems.forEach((item) => item.classList.toggle("is-active", item.dataset.route === route.name));
@@ -649,6 +656,7 @@ dom.railItems.forEach((button) => {
     else if (route === "train") router.navigate(`#/train/${state.exerciseId}`);
     else if (route === "report") router.navigate("#/report");
     else if (route === "create") router.navigate("#/create");
+    else if (route === "avatars") router.navigate("#/avatars");
   });
 });
 

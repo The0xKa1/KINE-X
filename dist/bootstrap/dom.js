@@ -37,6 +37,7 @@ export const $$ =                    (selector        )      =>
                           
                           
 
+
                           
                             
                           
@@ -170,6 +171,7 @@ export function collectDomRefs()          {
     pageTrain: $("#page-train"),
     pageReport: $("#page-report"),
     pageCreate: $("#page-create"),
+    pageAvatars: $("#page-avatars"),
 
     metricList: $("#metricList"),
     pipelineList: $("#pipelineList"),
