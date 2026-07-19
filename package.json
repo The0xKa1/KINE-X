@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "build": "node --no-warnings=ExperimentalWarning scripts/build.mjs",
+    "test:avatar": "npm run build && node --test scripts/avatar-*.test.mjs",
     "dev": "npm run build && python3 -m http.server 5173",
     "check": "npm run build && node scripts/guardrails.mjs",
     "server:install": "python3 -m venv server/.venv && server/.venv/bin/pip install -r server/requirements.txt",
