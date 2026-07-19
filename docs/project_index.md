@@ -32,7 +32,7 @@ KINE//X 的项目结构索引。
 `npm run server:install` / `npm run server`：安装并启动 LLM 代理（:8766，需 `.env`）。
 源码 `import` 必须使用 `.js` 后缀，浏览器在 `dist/` 解析模块。
 项目零 `dependencies`；three 与 MediaPipe 均走本地 `public/`，仅 Google Fonts 走 CDN。
-`npx tsc --noEmit` 仅作参考，目前 11 个已知诊断，未入门禁。
+`npx tsc --noEmit` 仅作参考，目前 12 个已知诊断，未入门禁。
 
 ## 信息架构（hash 路由）
 
@@ -70,7 +70,7 @@ KINE//X 的项目结构索引。
 ## components/gameui
 
 `BootSequence.ts`：开机编排 overlay；真实里程碑逐行点亮，点击跳过或 9s 兜底，退出后进入初始路由。
-`CoachVideo.ts`：数字分身视频层；按种子的 `coachVideo`（front/side/top 多角度源）管理播放源并与 RealtimeStream 的 progress / speed / playing 状态同步；主视图 / 缩略小卡的布局由 stage 的 `data-primary` 与模式联动（点击小卡换主视图）。
+`CoachVideo.ts`：教练视频层；按种子的 `coachVideo`（front/side/top 多角度源；导入种子为原视频切片 `segment.mp4`）管理播放源并与 RealtimeStream 的 progress / speed / playing 状态同步；主视图 / 缩略小卡的布局由 stage 的 `data-primary` 与模式联动（点击小卡换主视图）。
 `SeedCarousel.ts`：种子卡片轮播 + 模式分段控件（`prefers-reduced-motion` 感知；新种子交错入场）。
 `ScoreBoard.ts`：score / combo / risk / joint metrics / pipeline 渲染（写入抽屉内 DOM）；分数跳变触发巨数区机械闪切。
 `Timeline.ts`：clip 帧节奏条；缩略图一帧一格，flex 横向滚动，当前帧自动 `scrollIntoView`；无 clip 时回退 18 帧 mock。
@@ -170,7 +170,7 @@ KINE//X 的项目结构索引。
 
 ## data mock hooks types
 
-`data/exercises.ts`：内置动作种子（仅 squat，经 manifest 绑定真实 clip）+ `MOTION_METRIC_TEMPLATES`（五类评分模板，源自已下架种子）与推理管线配置。
+`data/exercises.ts`：内置动作种子（squat 与 ugc-squat，均绑定真实 clip）+ `MOTION_METRIC_TEMPLATES`（五类评分模板，源自已下架种子）与推理管线配置。
 `mock/mockFrameSource.ts`：**遗留死代码**，仅被同样遗留的 `bootstrap/MockStream.ts` 引用。
 `hooks/useWebSocket.ts`：WebSocket 客户端；重连退避、PING/PONG 心跳；本地帧与远端帧共用 `consumePacket → buffer.pushPacket`；默认 `ws://localhost:8000/motion`，`?ws=` 覆盖。
 `types/motion.ts`：核心类型契约（`MotionFrame` / `QuaternionTuple` / `JointName` / `RuntimeFrame` / `ScoreUpdate` / `CoachClip` / `SkeletonPose`…）。

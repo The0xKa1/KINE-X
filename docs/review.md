@@ -37,7 +37,7 @@
 
 ### P1 · 涨分点
 
-- [~] **预导入 2–3 条真实短视频入库**（hinge / flow / bounce 各一，产物提交进 `public/coach_clips/`）→ 内容宽度 1→4。依赖 GPU 导入后端（AutoDL 环境）。**进展**：已将 AutoDL 导入的 UGC squat（118 帧 + SMPL-X mesh + 帧图）rsync 回本地并内置为第二张种子卡 `ugc-squat`（commit d5ea929）；再补 1–2 条非 squat 类型即完成。
+- [x] **预导入真实短视频入库** → 内容宽度 1→4。AutoDL 导入后内置第二张种子卡 `ugc-squat`（commit d5ea929）；再补 `ugc-yoga`（flow，海边瑜伽 6–16s）与 `ugc-dance`（bounce，夜场街舞 4–14s），各 150 帧 @15fps + SMPL-X mesh + 帧图，训练舱直接回放原视频切片。拳击类素材因无合格的单人全身固定机位片段弃用，bounce 位由舞蹈顶替。
 - [x] **MLLM 语义沉淀**：选中 segment 后用 `actionLabel` 自动填种子名、按语义预选 motion（`src/core/import/ImportFlow.ts`、`data/exercises.ts`）。
 - [x] **LLM 教练多轮追问**：报告页加输入框，SessionSummary 作 context 续接对话（`ReportPage.ts`、`AiCoachPanel.ts`；server `/api/chat-stream` 已通用）。
 - [x] **中文风险标签进主舱**：riskLabel 已随 `score:update` 广播，SYNC 巨数区下方加 badge 订阅（`index.html` + `ScoreBoard.ts`）。
