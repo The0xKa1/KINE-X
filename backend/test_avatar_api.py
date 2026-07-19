@@ -36,6 +36,8 @@ class AvatarApiTests(unittest.TestCase):
         self.tmp = tempfile.TemporaryDirectory()
         self.root = Path(self.tmp.name)
         self.registry = AvatarRegistry(self.root)
+        self.motion_dir = self.root / "motion" / "smplx_params"
+        self.motion_dir.mkdir(parents=True)
         self.started = threading.Event()
         self.release = threading.Event()
         self.export_finished = threading.Event()
@@ -62,6 +64,9 @@ class AvatarApiTests(unittest.TestCase):
             app_module, "_AVATAR_REGISTRY", self.registry, create=True
         )
         self.export_patch = mock.patch.object(app_module.avatar, "run_avatar_pipeline", side_effect=exporter)
+        self.motion_patch = mock.patch.object(
+            app_module.avatar, "motion_params_dir", return_value=self.motion_dir
+        )
         self.env_patch = mock.patch.dict("os.environ", {"AVATAR_EXPORT_STUB": "1"})
 
         @asynccontextmanager
@@ -73,6 +78,7 @@ class AvatarApiTests(unittest.TestCase):
         )
         self.registry_patch.start()
         self.export_patch.start()
+        self.motion_params_mock = self.motion_patch.start()
         self.env_patch.start()
         self.lifespan_patch.start()
         self.client_context = TestClient(app_module.app)
@@ -83,6 +89,7 @@ class AvatarApiTests(unittest.TestCase):
         self.client_context.__exit__(None, None, None)
         self.lifespan_patch.stop()
         self.env_patch.stop()
+        self.motion_patch.stop()
         self.export_patch.stop()
         self.registry_patch.stop()
         self.tmp.cleanup()
@@ -176,6 +183,22 @@ class AvatarApiTests(unittest.TestCase):
         self.assertEqual(response.status_code, 400)
         self.assertEqual(response.json()["detail"]["stage"], "input")
 
+    def test_both_upload_routes_reject_invalid_motion_pack_before_creating_identity(self) -> None:
+        self.motion_params_mock.side_effect = FileNotFoundError("missing motion pack")
+
+        for route in ("/avatars", "/import/avatar"):
+            with self.subTest(route=route):
+                response = self.client.post(
+                    route,
+                    files={"photo": ("ada.png", b"png-bytes", "image/png")},
+                    data={"motionParams": "missing-pack"},
+                )
+                self.assertEqual(response.status_code, 400)
+                self.assertEqual(response.json()["detail"]["stage"], "input")
+
+        self.assertEqual(self.registry.list_identities(include_deleted=True), [])
+        self.assertFalse(self.started.is_set())
+
     def test_delete_during_export_cannot_publish_stale_ready_state(self) -> None:
         created = self.client.post(
             "/avatars", files={"photo": ("ada.png", b"png-bytes", "image/png")}
@@ -188,6 +211,41 @@ class AvatarApiTests(unittest.TestCase):
         self.assertTrue(self.export_finished.wait(timeout=2))
         self.assertTrue(app_module._AVATAR_EXPORT_LOCK.acquire(timeout=2))
         app_module._AVATAR_EXPORT_LOCK.release()
+
+        persisted = next(
+            record
+            for record in self.registry.list_identities(include_deleted=True)
+            if record["avatarId"] == created["avatarId"]
+        )
+        self.assertEqual(persisted["deletedAt"], deleted["deletedAt"])
+        self.assertNotEqual(persisted["status"], "ready")
+
+    def test_delete_at_ready_publish_interleaving_is_atomic(self) -> None:
+        publish_entered = threading.Event()
+        publish_release = threading.Event()
+        original_publish = self.registry.update_identity_if_active
+
+        def controlled_publish(avatar_id: str, **changes):
+            publish_entered.set()
+            if not publish_release.wait(timeout=3):
+                raise TimeoutError("test conditional publish was not released")
+            return original_publish(avatar_id, **changes)
+
+        with mock.patch.object(
+            self.registry, "update_identity_if_active", side_effect=controlled_publish
+        ):
+            created = self.client.post(
+                "/avatars", files={"photo": ("ada.png", b"png-bytes", "image/png")}
+            ).json()
+            self.assertTrue(self.started.wait(timeout=2))
+            self.release.set()
+            self.assertTrue(self.export_finished.wait(timeout=2))
+            self.assertTrue(publish_entered.wait(timeout=2))
+
+            deleted = self.client.delete(f"/avatars/{created['avatarId']}").json()
+            publish_release.set()
+            self.assertTrue(app_module._AVATAR_EXPORT_LOCK.acquire(timeout=2))
+            app_module._AVATAR_EXPORT_LOCK.release()
 
         persisted = next(
             record

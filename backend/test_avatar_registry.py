@@ -42,6 +42,23 @@ class AvatarRegistryTests(unittest.TestCase):
         manifest = self.root / "avatar-identities" / identity["avatarId"] / "record.json"
         self.assertEqual(json.loads(manifest.read_text(encoding="utf-8"))["name"], "After")
 
+    def test_conditional_identity_update_refuses_to_publish_deleted_record(self) -> None:
+        identity = self.registry.create_identity("Ada")
+        active = self.registry.update_identity_if_active(
+            identity["avatarId"], status="running", progress=50
+        )
+        self.registry.soft_delete_identity(identity["avatarId"])
+
+        refused = self.registry.update_identity_if_active(
+            identity["avatarId"], status="ready", progress=100
+        )
+        persisted = self.registry.list_identities(include_deleted=True)[0]
+
+        self.assertEqual(active["status"], "running")
+        self.assertIsNone(refused)
+        self.assertEqual(persisted["status"], "running")
+        self.assertIsNotNone(persisted["deletedAt"])
+
     def test_atomic_manifest_publish_syncs_and_closes_parent_directory(self) -> None:
         with mock.patch.object(avatar_registry.os, "fsync", wraps=avatar_registry.os.fsync) as sync:
             with mock.patch.object(avatar_registry.os, "open", wraps=avatar_registry.os.open) as open_dir:

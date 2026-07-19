@@ -222,11 +222,7 @@ def _run_avatar_job(avatar_id: str, photo_path: Path, motion_params: str) -> Non
                 identity_dir=_AVATAR_REGISTRY.identities_dir / avatar_id,
                 progress=progress,
             )
-            current_record = _find_identity(avatar_id)
-            if current_record is None or current_record.get("deletedAt") is not None:
-                logger.info("[%s] identity deleted before publish; discarding completion", avatar_id)
-                return
-            _AVATAR_REGISTRY.update_identity(
+            published = _AVATAR_REGISTRY.update_identity_if_active(
                 avatar_id,
                 status="ready",
                 progress=100,
@@ -236,6 +232,9 @@ def _run_avatar_job(avatar_id: str, photo_path: Path, motion_params: str) -> Non
                 error=None,
                 finishedAt=time.time(),
             )
+            if published is None:
+                logger.info("[%s] identity deleted before publish; discarding completion", avatar_id)
+                return
             logger.info("[%s] avatar identity ready: %s", avatar_id, result["identityUrl"])
         except Exception as exc:  # noqa: BLE001
             current_record = _find_identity(avatar_id)
@@ -271,6 +270,14 @@ async def _queue_avatar_identity(
             detail={"error": f"photo exceeds {config.AVATAR_MAX_PHOTO_BYTES // (1024 * 1024)}MB", "stage": "input"},
         )
 
+    resolved_motion_params = motion_params or "test_video"
+    try:
+        avatar.motion_params_dir(resolved_motion_params)
+    except FileNotFoundError as exc:
+        raise HTTPException(
+            status_code=400, detail={"error": str(exc), "stage": "input"}
+        ) from exc
+
     requested_name = (name or Path(photo.filename or "avatar").stem).strip()
     if not requested_name:
         requested_name = "Avatar"
@@ -299,12 +306,12 @@ async def _queue_avatar_identity(
         avatar_id,
         record["name"],
         len(data) / 1024,
-        motion_params or "test_video",
+        resolved_motion_params,
         config.avatar_export_stub(),
     )
     loop = asyncio.get_running_loop()
     loop.run_in_executor(
-        None, _run_avatar_job, avatar_id, photo_path, motion_params or "test_video"
+        None, _run_avatar_job, avatar_id, photo_path, resolved_motion_params
     )
     return JSONResponse(record, status_code=202)
 

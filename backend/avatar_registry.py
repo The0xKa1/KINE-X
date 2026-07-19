@@ -63,6 +63,19 @@ class AvatarRegistry:
             self._write_json(self._identity_path(avatar_id), record)
             return record
 
+    def update_identity_if_active(
+        self, avatar_id: str, **changes: Any
+    ) -> dict[str, Any] | None:
+        """Atomically update an identity unless it has already been tombstoned."""
+        with self._lock:
+            record = self._load_required(self._identity_path(avatar_id), "identity", avatar_id)
+            if record.get("deletedAt") is not None:
+                return None
+            record.update(changes)
+            record["avatarId"] = avatar_id
+            self._write_json(self._identity_path(avatar_id), record)
+            return record
+
     def soft_delete_identity(self, avatar_id: str) -> dict[str, Any]:
         """Tombstone an identity and cancel only bindings not already terminal."""
         with self._lock:
