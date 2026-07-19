@@ -27,6 +27,11 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(na
 VALID_MOTIONS = {"squat", "hinge", "flow", "bounce", "throw"}
 ALLOWED_IMAGE_TYPES = {"image/jpeg", "image/png", "image/webp"}
 IMAGE_SUFFIXES = {"image/jpeg": ".jpg", "image/png": ".png", "image/webp": ".webp"}
+_ACTIVE_IDENTITY_STATUSES = {"queued", "running"}
+_IDENTITY_RECOVERY_ERROR = (
+    "Avatar import could not resume after restart because its source photo or "
+    "motion settings are missing. Delete this identity and upload a replacement photo."
+)
 
 # Avatar job registry (jobId → record). Done/error records are also persisted
 # as <AVATAR_JOBS_DIR>/<jobId>.json so they survive a restart.
@@ -34,6 +39,8 @@ _AVATAR_JOBS: dict[str, dict] = {}
 # The LHM export peaks at ~19.6 GiB VRAM — serialize avatar jobs so two
 # concurrent exports cannot OOM the GPU. Queued jobs stay status="queued".
 _AVATAR_EXPORT_LOCK = threading.Lock()
+_SCHEDULED_AVATAR_IDENTITIES: set[str] = set()
+_SCHEDULED_AVATAR_IDENTITIES_LOCK = threading.Lock()
 _AVATAR_REGISTRY = AvatarRegistry(config.AVATAR_REGISTRY_ROOT)
 
 
@@ -76,6 +83,11 @@ async def lifespan(app: FastAPI):
     )
     if recovered:
         logger.info("recovered %d unfinished avatar motion job(s)", recovered)
+    recovered_identities = _recover_avatar_identities(
+        lambda function, *args: loop.run_in_executor(None, function, *args)
+    )
+    if recovered_identities:
+        logger.info("recovered %d unfinished avatar identity job(s)", recovered_identities)
     yield
     app.state.estimator = None
 
@@ -426,23 +438,121 @@ def _recover_motion_bindings(submit) -> int:
     return recovered
 
 
+def _resolve_identity_source(record: dict) -> Path | None:
+    """Resolve a persisted source photo without allowing escape from its identity."""
+    avatar_id = record.get("avatarId")
+    source_name = record.get("sourcePhoto")
+    if not isinstance(avatar_id, str) or not isinstance(source_name, str) or not source_name:
+        return None
+    try:
+        identity_dir = _AVATAR_REGISTRY._identity_path(avatar_id).parent.resolve()
+        source_path = (identity_dir / source_name).resolve()
+        source_path.relative_to(identity_dir)
+    except (OSError, ValueError):
+        return None
+    return source_path if source_path.is_file() else None
+
+
+def _fail_identity_recovery(avatar_id: str) -> None:
+    _AVATAR_REGISTRY.update_identity_if_active(
+        avatar_id,
+        expected_statuses=_ACTIVE_IDENTITY_STATUSES,
+        status="error",
+        error=_IDENTITY_RECOVERY_ERROR,
+        finishedAt=time.time(),
+    )
+
+
+def _submit_avatar_job(submit, avatar_id: str, photo_path: Path, motion_params: str) -> bool:
+    """Submit at most one in-process future for an identity."""
+    with _SCHEDULED_AVATAR_IDENTITIES_LOCK:
+        if avatar_id in _SCHEDULED_AVATAR_IDENTITIES:
+            return False
+        _SCHEDULED_AVATAR_IDENTITIES.add(avatar_id)
+    try:
+        submit(_run_avatar_job, avatar_id, photo_path, motion_params)
+    except Exception:
+        with _SCHEDULED_AVATAR_IDENTITIES_LOCK:
+            _SCHEDULED_AVATAR_IDENTITIES.discard(avatar_id)
+        raise
+    return True
+
+
+def _recover_avatar_identities(submit) -> int:
+    """Resume durable queued/running identity jobs after a process restart."""
+    recovered = 0
+    identities = sorted(
+        _AVATAR_REGISTRY.list_identities(include_deleted=True),
+        key=lambda record: float(record.get("createdAt") or 0),
+    )
+    for identity in identities:
+        if identity.get("deletedAt") is not None:
+            continue
+        if identity.get("status") not in _ACTIVE_IDENTITY_STATUSES:
+            continue
+        avatar_id = identity.get("avatarId")
+        motion_params = identity.get("motionParams")
+        source_path = _resolve_identity_source(identity)
+        if (
+            not isinstance(avatar_id, str)
+            or not isinstance(motion_params, str)
+            or not motion_params.strip()
+            or source_path is None
+        ):
+            if isinstance(avatar_id, str):
+                _fail_identity_recovery(avatar_id)
+            continue
+        try:
+            avatar.motion_params_dir(motion_params)
+        except (FileNotFoundError, ValueError):
+            _fail_identity_recovery(avatar_id)
+            continue
+        claimed = _AVATAR_REGISTRY.update_identity_if_active(
+            avatar_id,
+            expected_statuses=_ACTIVE_IDENTITY_STATUSES,
+            status="running",
+            startedAt=time.time(),
+            error=None,
+        )
+        if claimed is None:
+            continue
+        try:
+            scheduled = _submit_avatar_job(
+                submit, avatar_id, source_path, motion_params
+            )
+        except Exception:  # noqa: BLE001
+            _fail_identity_recovery(avatar_id)
+            logger.exception("[%s] failed to resubmit avatar identity", avatar_id)
+            continue
+        if not scheduled:
+            continue
+        recovered += 1
+    return recovered
+
+
 def _run_avatar_job(avatar_id: str, photo_path: Path, motion_params: str) -> None:
     """Worker-thread entry for serialized, identity-only LHM reconstruction."""
     with _AVATAR_EXPORT_LOCK:
-        record = _find_identity(avatar_id)
-        if record is None or record.get("deletedAt") is not None:
-            return
-        record = _AVATAR_REGISTRY.update_identity(
-            avatar_id, status="running", startedAt=time.time()
+        record = _AVATAR_REGISTRY.update_identity_if_active(
+            avatar_id,
+            expected_statuses=_ACTIVE_IDENTITY_STATUSES,
+            status="running",
+            startedAt=time.time(),
         )
+        if record is None:
+            with _SCHEDULED_AVATAR_IDENTITIES_LOCK:
+                _SCHEDULED_AVATAR_IDENTITIES.discard(avatar_id)
+            return
 
         def progress(stage: str, current: int, total: int, note: str) -> None:
             if total > 0:
                 pct = max(0, min(100, round(current * 100 / total)))
-                current_record = _find_identity(avatar_id)
-                if current_record is not None and current_record.get("deletedAt") is None:
-                    record["progress"] = max(int(current_record.get("progress") or 0), pct)
-                    _AVATAR_REGISTRY.update_identity(avatar_id, progress=record["progress"])
+                record["progress"] = max(int(record.get("progress") or 0), pct)
+                _AVATAR_REGISTRY.update_identity_if_active(
+                    avatar_id,
+                    expected_statuses=_ACTIVE_IDENTITY_STATUSES,
+                    progress=record["progress"],
+                )
             logger.info("[%s] %-7s %s%% %s", avatar_id, stage, record["progress"], note)
 
         try:
@@ -456,6 +566,7 @@ def _run_avatar_job(avatar_id: str, photo_path: Path, motion_params: str) -> Non
             )
             published = _AVATAR_REGISTRY.update_identity_if_active(
                 avatar_id,
+                expected_statuses=_ACTIVE_IDENTITY_STATUSES,
                 status="ready",
                 progress=100,
                 identityUrl=result["identityUrl"],
@@ -469,15 +580,17 @@ def _run_avatar_job(avatar_id: str, photo_path: Path, motion_params: str) -> Non
                 return
             logger.info("[%s] avatar identity ready: %s", avatar_id, result["identityUrl"])
         except Exception as exc:  # noqa: BLE001
-            current_record = _find_identity(avatar_id)
-            if current_record is not None and current_record.get("deletedAt") is None:
-                _AVATAR_REGISTRY.update_identity(
-                    avatar_id,
-                    status="error",
-                    error=str(exc) or repr(exc),
-                    finishedAt=time.time(),
-                )
+            _AVATAR_REGISTRY.update_identity_if_active(
+                avatar_id,
+                expected_statuses=_ACTIVE_IDENTITY_STATUSES,
+                status="error",
+                error=str(exc) or repr(exc),
+                finishedAt=time.time(),
+            )
             logger.exception("[%s] avatar identity pipeline failed", avatar_id)
+        finally:
+            with _SCHEDULED_AVATAR_IDENTITIES_LOCK:
+                _SCHEDULED_AVATAR_IDENTITIES.discard(avatar_id)
 
 
 async def _queue_avatar_identity(
@@ -519,6 +632,7 @@ async def _queue_avatar_identity(
         identityUrl=None,
         previewUrl=None,
         sourcePhoto=source_name,
+        motionParams=resolved_motion_params,
         error=None,
     )
     avatar_id = record["avatarId"]
@@ -542,8 +656,11 @@ async def _queue_avatar_identity(
         config.avatar_export_stub(),
     )
     loop = asyncio.get_running_loop()
-    loop.run_in_executor(
-        None, _run_avatar_job, avatar_id, photo_path, resolved_motion_params
+    _submit_avatar_job(
+        lambda function, *args: loop.run_in_executor(None, function, *args),
+        avatar_id,
+        photo_path,
+        resolved_motion_params,
     )
     return JSONResponse(record, status_code=202)
 

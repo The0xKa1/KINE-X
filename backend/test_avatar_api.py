@@ -1,6 +1,7 @@
 """HTTP and pipeline regression tests for server-backed avatar identities."""
 from __future__ import annotations
 
+import asyncio
 import tempfile
 import threading
 import time
@@ -118,6 +119,7 @@ class AvatarApiTests(unittest.TestCase):
         created = response.json()
         self.assertTrue(created["avatarId"].startswith("av-"))
         self.assertEqual(created["name"], "Ada")
+        self.assertEqual(created["motionParams"], "test_video")
         self.assertNotIn("seedId", created)
         self.assertTrue(self.started.wait(timeout=2))
         running = self._wait_for_status(created["avatarId"], "running")
@@ -226,6 +228,8 @@ class AvatarApiTests(unittest.TestCase):
         original_publish = self.registry.update_identity_if_active
 
         def controlled_publish(avatar_id: str, **changes):
+            if changes.get("status") != "ready":
+                return original_publish(avatar_id, **changes)
             publish_entered.set()
             if not publish_release.wait(timeout=3):
                 raise TimeoutError("test conditional publish was not released")
@@ -254,6 +258,156 @@ class AvatarApiTests(unittest.TestCase):
         )
         self.assertEqual(persisted["deletedAt"], deleted["deletedAt"])
         self.assertNotEqual(persisted["status"], "ready")
+
+    def test_startup_recovery_resumes_persisted_queued_and_running_identities(self) -> None:
+        identities: list[dict] = []
+        for status in ("queued", "running"):
+            record = self.registry.create_identity(
+                status.title(),
+                status=status,
+                sourcePhoto="source-photo.png",
+                motionParams="test_video",
+            )
+            source = self.registry.identities_dir / record["avatarId"] / "source-photo.png"
+            source.write_bytes(f"{status}-photo".encode())
+            identities.append(record)
+        self.release.set()
+
+        recovered = app_module._recover_avatar_identities(
+            lambda function, *args: function(*args)
+        )
+
+        persisted = {
+            record["avatarId"]: record for record in self.registry.list_identities()
+        }
+        self.assertEqual(recovered, 2)
+        for original in identities:
+            with self.subTest(status=original["status"]):
+                current = persisted[original["avatarId"]]
+                self.assertEqual(current["status"], "ready")
+                self.assertEqual(current["progress"], 100)
+                self.assertTrue(current["identityUrl"].endswith("/identity.bin"))
+
+    def test_startup_recovery_is_idempotent_while_recovered_job_is_pending(self) -> None:
+        identity = self.registry.create_identity(
+            "Ada",
+            sourcePhoto="source-photo.png",
+            motionParams="test_video",
+        )
+        source = self.registry.identities_dir / identity["avatarId"] / "source-photo.png"
+        source.write_bytes(b"photo")
+        submissions: list[tuple[object, tuple[object, ...]]] = []
+
+        first = app_module._recover_avatar_identities(
+            lambda function, *args: submissions.append((function, args))
+        )
+        second = app_module._recover_avatar_identities(
+            lambda function, *args: submissions.append((function, args))
+        )
+
+        self.assertEqual(first, 1)
+        self.assertEqual(second, 0)
+        self.assertEqual(len(submissions), 1)
+        self.release.set()
+        function, args = submissions[0]
+        function(*args)
+
+    def test_startup_recovery_marks_missing_or_unsafe_inputs_terminal(self) -> None:
+        missing_source = self.registry.create_identity(
+            "Missing source",
+            sourcePhoto="source-photo.png",
+            motionParams="test_video",
+        )
+        missing_metadata = self.registry.create_identity(
+            "Legacy",
+            sourcePhoto="source-photo.png",
+        )
+        legacy_source = (
+            self.registry.identities_dir
+            / missing_metadata["avatarId"]
+            / "source-photo.png"
+        )
+        legacy_source.write_bytes(b"legacy")
+        unsafe_source = self.registry.create_identity(
+            "Unsafe",
+            sourcePhoto="../outside.png",
+            motionParams="test_video",
+        )
+        outside = self.registry.identities_dir / "outside.png"
+        outside.parent.mkdir(parents=True, exist_ok=True)
+        outside.write_bytes(b"must-not-read")
+
+        recovered = app_module._recover_avatar_identities(
+            lambda *_args: self.fail("invalid recovery inputs must not be submitted")
+        )
+
+        persisted = {
+            record["avatarId"]: record for record in self.registry.list_identities()
+        }
+        self.assertEqual(recovered, 0)
+        for identity in (missing_source, missing_metadata, unsafe_source):
+            with self.subTest(avatar_id=identity["avatarId"]):
+                current = persisted[identity["avatarId"]]
+                self.assertEqual(current["status"], "error")
+                self.assertIn("replacement photo", current["error"])
+                self.assertIsNotNone(current["finishedAt"])
+        self.assertEqual(outside.read_bytes(), b"must-not-read")
+
+    def test_startup_recovery_ignores_deleted_and_terminal_identities(self) -> None:
+        deleted = self.registry.create_identity(
+            "Deleted",
+            sourcePhoto="source-photo.png",
+            motionParams="test_video",
+        )
+        deleted_source = self.registry.identities_dir / deleted["avatarId"] / "source-photo.png"
+        deleted_source.write_bytes(b"deleted")
+        self.registry.soft_delete_identity(deleted["avatarId"])
+        for status in ("ready", "error"):
+            identity = self.registry.create_identity(
+                status.title(),
+                status=status,
+                sourcePhoto="source-photo.png",
+                motionParams="test_video",
+            )
+            source = self.registry.identities_dir / identity["avatarId"] / "source-photo.png"
+            source.write_bytes(status.encode())
+
+        recovered = app_module._recover_avatar_identities(
+            lambda *_args: self.fail("deleted and terminal identities must not be submitted")
+        )
+
+        self.assertEqual(recovered, 0)
+        persisted = self.registry.list_identities(include_deleted=True)
+        self.assertEqual(
+            {record["status"] for record in persisted}, {"queued", "ready", "error"}
+        )
+
+    def test_lifespan_resubmits_identity_recovery_through_executor(self) -> None:
+        torch_stub = types.ModuleType("torch")
+        sam_stub = types.ModuleType("sam_3d_body")
+        sam_stub.load_sam_3d_body = lambda *_args, **_kwargs: (object(), object())
+        sam_stub.SAM3DBodyEstimator = lambda **_kwargs: object()
+        worker_ran = threading.Event()
+
+        def recover(submit) -> int:
+            submit(worker_ran.set)
+            return 1
+
+        async def enter_lifespan() -> None:
+            async with app_module.lifespan(app_module.app):
+                await asyncio.sleep(0)
+
+        with mock.patch.dict(
+            sys.modules, {"torch": torch_stub, "sam_3d_body": sam_stub}
+        ), mock.patch.object(
+            app_module, "_recover_motion_bindings", return_value=0
+        ), mock.patch.object(
+            app_module, "_recover_avatar_identities", side_effect=recover
+        ) as recovery:
+            asyncio.run(enter_lifespan())
+
+        recovery.assert_called_once()
+        self.assertTrue(worker_ran.wait(timeout=2))
 
 
 class AvatarPipelineTests(unittest.TestCase):

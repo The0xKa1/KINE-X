@@ -64,12 +64,18 @@ class AvatarRegistry:
             return record
 
     def update_identity_if_active(
-        self, avatar_id: str, **changes: Any
+        self,
+        avatar_id: str,
+        *,
+        expected_statuses: set[str] | None = None,
+        **changes: Any,
     ) -> dict[str, Any] | None:
-        """Atomically update an identity unless it has already been tombstoned."""
+        """Atomically update an active identity, optionally requiring its status."""
         with self._lock:
             record = self._load_required(self._identity_path(avatar_id), "identity", avatar_id)
             if record.get("deletedAt") is not None:
+                return None
+            if expected_statuses is not None and record.get("status") not in expected_statuses:
                 return None
             record.update(changes)
             record["avatarId"] = avatar_id

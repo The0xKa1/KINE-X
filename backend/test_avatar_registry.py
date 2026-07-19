@@ -59,6 +59,23 @@ class AvatarRegistryTests(unittest.TestCase):
         self.assertEqual(persisted["status"], "running")
         self.assertIsNotNone(persisted["deletedAt"])
 
+    def test_conditional_identity_update_can_atomically_require_current_status(self) -> None:
+        identity = self.registry.create_identity("Ada")
+
+        claimed = self.registry.update_identity_if_active(
+            identity["avatarId"],
+            expected_statuses={"queued"},
+            status="running",
+        )
+        duplicate = self.registry.update_identity_if_active(
+            identity["avatarId"],
+            expected_statuses={"queued"},
+            status="running",
+        )
+
+        self.assertEqual(claimed["status"], "running")
+        self.assertIsNone(duplicate)
+
     def test_atomic_manifest_publish_syncs_and_closes_parent_directory(self) -> None:
         with mock.patch.object(avatar_registry.os, "fsync", wraps=avatar_registry.os.fsync) as sync:
             with mock.patch.object(avatar_registry.os, "open", wraps=avatar_registry.os.open) as open_dir:
