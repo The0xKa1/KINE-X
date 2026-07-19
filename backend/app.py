@@ -16,14 +16,17 @@ from typing import Optional
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from pydantic import BaseModel
 
 from . import avatar, config, pipeline
+from .avatar_registry import AvatarRegistry
 
 logger = logging.getLogger("kinex.backend")
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(name)s: %(message)s")
 
 VALID_MOTIONS = {"squat", "hinge", "flow", "bounce", "throw"}
 ALLOWED_IMAGE_TYPES = {"image/jpeg", "image/png", "image/webp"}
+IMAGE_SUFFIXES = {"image/jpeg": ".jpg", "image/png": ".png", "image/webp": ".webp"}
 
 # Avatar job registry (jobId → record). Done/error records are also persisted
 # as <AVATAR_JOBS_DIR>/<jobId>.json so they survive a restart.
@@ -31,6 +34,11 @@ _AVATAR_JOBS: dict[str, dict] = {}
 # The LHM export peaks at ~19.6 GiB VRAM — serialize avatar jobs so two
 # concurrent exports cannot OOM the GPU. Queued jobs stay status="queued".
 _AVATAR_EXPORT_LOCK = threading.Lock()
+_AVATAR_REGISTRY = AvatarRegistry(config.AVATAR_REGISTRY_ROOT)
+
+
+class AvatarRenameRequest(BaseModel):
+    name: str
 
 
 @asynccontextmanager
@@ -74,7 +82,7 @@ app = FastAPI(title="KINE//X import service", lifespan=lifespan)
 app.add_middleware(
     CORSMiddleware,
     allow_origin_regex=r"^https?://(localhost|127\.0\.0\.1)(:\d+)?$",
-    allow_methods=["GET", "POST", "OPTIONS"],
+    allow_methods=["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
     allow_headers=["*"],
 )
 
@@ -175,53 +183,77 @@ def _persist_avatar_meta(record: dict) -> None:
         logger.warning("[%s] failed to persist avatar meta", record.get("jobId"))
 
 
-def _run_avatar_job(job_id: str, photo_path: Path, workdir: Path, motion_params: str) -> None:
-    """Worker-thread entry: run the avatar pipeline and track it in _AVATAR_JOBS."""
-    record = _AVATAR_JOBS[job_id]
+def _find_identity(avatar_id: str) -> dict | None:
+    return next(
+        (
+            record
+            for record in _AVATAR_REGISTRY.list_identities(include_deleted=True)
+            if record.get("avatarId") == avatar_id
+        ),
+        None,
+    )
+
+
+def _run_avatar_job(avatar_id: str, photo_path: Path, motion_params: str) -> None:
+    """Worker-thread entry for serialized, identity-only LHM reconstruction."""
     with _AVATAR_EXPORT_LOCK:
-        record["status"] = "running"
-        record["startedAt"] = time.time()
+        record = _find_identity(avatar_id)
+        if record is None or record.get("deletedAt") is not None:
+            return
+        record = _AVATAR_REGISTRY.update_identity(
+            avatar_id, status="running", startedAt=time.time()
+        )
 
         def progress(stage: str, current: int, total: int, note: str) -> None:
             if total > 0:
                 pct = max(0, min(100, round(current * 100 / total)))
-                record["progress"] = max(int(record.get("progress") or 0), pct)
-            logger.info("[%s] %-7s %s%% %s", job_id, stage, record["progress"], note)
+                current_record = _find_identity(avatar_id)
+                if current_record is not None and current_record.get("deletedAt") is None:
+                    record["progress"] = max(int(current_record.get("progress") or 0), pct)
+                    _AVATAR_REGISTRY.update_identity(avatar_id, progress=record["progress"])
+            logger.info("[%s] %-7s %s%% %s", avatar_id, stage, record["progress"], note)
 
         try:
             result = avatar.run_avatar_pipeline(
                 photo_path,
-                job_id,
+                avatar_id,
                 name=record["name"],
-                seed_id=record["seedId"],
                 motion_params=motion_params,
+                identity_dir=_AVATAR_REGISTRY.identities_dir / avatar_id,
                 progress=progress,
             )
-            record["status"] = "done"
-            record["progress"] = 100
-            record["avatarBinUrl"] = result["avatarBinUrl"]
-            record["alignment"] = result.get("alignment")
-            record["error"] = None
-            logger.info("[%s] avatar done: %s", job_id, result["avatarBinUrl"])
+            current_record = _find_identity(avatar_id)
+            if current_record is None or current_record.get("deletedAt") is not None:
+                logger.info("[%s] identity deleted before publish; discarding completion", avatar_id)
+                return
+            _AVATAR_REGISTRY.update_identity(
+                avatar_id,
+                status="ready",
+                progress=100,
+                identityUrl=result["identityUrl"],
+                previewUrl=result["previewUrl"],
+                alignment=result.get("alignment"),
+                error=None,
+                finishedAt=time.time(),
+            )
+            logger.info("[%s] avatar identity ready: %s", avatar_id, result["identityUrl"])
         except Exception as exc:  # noqa: BLE001
-            record["status"] = "error"
-            record["error"] = str(exc) or repr(exc)
-            logger.exception("[%s] avatar pipeline failed", job_id)
-        finally:
-            record["finishedAt"] = time.time()
-            _persist_avatar_meta(record)
-            shutil.rmtree(workdir, ignore_errors=True)
+            current_record = _find_identity(avatar_id)
+            if current_record is not None and current_record.get("deletedAt") is None:
+                _AVATAR_REGISTRY.update_identity(
+                    avatar_id,
+                    status="error",
+                    error=str(exc) or repr(exc),
+                    finishedAt=time.time(),
+                )
+            logger.exception("[%s] avatar identity pipeline failed", avatar_id)
 
 
-@app.post("/import/avatar", status_code=202)
-async def import_avatar(
-    photo: UploadFile = File(...),
-    name: Optional[str] = Form(None),
-    seedId: Optional[str] = Form("ugc-squat"),
-    motionParams: Optional[str] = Form("test_video"),
-):
-    """Queue a photo → 3DGS avatar import. Returns the job record immediately;
-    poll GET /import/jobs for status/progress until done|error."""
+async def _queue_avatar_identity(
+    photo: UploadFile,
+    name: str | None,
+    motion_params: str | None,
+) -> JSONResponse:
     content_type = (photo.content_type or "").lower()
     if content_type not in ALLOWED_IMAGE_TYPES:
         raise HTTPException(
@@ -232,44 +264,103 @@ async def import_avatar(
     if not data:
         raise HTTPException(status_code=400, detail={"error": "empty upload", "stage": "input"})
     if len(data) > config.AVATAR_MAX_PHOTO_BYTES:
-        # Drain the rest of the upload first: responding while the client is
-        # still sending the body gets the connection reset and the 400 lost.
         while await photo.read(1 << 20):
             pass
         raise HTTPException(
             status_code=400,
             detail={"error": f"photo exceeds {config.AVATAR_MAX_PHOTO_BYTES // (1024 * 1024)}MB", "stage": "input"},
         )
-    motion_params = motionParams or "test_video"
+
+    requested_name = (name or Path(photo.filename or "avatar").stem).strip()
+    if not requested_name:
+        requested_name = "Avatar"
+    source_name = f"source-photo{IMAGE_SUFFIXES[content_type]}"
+    record = _AVATAR_REGISTRY.create_identity(
+        requested_name,
+        identityUrl=None,
+        previewUrl=None,
+        sourcePhoto=source_name,
+        error=None,
+    )
+    avatar_id = record["avatarId"]
+    photo_path = _AVATAR_REGISTRY.identities_dir / avatar_id / source_name
     try:
-        avatar.motion_params_dir(motion_params)
-    except FileNotFoundError as exc:
-        raise HTTPException(status_code=400, detail={"error": str(exc), "stage": "input"}) from exc
+        photo_path.write_bytes(data)
+    except OSError as exc:
+        _AVATAR_REGISTRY.update_identity(
+            avatar_id, status="error", error=str(exc), finishedAt=time.time()
+        )
+        raise HTTPException(
+            status_code=500, detail={"error": "failed to store photo", "stage": "input"}
+        ) from exc
 
-    job_id = f"avatar-{time.strftime('%Y%m%d-%H%M%S')}-{uuid.uuid4().hex[:6]}"
-    suffix = Path(photo.filename or "photo.png").suffix or ".png"
-    workdir = Path(tempfile.mkdtemp(prefix=f"kinex-avatar-{job_id}-"))
-    photo_path = workdir / f"photo{suffix}"
-    photo_path.write_bytes(data)
-
-    record = {
-        "jobId": job_id,
-        "kind": "avatar",
-        "name": name or Path(photo.filename or "avatar").stem,
-        "seedId": seedId or "ugc-squat",
-        "status": "queued",
-        "progress": 0,
-        "avatarBinUrl": None,
-        "error": None,
-        "createdAt": time.time(),
-    }
-    _AVATAR_JOBS[job_id] = record
-    logger.info("[%s] queued avatar import '%s' (%.1f KB) motionParams=%s stub=%s",
-                job_id, record["name"], len(data) / 1024, motion_params,
-                config.avatar_export_stub())
+    logger.info(
+        "[%s] queued avatar identity '%s' (%.1f KB) motionParams=%s stub=%s",
+        avatar_id,
+        record["name"],
+        len(data) / 1024,
+        motion_params or "test_video",
+        config.avatar_export_stub(),
+    )
     loop = asyncio.get_running_loop()
-    loop.run_in_executor(None, _run_avatar_job, job_id, photo_path, workdir, motion_params)
+    loop.run_in_executor(
+        None, _run_avatar_job, avatar_id, photo_path, motion_params or "test_video"
+    )
     return JSONResponse(record, status_code=202)
+
+
+@app.get("/avatars")
+def list_avatars() -> list[dict]:
+    return _AVATAR_REGISTRY.list_identities()
+
+
+@app.post("/avatars", status_code=202)
+async def create_avatar(
+    photo: UploadFile = File(...),
+    name: Optional[str] = Form(None),
+    motionParams: Optional[str] = Form("test_video"),
+):
+    return await _queue_avatar_identity(photo, name, motionParams)
+
+
+@app.post("/import/avatar", status_code=202)
+async def import_avatar(
+    photo: UploadFile = File(...),
+    name: Optional[str] = Form(None),
+    seedId: Optional[str] = Form("ugc-squat"),
+    motionParams: Optional[str] = Form("test_video"),
+):
+    """Compatibility alias. ``seedId`` is accepted but deliberately ignored."""
+    _ = seedId
+    return await _queue_avatar_identity(photo, name, motionParams)
+
+
+@app.patch("/avatars/{avatar_id}")
+def rename_avatar(avatar_id: str, request: AvatarRenameRequest) -> dict:
+    name = request.name.strip()
+    if not name:
+        raise HTTPException(status_code=400, detail={"error": "name must not be empty"})
+    try:
+        return _AVATAR_REGISTRY.update_identity(avatar_id, name=name)
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail={"error": str(exc)}) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail={"error": str(exc)}) from exc
+
+
+@app.delete("/avatars/{avatar_id}")
+def delete_avatar(avatar_id: str) -> dict:
+    try:
+        record = _AVATAR_REGISTRY.soft_delete_identity(avatar_id)
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail={"error": str(exc)}) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail={"error": str(exc)}) from exc
+
+    source_name = record.get("sourcePhoto")
+    if isinstance(source_name, str) and Path(source_name).name == source_name:
+        (_AVATAR_REGISTRY.identities_dir / avatar_id / source_name).unlink(missing_ok=True)
+    return record
 
 
 @app.post("/import/video")

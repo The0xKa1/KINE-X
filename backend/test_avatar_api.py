@@ -1,0 +1,254 @@
+"""HTTP and pipeline regression tests for server-backed avatar identities."""
+from __future__ import annotations
+
+import tempfile
+import threading
+import time
+import types
+import unittest
+from contextlib import asynccontextmanager
+from pathlib import Path
+from unittest import mock
+import sys
+
+import numpy as np
+from fastapi.testclient import TestClient
+
+pipeline_stub = types.ModuleType("backend.pipeline")
+pipeline_stub.safe_name = lambda value: str(value).strip().replace("/", "-")
+pipeline_stub.run_pipeline = lambda **_kwargs: {}
+with mock.patch.dict(sys.modules, {"backend.pipeline": pipeline_stub}):
+    from backend import app as app_module
+    from backend import avatar
+from backend.avatar_registry import AvatarRegistry
+
+
+EXPECTED_SMPLX_55_PARENTS = [
+    -1, 0, 0, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 9, 9, 12, 13, 14,
+    16, 17, 18, 19, 15, 15, 15, 20, 25, 26, 20, 28, 29, 20, 31, 32,
+    20, 34, 35, 20, 37, 38, 21, 40, 41, 21, 43, 44, 21, 46, 47, 21,
+    49, 50, 21, 52, 53,
+]
+
+
+class AvatarApiTests(unittest.TestCase):
+    def setUp(self) -> None:
+        self.tmp = tempfile.TemporaryDirectory()
+        self.root = Path(self.tmp.name)
+        self.registry = AvatarRegistry(self.root)
+        self.started = threading.Event()
+        self.release = threading.Event()
+        self.export_finished = threading.Event()
+
+        def exporter(photo_path: Path, avatar_id: str, **kwargs) -> dict:
+            photo_data = Path(photo_path).read_bytes()
+            self.started.set()
+            if not self.release.wait(timeout=5):
+                raise TimeoutError("test exporter was not released")
+            identity_dir = Path(kwargs["identity_dir"])
+            identity_path = identity_dir / "identity.bin"
+            preview_path = identity_dir / "preview.png"
+            identity_path.write_bytes(b"KINEXGI1-test")
+            preview_path.write_bytes(photo_data)
+            self.export_finished.set()
+            return {
+                "avatarId": avatar_id,
+                "identityUrl": f"avatar-identities/{avatar_id}/identity.bin",
+                "previewUrl": f"avatar-identities/{avatar_id}/preview.png",
+                "alignment": {"scale": 1},
+            }
+
+        self.registry_patch = mock.patch.object(
+            app_module, "_AVATAR_REGISTRY", self.registry, create=True
+        )
+        self.export_patch = mock.patch.object(app_module.avatar, "run_avatar_pipeline", side_effect=exporter)
+        self.env_patch = mock.patch.dict("os.environ", {"AVATAR_EXPORT_STUB": "1"})
+
+        @asynccontextmanager
+        async def no_lifespan(_app):
+            yield
+
+        self.lifespan_patch = mock.patch.object(
+            app_module.app.router, "lifespan_context", no_lifespan
+        )
+        self.registry_patch.start()
+        self.export_patch.start()
+        self.env_patch.start()
+        self.lifespan_patch.start()
+        self.client_context = TestClient(app_module.app)
+        self.client = self.client_context.__enter__()
+
+    def tearDown(self) -> None:
+        self.release.set()
+        self.client_context.__exit__(None, None, None)
+        self.lifespan_patch.stop()
+        self.env_patch.stop()
+        self.export_patch.stop()
+        self.registry_patch.stop()
+        self.tmp.cleanup()
+
+    def _wait_for_status(self, avatar_id: str, expected: str) -> dict:
+        deadline = time.monotonic() + 3
+        while time.monotonic() < deadline:
+            records = self.client.get("/avatars").json()
+            current = next(record for record in records if record["avatarId"] == avatar_id)
+            if current["status"] == expected:
+                return current
+            time.sleep(0.01)
+        self.fail(f"identity {avatar_id} did not reach {expected}")
+
+    def test_upload_and_list_expose_queued_running_and_ready_identity_states(self) -> None:
+        queued = self.registry.create_identity("Queued")
+        ready = self.registry.create_identity("Ready", status="ready", progress=100)
+
+        response = self.client.post(
+            "/avatars",
+            files={"photo": ("ada.png", b"png-bytes", "image/png")},
+            data={"name": "  Ada  ", "motionParams": "test_video"},
+        )
+
+        self.assertEqual(response.status_code, 202)
+        created = response.json()
+        self.assertTrue(created["avatarId"].startswith("av-"))
+        self.assertEqual(created["name"], "Ada")
+        self.assertNotIn("seedId", created)
+        self.assertTrue(self.started.wait(timeout=2))
+        running = self._wait_for_status(created["avatarId"], "running")
+        statuses = {record["avatarId"]: record["status"] for record in self.client.get("/avatars").json()}
+        self.assertEqual(statuses[queued["avatarId"]], "queued")
+        self.assertEqual(statuses[ready["avatarId"]], "ready")
+        self.assertEqual(running["progress"], 0)
+
+        self.release.set()
+        finished = self._wait_for_status(created["avatarId"], "ready")
+        self.assertEqual(finished["progress"], 100)
+        self.assertTrue(finished["identityUrl"].endswith("/identity.bin"))
+        self.assertTrue(finished["previewUrl"].endswith("/preview.png"))
+
+    def test_legacy_import_alias_returns_identity_without_attaching_seed(self) -> None:
+        response = self.client.post(
+            "/import/avatar",
+            files={"photo": ("legacy.jpg", b"jpg-bytes", "image/jpeg")},
+            data={"name": "Legacy", "seedId": "ugc-squat", "motionParams": "test_video"},
+        )
+
+        self.assertEqual(response.status_code, 202)
+        self.assertIn("avatarId", response.json())
+        self.assertNotIn("jobId", response.json())
+        self.assertNotIn("seedId", response.json())
+
+    def test_patch_trims_and_persists_name(self) -> None:
+        identity = self.registry.create_identity("Before")
+
+        response = self.client.patch(
+            f"/avatars/{identity['avatarId']}", json={"name": "  After  "}
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["name"], "After")
+        self.assertEqual(
+            AvatarRegistry(self.root).list_identities()[0]["name"], "After"
+        )
+
+    def test_delete_tombstones_hides_identity_removes_source_and_cancels_binding(self) -> None:
+        identity = self.registry.create_identity("Ada", sourcePhoto="source-photo.png")
+        identity_dir = self.root / "avatar-identities" / identity["avatarId"]
+        source = identity_dir / "source-photo.png"
+        source.write_bytes(b"photo")
+        motion = self.registry.upsert_motion(name="Squat")
+        binding = self.registry.create_binding(identity["avatarId"], motion["motionId"])
+
+        response = self.client.delete(f"/avatars/{identity['avatarId']}")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIsNotNone(response.json()["deletedAt"])
+        self.assertFalse(source.exists())
+        self.assertEqual(self.client.get("/avatars").json(), [])
+        persisted = self.registry.list_bindings(avatar_id=identity["avatarId"])
+        self.assertEqual(persisted[0]["bindingId"], binding["bindingId"])
+        self.assertEqual(persisted[0]["status"], "cancelled")
+
+    def test_upload_rejects_invalid_image_mime(self) -> None:
+        response = self.client.post(
+            "/avatars", files={"photo": ("notes.txt", b"nope", "text/plain")}
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.json()["detail"]["stage"], "input")
+
+    def test_delete_during_export_cannot_publish_stale_ready_state(self) -> None:
+        created = self.client.post(
+            "/avatars", files={"photo": ("ada.png", b"png-bytes", "image/png")}
+        ).json()
+        self.assertTrue(self.started.wait(timeout=2))
+        self._wait_for_status(created["avatarId"], "running")
+
+        deleted = self.client.delete(f"/avatars/{created['avatarId']}").json()
+        self.release.set()
+        self.assertTrue(self.export_finished.wait(timeout=2))
+        self.assertTrue(app_module._AVATAR_EXPORT_LOCK.acquire(timeout=2))
+        app_module._AVATAR_EXPORT_LOCK.release()
+
+        persisted = next(
+            record
+            for record in self.registry.list_identities(include_deleted=True)
+            if record["avatarId"] == created["avatarId"]
+        )
+        self.assertEqual(persisted["deletedAt"], deleted["deletedAt"])
+        self.assertNotEqual(persisted["status"], "ready")
+
+
+class AvatarPipelineTests(unittest.TestCase):
+    def test_canonical_smplx_parent_hierarchy_is_exact(self) -> None:
+        self.assertEqual(list(avatar.SMPLX_55_PARENTS), EXPECTED_SMPLX_55_PARENTS)
+
+    def test_pipeline_splits_aligned_asset_with_joint_null_and_publishes_preview(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            photo = root / "photo.png"
+            raw_bin = root / "stub.bin"
+            debug_npz = root / "stub.npz"
+            identity_dir = root / "avatar-identities" / "av-test"
+            motion_dir = root / "motion" / "smplx_params"
+            photo.write_bytes(b"photo-preview")
+            raw_bin.write_bytes(b"legacy")
+            motion_dir.mkdir(parents=True)
+            joint_null = np.arange(55 * 3, dtype=np.float32).reshape(55, 3)
+            np.savez(debug_npz, joint_null=joint_null)
+
+            def align(_debug, source, target, _report):
+                Path(target).write_bytes(Path(source).read_bytes())
+                return {"scale": 1}
+
+            def split(source, identity_path, motion_path, actual_joints, parents):
+                self.assertEqual(Path(source).read_bytes(), b"legacy")
+                np.testing.assert_array_equal(actual_joints, joint_null)
+                self.assertEqual(list(parents), EXPECTED_SMPLX_55_PARENTS)
+                Path(identity_path).parent.mkdir(parents=True, exist_ok=True)
+                Path(identity_path).write_bytes(b"identity")
+                Path(motion_path).write_bytes(b"motion")
+                return ({"format": "KINEXGI1"}, {"format": "KINEXGM1"})
+
+            with mock.patch.object(avatar.config, "AVATAR_STUB_BIN", raw_bin), \
+                 mock.patch.object(avatar.config, "AVATAR_STUB_NPZ", debug_npz), \
+                 mock.patch.object(avatar, "motion_params_dir", return_value=motion_dir), \
+                 mock.patch.object(avatar, "_run_alignment", side_effect=align), \
+                 mock.patch.object(avatar, "split_legacy_asset", side_effect=split), \
+                 mock.patch.object(avatar.config, "relative_to_repo", side_effect=lambda path: Path(path).name), \
+                 mock.patch.dict("os.environ", {"AVATAR_EXPORT_STUB": "1"}):
+                result = avatar.run_avatar_pipeline(
+                    photo,
+                    "av-test",
+                    name="Ada",
+                    motion_params="test_video",
+                    identity_dir=identity_dir,
+                )
+
+            self.assertEqual((identity_dir / "identity.bin").read_bytes(), b"identity")
+            self.assertEqual((identity_dir / "preview.png").read_bytes(), b"photo-preview")
+            self.assertEqual(result["identityUrl"], "identity.bin")
+            self.assertEqual(result["previewUrl"], "preview.png")
+
+
+if __name__ == "__main__":
+    unittest.main()
