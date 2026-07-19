@@ -1,8 +1,15 @@
 import assert from "node:assert/strict";
+import { execFileSync } from "node:child_process";
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import path from "node:path";
 import test from "node:test";
+import { fileURLToPath } from "node:url";
 
 import {
+  assertReusableIdentity,
   buildSkinningMatrices,
+  createSkinningScratch,
   parseAvatarIdentity,
   parseGaussianMotion,
   parseLegacyGaussianAsset,
@@ -10,6 +17,7 @@ import {
 } from "../dist/core/avatar/AvatarAssets.js";
 
 const JOINTS = 55;
+const REPO_ROOT = fileURLToPath(new URL("..", import.meta.url));
 
 function jsonBytes(value) {
   return new TextEncoder().encode(JSON.stringify(value));
@@ -253,4 +261,74 @@ test("legacy KINEXGS1 combined assets remain playable", () => {
   assert.equal(legacy.frames, 2);
   assert.equal(legacy.tPosed.length, 2 * JOINTS * 16);
   assertClose(legacy.trans.subarray(3), [4, 5, 6]);
+});
+
+test("legacy combined identities are marked non-reusable and rejected for split motion", () => {
+  const splitIdentity = parseAvatarIdentity(makeIdentityBuffer());
+  assert.equal(splitIdentity.reusableMotion, true);
+  assert.doesNotThrow(() => assertReusableIdentity(splitIdentity));
+
+  const legacyIdentity = parseLegacyGaussianAsset(makeLegacyBuffer()).identity;
+  assert.equal(legacyIdentity.reusableMotion, false);
+  assert.throws(
+    () => assertReusableIdentity(legacyIdentity),
+    /legacy.*cannot.*reusable motion|split identity/i,
+  );
+});
+
+test("FK accepts caller-owned scratch buffers for repeated frames", () => {
+  const identity = parseAvatarIdentity(makeIdentityBuffer());
+  const motion = parseGaussianMotion(makeMotionBuffer({ frames: 2 }));
+  const scratch = createSkinningScratch();
+  const world = scratch.world;
+  const matrix = scratch.matrix;
+  const target = new Float32Array(JOINTS * 16);
+
+  buildSkinningMatrices(identity, motion, 0, target, scratch);
+  buildSkinningMatrices(identity, motion, 1, target, scratch);
+
+  assert.equal(scratch.world, world);
+  assert.equal(scratch.matrix, matrix);
+});
+
+test("browser parsers consume identity and motion emitted by backend/avatar_assets.py", async () => {
+  const root = await mkdtemp(path.join(tmpdir(), "kinex-avatar-assets-"));
+  try {
+    const legacyPath = path.join(root, "legacy.bin");
+    const identityPath = path.join(root, "identity.bin");
+    const motionPath = path.join(root, "motion.bin");
+    await writeFile(legacyPath, new Uint8Array(makeLegacyBuffer()));
+    const script = [
+      "import sys",
+      "import numpy as np",
+      "from backend.avatar_assets import split_legacy_asset",
+      "joints = np.arange(55 * 3, dtype=np.float32).reshape(55, 3) / 100",
+      "parents = np.array([-1] + list(range(54)), dtype=np.int16)",
+      "split_legacy_asset(sys.argv[1], sys.argv[2], sys.argv[3], joints, parents)",
+    ].join("\n");
+    execFileSync("python3", ["-c", script, legacyPath, identityPath, motionPath], {
+      cwd: REPO_ROOT,
+      stdio: "pipe",
+    });
+
+    const identityBytes = await readFile(identityPath);
+    const identity = parseAvatarIdentity(
+      identityBytes.buffer.slice(identityBytes.byteOffset, identityBytes.byteOffset + identityBytes.byteLength),
+    );
+    assert.equal(identity.reusableMotion, true);
+    assertClose(identity.centers, [0.5, 1.5, 2.5]);
+    assertClose(identity.quats, [3.5, 4.5, 5.5, 6.5]);
+    assertClose(identity.restJoints.subarray(0, 6), [0, 0.01, 0.02, 0.03, 0.04, 0.05]);
+    assert.deepEqual(Array.from(identity.parents.subarray(0, 4)), [-1, 0, 1, 2]);
+
+    const motionBytes = await readFile(motionPath);
+    const motion = parseGaussianMotion(
+      motionBytes.buffer.slice(motionBytes.byteOffset, motionBytes.byteOffset + motionBytes.byteLength),
+    );
+    assert.equal(motion.frameCount, 2);
+    assertClose(motion.localRotations.subarray(0, 4), [0, 0, 0, 1]);
+    assertClose(motion.translations.subarray(3), [4, 5, 6]);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
 });

@@ -1,11 +1,14 @@
 import { THREE,                    } from "../three-compat.js";
 import {
   AVATAR_JOINT_COUNT,
+  assertReusableIdentity,
   buildSkinningMatrices,
+  createSkinningScratch,
   parseAvatarIdentity,
   parseGaussianMotion,
   parseLegacyGaussianAsset,
   progressFrame,
+
 
 
 } from "./AvatarAssets.js";
@@ -249,6 +252,7 @@ export class GaussianAvatar {
   /** Mount point for any THREE.Scene. Assumes an identity transform (world-space data). */
            object3d                                 ;
            meta                         ;
+           supportsReusableMotion         ;
 
                    identity                ;
                    geometry                                                    ;
@@ -262,6 +266,7 @@ export class GaussianAvatar {
                    depths              ;
                    transVec               ;
                    viewportVec                                    ;
+                   fkScratch                  = createSkinningScratch();
 
           motion                        = null;
           legacyMotion                         ;
@@ -303,6 +308,7 @@ export class GaussianAvatar {
     this.legacyMotion = legacyMotion;
     this.frameCountValue = legacyMotion?.frames ?? 1;
     this.meta = identity.meta;
+    this.supportsReusableMotion = identity.reusableMotion;
 
     const { count } = identity;
 
@@ -419,6 +425,7 @@ export class GaussianAvatar {
 
   /** Replace the current animation while retaining the identity's static textures. */
   setMotion(motion                       )       {
+    if (motion) assertReusableIdentity(this.identity);
     this.motion = motion;
     this.legacyMotion = null;
     this.frameCountValue = motion?.frameCount ?? 1;
@@ -437,7 +444,7 @@ export class GaussianAvatar {
     if (clamped === this.frameIndex) return;
     this.frameIndex = clamped;
     if (this.motion) {
-      buildSkinningMatrices(this.identity, this.motion, clamped, this.boneTexels);
+      buildSkinningMatrices(this.identity, this.motion, clamped, this.boneTexels, this.fkScratch);
       const offset = clamped * 3;
       this.transVec.set(
         this.motion.stageTranslations[offset] ,

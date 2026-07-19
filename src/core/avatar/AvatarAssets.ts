@@ -25,6 +25,8 @@ export interface AvatarIdentity {
   parents: Int16Array;
   /** Parent-before-child traversal order validated by the parser. */
   hierarchyOrder: Uint8Array;
+  /** False for historical combined assets that do not contain a reusable rig. */
+  reusableMotion: boolean;
 }
 
 export interface GaussianMotionAsset {
@@ -46,6 +48,11 @@ export interface LegacyGaussianAsset {
   frames: number;
   tPosed: Float32Array;
   trans: Float32Array;
+}
+
+export interface SkinningScratch {
+  world: Float32Array;
+  matrix: Float32Array;
 }
 
 interface BinaryCursor {
@@ -113,6 +120,7 @@ export function parseAvatarIdentity(buffer: ArrayBuffer): AvatarIdentity {
     restJoints,
     parents,
     hierarchyOrder: validateHierarchy(parents),
+    reusableMotion: true,
   };
 }
 
@@ -237,6 +245,7 @@ export function parseLegacyGaussianAsset(buffer: ArrayBuffer): LegacyGaussianAss
       restJoints: new Float32Array(joints * 3),
       parents,
       hierarchyOrder,
+      reusableMotion: false,
     },
     frames,
     tPosed,
@@ -254,6 +263,7 @@ export function buildSkinningMatrices(
   motion: GaussianMotionAsset,
   frameIndex: number,
   target: Float32Array,
+  scratch?: SkinningScratch,
 ): Float32Array {
   if (identity.jointCount !== AVATAR_JOINT_COUNT || motion.jointCount !== AVATAR_JOINT_COUNT) {
     throw new Error(`[AvatarAssets] identity and motion must both use ${AVATAR_JOINT_COUNT} joints`);
@@ -262,8 +272,12 @@ export function buildSkinningMatrices(
     throw new Error(`[AvatarAssets] skinning target needs ${AVATAR_JOINT_COUNT * MATRIX_FLOATS} floats`);
   }
   const frame = clampFrame(frameIndex, motion.frameCount);
-  const world = new Float32Array(AVATAR_JOINT_COUNT * MATRIX_FLOATS);
-  const multiplyScratch = new Float32Array(MATRIX_FLOATS);
+  const working = scratch ?? createSkinningScratch();
+  if (working.world.length < AVATAR_JOINT_COUNT * MATRIX_FLOATS || working.matrix.length < MATRIX_FLOATS) {
+    throw new Error("[AvatarAssets] FK scratch buffers are too small");
+  }
+  const world = working.world;
+  const multiplyScratch = working.matrix;
   const rotations = motion.localRotations;
   const rotationBase = frame * AVATAR_JOINT_COUNT * 4;
 
@@ -326,6 +340,21 @@ export function buildSkinningMatrices(
     target[offset + 15] = 1;
   }
   return target;
+}
+
+export function createSkinningScratch(): SkinningScratch {
+  return {
+    world: new Float32Array(AVATAR_JOINT_COUNT * MATRIX_FLOATS),
+    matrix: new Float32Array(MATRIX_FLOATS),
+  };
+}
+
+export function assertReusableIdentity(identity: AvatarIdentity): void {
+  if (!identity.reusableMotion) {
+    throw new Error(
+      "[GaussianAvatar] legacy combined assets cannot accept reusable motion; load a split KINEXGI1 identity instead",
+    );
+  }
 }
 
 export function clampFrame(frameIndex: number, frameCount: number): number {
