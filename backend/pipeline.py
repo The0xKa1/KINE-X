@@ -60,6 +60,44 @@ def extract_frames(
     return len(written)
 
 
+def export_segment(
+    video_path: Path,
+    out_path: Path,
+    *,
+    start_sec: float | None = None,
+    end_sec: float | None = None,
+) -> Path:
+    """Re-encode the (optionally sliced) source as a public `segment.mp4`.
+
+    H.264/yuv420p with audio stripped at CRF 23 — a ~10s clip costs almost
+    nothing and plays in every browser. Uses the same input-side seeking
+    semantics as extract_frames, so the segment matches the extracted frames.
+    """
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    cmd: list[str] = ["ffmpeg", "-y"]
+    if start_sec is not None and start_sec > 0:
+        cmd += ["-ss", f"{start_sec:.3f}"]
+    cmd += ["-i", str(video_path)]
+    if end_sec is not None and (start_sec is None or end_sec > start_sec):
+        duration = end_sec - (start_sec or 0.0)
+        cmd += ["-t", f"{duration:.3f}"]
+    cmd += [
+        "-an",
+        "-c:v", "libx264",
+        "-preset", "veryfast",
+        "-crf", "23",
+        "-pix_fmt", "yuv420p",
+        # yuv420p requires even dimensions; a no-op for already-even sources.
+        "-vf", "scale=trunc(iw/2)*2:trunc(ih/2)*2",
+        "-movflags", "+faststart",
+        str(out_path),
+    ]
+    result = subprocess.run(cmd, capture_output=True, text=True)
+    if result.returncode != 0:
+        raise RuntimeError(f"ffmpeg segment export failed: {result.stderr[-2000:]}")
+    return out_path
+
+
 def run_pipeline(
     video_path: Path,
     job_id: str,
@@ -101,6 +139,12 @@ def run_pipeline(
         video_path, frames_dir, fps, start_sec=start_sec, end_sec=end_sec
     )
     emit("extract", 1, 1, f"{frame_count} frames{range_note}")
+
+    emit("segment", 0, 1, "ffmpeg segment.mp4")
+    segment_mp4 = export_segment(
+        video_path, job_dir / "segment.mp4", start_sec=start_sec, end_sec=end_sec
+    )
+    emit("segment", 1, 1, segment_mp4.name)
 
     def infer_cb(current: int, total: int, note: str) -> None:
         emit("infer", current, total, note)
@@ -145,6 +189,7 @@ def run_pipeline(
         "fps": coach_info["fps"],
         "name": clip_name,
         "motion": motion,
+        "sourceVideoUrl": config.relative_to_repo(segment_mp4),
     }
 
 

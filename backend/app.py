@@ -154,7 +154,7 @@ def list_import_jobs() -> JSONResponse:
             frame_count = sum(1 for _ in frames_dir.glob("frame_*.jpg"))
         if frame_count <= 0:
             continue
-        jobs.append({
+        record = {
             "jobId": job_dir.name,
             "kind": "video",
             "coachClipUrl": config.relative_to_repo(coach_json),
@@ -167,7 +167,13 @@ def list_import_jobs() -> JSONResponse:
             "fps": int(meta.get("fps") or config.DEFAULT_TARGET_FPS),
             "name": str(meta.get("name") or job_dir.name),
             "motion": str(meta.get("motion") or "squat"),
-        })
+        }
+        # Optional public source-video segment: jobs gain the field simply by
+        # having a segment.mp4 on disk (no migration for older jobs).
+        segment_mp4 = job_dir / "segment.mp4"
+        if segment_mp4.exists():
+            record["sourceVideoUrl"] = config.relative_to_repo(segment_mp4)
+        jobs.append(record)
     jobs.extend(_list_avatar_jobs())
     return JSONResponse({"jobs": jobs})
 

@@ -863,6 +863,8 @@ async function hydrateCoachClips()                {
 
 
 
+
+
 async function hydrateImportedJobs()                {
   let payload                     ;
   try {
@@ -935,6 +937,9 @@ async function hydrateOneJob(job              )                {
       },
       metrics: pickMetricsForMotion(job.motion),
       clip,
+      // The sliced source video doubles as the coach (twin) video for
+      // imported seeds; no baked photoreal clip is produced anymore.
+      coachVideo: job.sourceVideoUrl ? { front: job.sourceVideoUrl } : undefined,
     };
     const storedBinding = avatarBindingController.get(newId);
     if (storedBinding) assignBindingSnapshot(config, storedBinding);
