@@ -62,6 +62,7 @@ python3 -m unittest backend.test_avatar_assets backend.test_avatar_registry back
 ## 六、坑位备忘（只留真坑）
 
 - 浏览器对 `dist/` 启发式缓存：验证前端改动必须禁缓存或换 query 强刷，否则以为没生效。
+- `_run_motion_binding_job` 的 `finally` 会删除传入的 source_video：复用该 worker 必须给私有副本。公开资产（如 `segment.mp4`）曾被误删导致种子视频窗消失；`d790102` 起删除被限制在私有根内。
 - CDP `captureScreenshot` 在本应用页面会卡死：调试用 `Runtime.evaluate` 探针（`.deploy-tmp/cdp-eval.mjs`）或 headless Chrome `--screenshot`。
 - LHM 的 lbs 把 root trans 拆在矩阵外：对齐拟合必须给关节补 trans，烘 bin 时矩阵只左乘 sR；TF32 会污染精确数学（推理后强制关）。
 - jobs 列表水合 newest-wins：每种子取 `finishedAt` 最新的 done 记录。
