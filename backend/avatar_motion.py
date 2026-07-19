@@ -100,6 +100,8 @@ def prepare_motion_asset(
             cwd=config.LHM_WORKDIR,
             capture_output=True,
             text=True,
+            encoding="utf-8",
+            errors="replace",
             timeout=config.LHM_MOTION_TIMEOUT_SEC,
         )
         if completed.returncode != 0:

@@ -554,6 +554,47 @@ class AvatarMotionAdapterTests(unittest.TestCase):
             self.assertEqual(meta["frames"], 2)
             self.assertEqual(meta["fps"], 15)
 
+    def test_prepare_motion_decodes_subprocess_output_independent_of_locale(self) -> None:
+        avatar_motion = self._module()
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            source = root / "source.mp4"
+            source.write_bytes(b"video")
+            coach_path = root / "coach.json"
+            coach_path.write_text(
+                json.dumps({"frames": [{"pelvis": {"position": [0, 0, 0]}}]}),
+                encoding="utf-8",
+            )
+            script = root / "failing_lhm.py"
+            script.write_text(
+                "import os, sys\n"
+                "os.write(2, b'LHM stderr: \\xe2\\x98\\x83 invalid=\\xff\\n')\n"
+                "sys.exit(7)\n",
+                encoding="ascii",
+            )
+            output = root / "motion" / "motion.bin"
+            real_run = avatar_motion.subprocess.run
+
+            with mock.patch.object(avatar_motion.config, "LHM_PYTHON", Path(sys.executable)), \
+                 mock.patch.object(avatar_motion.config, "LHM_MOTION_SCRIPT", script), \
+                 mock.patch.object(avatar_motion.config, "LHM_MOTION_MODEL_PATH", root), \
+                 mock.patch.object(avatar_motion.config, "LHM_WORKDIR", root), \
+                 mock.patch.object(avatar_motion.subprocess, "run", wraps=real_run) as run:
+                try:
+                    with self.assertRaisesRegex(
+                        RuntimeError, "LHM stderr: ☃ invalid=�"
+                    ):
+                        avatar_motion.prepare_motion_asset(
+                            source, coach_path, output, fps=15
+                        )
+                except UnicodeDecodeError as exc:
+                    self.fail(f"subprocess output used locale/strict decoding: {exc}")
+
+            kwargs = run.call_args.kwargs
+            self.assertEqual(kwargs["encoding"], "utf-8")
+            self.assertEqual(kwargs["errors"], "replace")
+            self.assertTrue(kwargs["capture_output"])
+
 
 if __name__ == "__main__":
     unittest.main()
