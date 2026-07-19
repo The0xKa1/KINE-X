@@ -367,6 +367,14 @@ def _remove_private_source(source_path: Path | None) -> None:
     if source_path is None:
         return
     source_path = Path(source_path)
+    # Only ever delete inside the private jobs root. Callers that reuse the
+    # binding worker with a public asset (e.g. a job's segment.mp4) must not
+    # lose that asset to cleanup.
+    try:
+        source_path.resolve().relative_to(config.AVATAR_PRIVATE_JOBS_DIR.resolve())
+    except (OSError, ValueError):
+        logger.warning("skip source cleanup outside private root: %s", source_path)
+        return
     source_path.unlink(missing_ok=True)
     try:
         source_path.parent.rmdir()
