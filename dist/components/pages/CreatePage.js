@@ -1,17 +1,22 @@
-                                                 
+
 import { ImportFlow,                                               } from "../../core/import/ImportFlow.js";
 import { AvatarImportFlow,                         } from "../../core/import/AvatarImportFlow.js";
+import {
+  buildAvatarPickerChoices,
+
+} from "../../core/avatar/AvatarBindingController.js";
+import { AvatarRegistryClient } from "../../core/avatar/AvatarRegistryClient.js";
 import { $ } from "../../bootstrap/dom.js";
 
-                             
-                  
-                     
-                                             
-                                                   
-                                                   
- 
 
-                                    
+
+
+
+
+
+
+
+
 
 /**
  * Creation studio wizard, two branches:
@@ -25,17 +30,30 @@ export class CreatePage                 {
           options                   ;
           initialized = false;
           tab            = "video";
+                   avatarClient                      ;
+          selectedAvatarId                = null;
+          pickerGeneration = 0;
+          active = false;
 
   constructor(options                   ) {
     this.options = options;
     this.el = options.el;
+    this.avatarClient = new AvatarRegistryClient(options.backendUrl);
   }
 
   enter()       {
-    if (this.initialized) return;
-    this.initialized = true;
-    this.render();
-    this.initFlow();
+    this.active = true;
+    if (!this.initialized) {
+      this.initialized = true;
+      this.render();
+      this.initFlow();
+    }
+    void this.refreshAvatarPicker();
+  }
+
+  leave()       {
+    this.active = false;
+    this.pickerGeneration += 1;
   }
 
           render()       {
@@ -83,6 +101,18 @@ export class CreatePage                 {
                 <option value="throw">Throw · 投掷</option>
               </select>
             </label>
+            <fieldset class="create-avatar-picker" aria-describedby="createAvatarPickerStatus">
+              <legend>可选分身</legend>
+              <div class="create-avatar-picker-head">
+                <span>选择一个已有身份，动作导入不会等待分身准备</span>
+                <a href="#/avatars">管理身份库</a>
+              </div>
+              <div id="createAvatarPicker" class="create-avatar-picker-list"></div>
+              <div class="create-avatar-picker-foot">
+                <p id="createAvatarPickerStatus" class="settings-hint">正在读取身份库…</p>
+                <button id="createAvatarPickerRetry" class="text-button" type="button" hidden>重试</button>
+              </div>
+            </fieldset>
           </section>
 
           <section class="create-block">
@@ -147,6 +177,11 @@ export class CreatePage                 {
     this.el.querySelectorAll                   ("[data-create-tab]").forEach((button) => {
       button.addEventListener("click", () => this.setTab(button.dataset.createTab             ));
     });
+    this.renderAvatarPicker(buildAvatarPickerChoices([]));
+    ($("#createAvatarPickerRetry")                     ).addEventListener(
+      "click",
+      () => void this.refreshAvatarPicker(),
+    );
   }
 
           setTab(next           )       {
@@ -161,6 +196,7 @@ export class CreatePage                 {
     ($("#createAvatarGrid")               ).hidden = next !== "avatar";
     ($("#createSteps")               ).hidden = next !== "video";
     ($("#createTitle")               ).textContent = next === "video" ? "视频 → 虚拟教练" : "照片 → 数字分身";
+    if (next === "video" && this.active) void this.refreshAvatarPicker();
   }
 
           initFlow()       {
@@ -178,6 +214,7 @@ export class CreatePage                 {
       statusLabel: $("#createStatus"),
       preview: $("#createPreview")                    ,
       backendUrl: this.options.backendUrl,
+      getSelectedAvatarId: () => this.selectedAvatarId,
       onApply: (payload) => this.options.onApply(payload),
       onStateChange: (state) => this.syncSteps(state),
     });
@@ -194,8 +231,70 @@ export class CreatePage                 {
       statusLabel: $("#avatarStatus"),
       backendUrl: this.options.backendUrl,
       seedId: "ugc-squat",
-      onReady: (payload) => this.options.onAvatarReady(payload),
+      onReady: (payload) => {
+        this.options.onAvatarReady(payload);
+        if (this.active) void this.refreshAvatarPicker();
+      },
       onEnter: (payload) => this.options.onAvatarEnter(payload),
+    });
+  }
+
+          async refreshAvatarPicker()                {
+    const generation = ++this.pickerGeneration;
+    const status = $("#createAvatarPickerStatus");
+    const retry = $("#createAvatarPickerRetry")                     ;
+    status.textContent = "正在读取身份库…";
+    retry.hidden = true;
+    try {
+      const records = await this.avatarClient.list();
+      if (!this.active || generation !== this.pickerGeneration) return;
+      const choices = buildAvatarPickerChoices(records);
+      const selected = choices.find(
+        (choice) => choice.avatarId === this.selectedAvatarId && !choice.disabled,
+      );
+      if (!selected) this.selectedAvatarId = null;
+      this.renderAvatarPicker(choices);
+      const readyCount = choices.filter((choice) => choice.avatarId && !choice.disabled).length;
+      status.textContent = readyCount > 0
+        ? `${readyCount} 个身份可用；不选择时只生成普通教练。`
+        : "暂无可用身份；仍可正常生成普通教练。";
+    } catch (error) {
+      if (!this.active || generation !== this.pickerGeneration) return;
+      this.selectedAvatarId = null;
+      this.renderAvatarPicker(buildAvatarPickerChoices([]));
+      status.textContent = error instanceof Error
+        ? `${error.message}；动作仍可正常解析。`
+        : "分身服务暂不可用；动作仍可正常解析。";
+      retry.hidden = false;
+    }
+  }
+
+          renderAvatarPicker(choices                      )       {
+    const host = $("#createAvatarPicker");
+    host.textContent = "";
+    choices.forEach((choice) => {
+      const label = document.createElement("label");
+      label.className = "create-avatar-choice";
+      label.classList.toggle("is-disabled", choice.disabled);
+
+      const input = document.createElement("input");
+      input.type = "radio";
+      input.name = "createAvatarIdentity";
+      input.value = choice.avatarId ?? "";
+      input.disabled = choice.disabled;
+      input.checked = choice.avatarId === this.selectedAvatarId;
+      input.addEventListener("change", () => {
+        if (input.checked) this.selectedAvatarId = choice.avatarId;
+      });
+
+      const copy = document.createElement("span");
+      const name = document.createElement("strong");
+      name.textContent = choice.label;
+      const detail = document.createElement("small");
+      detail.textContent = pickerDetail(choice);
+      copy.append(name, detail);
+      label.append(input, copy);
+      host.appendChild(label);
     });
   }
 
@@ -218,4 +317,13 @@ export class CreatePage                 {
       li.classList.toggle("is-active", stepNo === active);
     });
   }
+}
+
+function pickerDetail(choice                    )         {
+  if (choice.status === "none") return "只导入 CoachClip 与 SMPL-X 网格";
+  if (choice.status === "ready") return "身份已就绪，可在动作导入后后台绑定";
+  if (choice.status === "queued") return "身份等待生成";
+  if (choice.status === "running") return `身份生成中 · ${Math.round(choice.progress)}%`;
+  if (choice.status === "cancelled") return "身份已取消";
+  return "身份生成失败";
 }

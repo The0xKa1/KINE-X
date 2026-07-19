@@ -5,71 +5,90 @@ import { SegmentResourceStore,                      } from "../mllm/SegmentResou
 import {
   VideoSegmentationClient,
   sampleFramesAtInterval,
-                        
+
 } from "../mllm/VideoSegmentationClient.js";
-                                                                   
+
+import { appendSelectedAvatar } from "../avatar/AvatarBindingController.js";
 
 const SEGMENT_SAMPLE_INTERVAL_SEC = 1.5;
 const SEGMENT_THUMB_MAX_WIDTH = 160;
 
-                                     
-             
-               
-                  
-                            
-                     
-                                                                      
-                            
- 
 
-                             
-           
-          
-                
-               
-             
-           
-             
-            
 
-                           
-                
-                       
-                          
-                    
-                       
-                     
-                          
-                          
-              
-               
-                     
-                          
- 
 
-                         
-                        
-                  
-                            
- 
 
-                                    
-                              
-                        
-                                  
-                                 
-                                 
-                                   
-                           
-                              
-                           
-                             
-                           
-                            
-                     
-                                             
-                                               
- 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 const SIMULATED_DURATION_MS = 50_000;
 
@@ -127,19 +146,7 @@ export class ImportFlow {
 
     this.options.segmentButton.addEventListener("click", () => void this.runSegmentation());
     this.options.startButton.addEventListener("click", () => void this.runImport());
-    this.options.applyButton.addEventListener("click", () => {
-      if (!this.pending) return;
-      const { meta, clip, meshClip } = this.pending;
-      this.emitState("applied");
-      this.options.onApply({
-        id: meta.jobId,
-        name: meta.name,
-        clip,
-        meshClip,
-        motion: meta.motion,
-        hint: buildHint(this.selectedSegment),
-      });
-    });
+    this.options.applyButton.addEventListener("click", () => this.applyPending());
   }
 
           handleFile(file             )       {
@@ -149,6 +156,7 @@ export class ImportFlow {
     this.resourceStore.clear();
     this.renderSegments([]);
     this.options.applyButton.disabled = true;
+    this.options.applyButton.textContent = "应用为当前教练";
     this.setProgress(0, 0);
     if (!file) {
       this.setStatus("等待上传视频");
@@ -320,6 +328,7 @@ export class ImportFlow {
     this.options.segmentButton.disabled = true;
     this.emitState("parsing");
     const segment = this.selectedSegment;
+    const selectedAvatarId = this.options.getSelectedAvatarId?.() ?? null;
     const range = segment
       ? ` · ${segment.startSec.toFixed(1)}s–${segment.endSec.toFixed(1)}s`
       : "";
@@ -335,6 +344,7 @@ export class ImportFlow {
       form.append("startSec", segment.startSec.toFixed(3));
       form.append("endSec", segment.endSec.toFixed(3));
     }
+    appendSelectedAvatar(form, selectedAvatarId);
 
     const stopSim = this.simulateProgress();
     try {
@@ -365,12 +375,19 @@ export class ImportFlow {
         console.warn("[ImportFlow] mesh clip load failed; skeleton-only result", err);
       }
 
-      this.pending = { meta, clip, meshClip };
+      this.pending = { meta, clip, meshClip, avatarId: selectedAvatarId, applied: false };
       this.setProgress(1);
       const elapsed = meta.elapsedSeconds ? ` · ${meta.elapsedSeconds.toFixed(1)}s` : "";
-      this.setStatus(`就绪 · ${meta.name} · ${meta.frameCount} 帧${elapsed}`);
-      this.options.applyButton.disabled = false;
+      const avatarNote = selectedAvatarId
+        ? meta.bindingStatus === "cancelled" || meta.bindingStatus === "error"
+          ? " · 分身准备失败，教练仍可使用"
+          : " · 分身后台准备中"
+        : "";
+      this.setStatus(`已加入动作库 · ${meta.name} · ${meta.frameCount} 帧${elapsed}${avatarNote}`);
       this.emitState("ready");
+      // Ordinary coach/mesh assets are complete. Apply immediately and let the
+      // optional binding continue independently in AvatarBindingController.
+      this.applyPending();
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       console.warn("[ImportFlow] backend import failed", err);
@@ -383,6 +400,31 @@ export class ImportFlow {
       this.options.segmentButton.disabled = this.file === null;
       this.busy = false;
     }
+  }
+
+          applyPending()       {
+    if (!this.pending || this.pending.applied) return;
+    this.pending.applied = true;
+    this.options.applyButton.disabled = true;
+    this.options.applyButton.textContent = "已加入动作库";
+    const { meta, clip, meshClip, avatarId } = this.pending;
+    this.emitState("applied");
+    this.options.onApply({
+      id: meta.jobId,
+      name: meta.name,
+      clip,
+      meshClip,
+      motion: meta.motion,
+      hint: buildHint(this.selectedSegment),
+      avatarId: avatarId ?? undefined,
+      motionId: meta.motionId,
+      bindingId: meta.bindingId,
+      bindingStatus: meta.bindingStatus,
+      bindingProgress: meta.bindingProgress,
+      bindingError: meta.bindingError,
+      identityUrl: meta.identityUrl,
+      motionAssetUrl: meta.motionAssetUrl,
+    });
   }
 
           simulateProgress()             {

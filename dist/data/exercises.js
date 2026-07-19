@@ -1,4 +1,24 @@
-                                                                                                                
+
+import { hasPlayableAvatarAsset } from "../core/avatar/AvatarBindingController.js";
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+export function hasPlayableAvatar(
+  exercise                                                  ,
+)          {
+  return hasPlayableAvatarAsset(exercise);
+}
 
 // Metric weight templates per motion category, used both by the built-in seed
 // and to score imported clips. Retired built-in seeds live on here as
@@ -39,7 +59,7 @@ export const MOTION_METRIC_TEMPLATES                                        = {
 
 export const exerciseOrder               = ["squat", "ugc-squat"];
 
-export const exercises                                     = {
+export const exercises                                           = {
   squat: {
     id: "squat",
     name: "Deep Squat Tutor",
