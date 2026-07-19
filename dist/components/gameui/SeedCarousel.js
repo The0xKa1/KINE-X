@@ -58,9 +58,11 @@ export class SeedCarousel {
   }
 
   addSeed(id        , exercise                )       {
+    // Active state is NOT set here — it is driven by setExercise → seed:update
+    // → syncExercise. Setting it per added seed would leave the highlight on
+    // the last hydrated seed instead of the current exercise.
     if (this.cards.has(id)) {
       this.options.exercises[id] = exercise;
-      this.setActive(id);
       return;
     }
     if (!this.options.order.includes(id)) this.options.order.push(id);
@@ -70,7 +72,6 @@ export class SeedCarousel {
     card.addEventListener("animationend", () => card.classList.remove("is-entering"), { once: true });
     this.options.container.appendChild(card);
     this.cards.set(id, card);
-    this.setActive(id);
   }
 
           render()       {

@@ -674,6 +674,10 @@ void (async () => {
   const routeSeed = initialRoute.params.seedId;
   const initialSeed =
     initialRoute.name === "train" && routeSeed && exercises[routeSeed] ? routeSeed : state.exerciseId;
+  // Deep link to a seed that only exists after hydration (imported-*)? The
+  // fallback above loses it — remember it and repair once hydration lands.
+  const pendingSeed =
+    initialRoute.name === "train" && routeSeed && !exercises[routeSeed] ? routeSeed : null;
   setExercise(initialSeed, "Realtime evaluator streaming");
   router.start();
   const wsUrl = new URLSearchParams(window.location.search).get("ws") ?? DEFAULT_WS_URL;
@@ -681,7 +685,13 @@ void (async () => {
   boot.tick("stream", "STANDBY");
   // Fire-and-forget so a slow/unreachable backend (port-forward without :8765)
   // doesn't block stage.start() — imported seeds drop into the carousel later.
-  void hydrateImportedJobs();
+  void hydrateImportedJobs().then(() => {
+    // Honor the original deep link — but only if the user hasn't already
+    // switched to another seed by hand.
+    if (pendingSeed && exercises[pendingSeed] && state.exerciseId === initialSeed) {
+      setExercise(pendingSeed, "Imported seed hydrated");
+    }
+  });
 })();
 
 async function probeMediapipeRuntime(): Promise<boolean> {
