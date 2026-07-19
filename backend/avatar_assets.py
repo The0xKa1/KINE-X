@@ -66,6 +66,7 @@ def split_legacy_asset(
     motion_meta.update(
         {"format": MOTION_MAGIC.decode(), "jointCount": joints, "frames": frames}
     )
+    motion_meta["stageTransform"] = _legacy_stage_transform(meta)
 
     identity_payload = static + rest_joints.astype("<f4", copy=False).tobytes() + parent_array.astype("<i2", copy=False).tobytes()
     motion_payload = local_rotations.astype("<f4", copy=False).tobytes() + trans.astype("<f4", copy=False).tobytes()
@@ -250,6 +251,19 @@ def _extract_axis_angles(frame: dict, path: Path) -> np.ndarray:
         joined = np.concatenate([np.asarray(frame[key], dtype=np.float32).reshape(-1) for key in smplx_keys])
         return _float_array(joined, (JOINT_COUNT, 3), f"{path}:SMPL-X poses")
     raise ValueError(f"motion JSON {path} is missing 55 local axis-angle rotations")
+
+
+def _legacy_stage_transform(meta: dict) -> dict:
+    """Normalize alignment.py's legacy top-level transform into motion metadata."""
+    existing = meta.get("stageTransform")
+    stage_transform = dict(existing) if isinstance(existing, dict) else {}
+    stage_transform["scale"] = meta.get("scale", stage_transform.get("scale", 1))
+    stage_transform["R"] = meta.get(
+        "R", stage_transform.get("R", [[1, 0, 0], [0, 1, 0], [0, 0, 1]])
+    )
+    stage_transform["t"] = meta.get("t", stage_transform.get("t", [0, 0, 0]))
+    _validate_json_floats(stage_transform, "legacy stage transform")
+    return stage_transform
 
 
 def _extract_translation(frame: dict, path: Path) -> np.ndarray:
