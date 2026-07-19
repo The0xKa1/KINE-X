@@ -1,17 +1,17 @@
-                                                       
+
 
 // Joint flexion: angle between bone (a→b) and bone (b→c), measured at b.
 // 0° = fully extended (bones collinear, opposite directions). 180° = fully flexed.
 // We compute the supplementary angle of acos(dot(v_ba, v_bc)) so the interpretation
 // matches biomechanical convention.
 
-                                 
-                   
-                                     
-                                                      
-                                                        
-                                            
- 
+
+
+
+
+
+
+
 
 export const JOINT_ANGLES                   = [
   // Knee: hip → knee → ankle

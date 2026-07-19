@@ -1,8 +1,8 @@
-                                                            
-                                                                                      
-                                                  
 
-                                                   
+
+
+
+
 
 const PERSONA_SUFFIX                               = {
   biomech: "Persona：严谨的运动生物力学专家。引用一处具体肌肉或关节力学因果（如 \"臀中肌力量不足\"、\"髂腰肌过紧\"、\"足弓塌陷\"）。",
@@ -44,27 +44,27 @@ export function buildFallbackText(exercise                , session             
   return `本次 ${exercise.name} 综合匹配度 ${avg}%，${worst.name} 在动作 ${at}% 进度时偏差 ${delta}°，集中出现在${phaseLabel}阶段。这通常由相邻肌群激活不足造成。下一组练习前做 2 × 20 次靠墙静蹲 ${worst.id === "knee" || worst.id === "hip" ? "稳定膝髋" : "重建核心张力"}。`;
 }
 
-                          
-                                                                                                      
-            
-                   
-                            
-                     
-                            
-                       
-                                           
-    
-                 
-               
-                 
-                     
-                       
-                               
-                                 
-                            
-                     
-     
- 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 function compactPayload(exercise                , session                )                 {
   return {

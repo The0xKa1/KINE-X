@@ -1,15 +1,15 @@
-                                                                                                  
 
-                                  
-             
-                   
-                    
-                    
-                  
-                            
-                  
-                       
- 
+
+
+
+
+
+
+
+
+
+
+
 
 export class SegmentResourceStore {
           resources                    = [];

@@ -30,7 +30,9 @@ for (const file of files) {
   const source = await readFile(file, "utf8");
   const relative = path.relative(sourceRoot, file);
   const output = path.join(outputRoot, relative).replace(/\.ts$/, ".js");
-  const code = stripTypeScriptTypes(source, { mode: "strip" });
+  // Node preserves source columns by replacing stripped types with spaces.
+  // Normalize line endings so a clean checkout stays clean after every build.
+  const code = stripTypeScriptTypes(source, { mode: "strip" }).replace(/[\t ]+$/gm, "");
 
   await mkdir(path.dirname(output), { recursive: true });
   await writeFile(output, code, "utf8");

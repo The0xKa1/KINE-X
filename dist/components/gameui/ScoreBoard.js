@@ -1,22 +1,22 @@
 import { formatCm, formatDeg } from "../../core/coordinates.js";
-                                                       
-                                                                                                    
 
-                             
-                
-                          
-                            
-                          
-                          
-                         
-                          
-                          
-                                              
-                          
-                               
-                           
-                           
- 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 export class ScoreBoard {
           options                   ;

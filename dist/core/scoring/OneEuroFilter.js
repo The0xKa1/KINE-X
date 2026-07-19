@@ -2,11 +2,11 @@
 // in Interactive Systems" — Casiez, Roussel, Vogel (2012).
 // Reference: https://gery.casiez.net/1euro/
 
-                                
-                                                                                      
-                                                                              
-                                                              
- 
+
+
+
+
+
 
 export const DEFAULT_ONE_EURO_PARAMS                = {
   minCutoff: 1.0,

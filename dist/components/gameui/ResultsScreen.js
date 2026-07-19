@@ -1,37 +1,37 @@
 import { formatCm } from "../../core/coordinates.js";
-                                                       
+
 import { modalA11y,                      } from "../../core/modalA11y.js";
 import { prefersReducedMotion } from "../../core/motionPrefs.js";
-                                                                         
-                                                                             
-                                                      
+
+
+
 import { buildDiagnosisMessages, buildFallbackText,                   } from "../../core/llm/buildPrompt.js";
 import { streamChat } from "../../core/llm/LLMClient.js";
-                                                                           
 
-                                
-                
-                    
-                           
-                       
-                      
-                       
-                         
-                       
-                      
-                        
-                       
-                       
-                            
-                   
-                   
-                                                           
-                                            
-                                   
-                                 
-                        
-                             
- 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 const MEDALS                         = {
   squat: "重心掌控者",

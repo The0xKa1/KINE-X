@@ -1,27 +1,27 @@
 import { THREE,                    } from "../three-compat.js";
-                                                         
-             
-                 
-                    
-              
-            
-             
-               
-                               
+
+
+
+
+
+
+
+
+
 import { SCORING_BONES,               } from "./boneTable.js";
 import { CoachHistory } from "./CoachHistory.js";
 import { JOINT_ANGLES } from "./jointAngles.js";
 import { normalizeMediaPipeWorld } from "./normalize.js";
-                                                          
-                                                         
 
-                                
-                                            
-                        
-                           
-                                 
-                             
- 
+
+
+
+
+
+
+
+
+
 
 // Penalty: ~1.2 score points per degree of joint-angle mismatch.
 const ANGLE_PENALTY_PER_DEG = 1.2;
@@ -44,16 +44,16 @@ export function resetScoreStreak()       {
   scoreStreak = 0;
 }
 
-                                                          
 
-                          
-                   
-                                                                                       
-                     
-                                                                                   
-                    
-                    
- 
+
+
+
+
+
+
+
+
+
 
 // Distance-error sampling points: MediaPipe anchor on the user side, 17-joint
 // name on the coach side. spine is proxied by the chest point.
@@ -242,7 +242,7 @@ function countBadBones(vecs                 , cal                        )      
   return bad;
 }
 
-                                                                                              
+
 
 function cloneVecs(src                 )                  {
   return src.map((v) => new THREE.Vector3(v.x, v.y, v.z));

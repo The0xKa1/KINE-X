@@ -1,42 +1,42 @@
-                                                                  
+
 import { meters } from "./coordinates.js";
-                                                                     
+
 import { JOINT_NAMES, sampleClip } from "./import/CoachClip.js";
-                                                              
+
 import { applyLiveScore, resetScoreStreak,                    } from "./scoring/PoseScorer.js";
-                                                    
-                                                                       
-             
-                 
-                    
-              
-             
-              
-             
-                  
-               
-                            
 
-                                      
-                     
-                   
-                   
-                
-                   
-                
- 
 
-                                 
-                
-                           
-                                 
-                        
-                             
-                                            
-                             
-                                          
-                             
- 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 const IDENTITY                  = [0, 0, 0, 1];
 const MIN_PACKET_INTERVAL_MS = 30;
@@ -140,13 +140,13 @@ export class RealtimeStream {
   }
 }
 
-                            
-                           
-                             
-                           
-                      
-                         
- 
+
+
+
+
+
+
+
 
 function buildPacket(input                  )                    {
   const { exercise, state, seedJoints, timestampMs, sessionActive } = input;

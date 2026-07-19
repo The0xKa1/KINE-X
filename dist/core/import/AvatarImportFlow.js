@@ -13,42 +13,42 @@
  * against the committed gs_avatar_coach.bin.
  */
 
-                                     
-                 
-               
-                       
- 
 
-                                                                                
 
-                     
-                
-                
-                
-                  
-                  
-                    
-                        
-                 
- 
 
-                                          
-                              
-                        
-                            
-                              
-                                  
-                                 
-                           
-                             
-                           
-                     
-                                                                             
-                 
-                                             
-                                             
-                                               
- 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 const POLL_INTERVAL_MS = 2000;
 const POLL_TIMEOUT_MS = 8 * 60 * 1000;

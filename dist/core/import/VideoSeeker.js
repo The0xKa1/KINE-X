@@ -1,15 +1,15 @@
-                            
-                          
-                     
-                      
- 
 
-                            
-                          
-                           
-                
-                
-                          
+
+
+
+
+
+
+
+
+
+
+
 
 export class VideoSeeker {
           file      ;
@@ -174,8 +174,8 @@ export class VideoSeeker {
         resolve();
       };
       const onSeeked = () => {
-        const v = video                        
-                                                                 
+        const v = video
+
          ;
         if (typeof v.requestVideoFrameCallback === "function") {
           let settled = false;

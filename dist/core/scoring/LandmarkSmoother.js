@@ -1,4 +1,4 @@
-                                                                  
+
 import { OneEuroFilter, DEFAULT_ONE_EURO_PARAMS,                    } from "./OneEuroFilter.js";
 
 export class LandmarkSmoother {

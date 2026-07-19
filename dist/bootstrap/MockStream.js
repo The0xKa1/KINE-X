@@ -1,31 +1,31 @@
-                                                                
-                                                                       
-                                                              
+
+
+
 import { createMockPacket } from "../mock/mockFrameSource.js";
 import { applyLiveScore,                    } from "../core/scoring/PoseScorer.js";
-                                                                    
+
 import { sampleClip } from "../core/import/CoachClip.js";
-                                                                                 
 
-                                  
-                         
-                   
-                   
-                
-                   
-                
- 
 
-                             
-                         
-                                                
-                                 
-                            
-                        
-                         
-                              
-                                          
- 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 export class MockStream {
           options                   ;

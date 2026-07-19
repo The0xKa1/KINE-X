@@ -1,20 +1,20 @@
-                                                                                                    
-                                                             
 
-                                      
-                
-                    
-                    
-                           
-                                
-                                 
-                               
-                            
-                          
-                                
-                                    
-                             
- 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 const GESTURE_PHASE_LABEL                                                  = {
   disabled: "未启用",

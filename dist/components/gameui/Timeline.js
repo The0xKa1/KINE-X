@@ -1,13 +1,13 @@
-                                                       
-import { prefersReducedMotion } from "../../core/motionPrefs.js";
-                                                                    
 
-                           
-                
-                         
-                     
-                                  
- 
+import { prefersReducedMotion } from "../../core/motionPrefs.js";
+
+
+
+
+
+
+
+
 
 const MOCK_FRAME_COUNT = 18;
 

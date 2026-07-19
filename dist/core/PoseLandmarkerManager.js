@@ -1,13 +1,13 @@
-             
-                 
-                 
-                     
-                 
-                                 
+
+
+
+
+
+
 import { LandmarkSmoother } from "./scoring/LandmarkSmoother.js";
 
-                                                  
-                                                    
+
+
 
 const WASM_BASE = "./public/mediapipe/wasm";
 
@@ -24,41 +24,41 @@ const POSE_LANDMARK_COUNT = 33;
 const HAND_LANDMARK_COUNT = 21;
 const FACE_LANDMARK_COUNT = 478;
 
-                             
-                              
-                              
- 
 
-                             
-                                  
-                     
- 
 
-                               
-                          
-                      
-                                    
- 
 
-                                                             
 
-                    
-                                    
-                                
-                                  
-                                  
- 
 
-                    
-                                    
-                                
- 
 
-                    
-                                    
-                                
-                             
- 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 export class LandmarkerController {
           model            = "lite";

@@ -1,30 +1,30 @@
 import { THREE } from "../three-compat.js";
 
-                               
-             
-               
-                 
-              
-                          
-                     
-                      
-                    
-                    
-                  
-                      
-                    
-                         
-                                 
-                 
-               
-                     
- 
 
-                           
-                     
-                                                         
-                                                    
- 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 const STRIDE_PER_FRAME = (vertexCount        ) => vertexCount * 3;
 
@@ -90,11 +90,11 @@ export function copyFrameVerticesInto(
   destination.set(clip.vertices.subarray(start, start + stride));
 }
 
-export function buildMeshPrimitive(clip          )   
-                                        
-                          
-                                                      
-                                                            
+export function buildMeshPrimitive(clip          )
+
+
+
+
   {
   const positions = new Float32Array(clip.meta.vertexCount * 3);
   copyFrameVerticesInto(clip, 0, positions);

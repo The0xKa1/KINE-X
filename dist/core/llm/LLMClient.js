@@ -1,15 +1,15 @@
 import { API_BASE_URL } from "../../config.js";
 
-                              
-                                        
-                  
- 
 
-                         
-                       
-                     
-                       
- 
+
+
+
+
+
+
+
+
+
 
 const DEFAULT_MAX_TOKENS = 320;
 const DEFAULT_TEMPERATURE = 0.6;
@@ -60,8 +60,8 @@ export async function streamChat(
         return full;
       }
       try {
-        const json = JSON.parse(data)     
-                                                            
+        const json = JSON.parse(data)
+
          ;
         const piece = json.choices?.[0]?.delta?.content;
         if (typeof piece === "string" && piece.length > 0) {
