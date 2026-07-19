@@ -18,7 +18,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
-from . import avatar, config, pipeline
+from . import avatar, avatar_motion, config, pipeline
 from .avatar_registry import AvatarRegistry
 
 logger = logging.getLogger("kinex.backend")
@@ -39,6 +39,11 @@ _AVATAR_REGISTRY = AvatarRegistry(config.AVATAR_REGISTRY_ROOT)
 
 class AvatarRenameRequest(BaseModel):
     name: str
+
+
+class AvatarBindingRequest(BaseModel):
+    avatarId: str
+    motionId: str
 
 
 @asynccontextmanager
@@ -65,6 +70,12 @@ async def lifespan(app: FastAPI):
         app.state.estimator = None
         app.state.estimator_device = None
         app.state.estimator_loaded_at = None
+    loop = asyncio.get_running_loop()
+    recovered = _recover_motion_bindings(
+        lambda function, *args: loop.run_in_executor(None, function, *args)
+    )
+    if recovered:
+        logger.info("recovered %d unfinished avatar motion job(s)", recovered)
     yield
     app.state.estimator = None
 
@@ -192,6 +203,203 @@ def _find_identity(avatar_id: str) -> dict | None:
         ),
         None,
     )
+
+
+def _require_active_identity(avatar_id: str) -> dict:
+    try:
+        record = _find_identity(avatar_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail={"error": str(exc)}) from exc
+    if record is None:
+        raise HTTPException(
+            status_code=404, detail={"error": f"identity '{avatar_id}' does not exist"}
+        )
+    if record.get("deletedAt") is not None:
+        raise HTTPException(
+            status_code=409, detail={"error": f"identity '{avatar_id}' is deleted"}
+        )
+    return record
+
+
+def _motion_record(motion_id: str) -> dict:
+    path = _AVATAR_REGISTRY._motion_path(motion_id)
+    try:
+        with path.open("r", encoding="utf-8") as handle:
+            record = json.load(handle)
+    except FileNotFoundError as exc:
+        raise KeyError(f"motion '{motion_id}' does not exist") from exc
+    except (OSError, json.JSONDecodeError) as exc:
+        raise ValueError(f"motion '{motion_id}' has an invalid manifest") from exc
+    if not isinstance(record, dict):
+        raise ValueError(f"motion '{motion_id}' has an invalid manifest")
+    return record
+
+
+def _asset_url(path: Path) -> str:
+    try:
+        return config.relative_to_repo(path)
+    except ValueError:
+        # Tests and explicit out-of-repo registry overrides still get a stable,
+        # non-source URL rooted at the configured Avatar Vault directory.
+        return path.resolve().relative_to(_AVATAR_REGISTRY.root.resolve()).as_posix()
+
+
+def _sync_binding_status(binding: dict) -> dict:
+    motion = _motion_record(binding["motionId"])
+    if binding.get("status") in {"ready", "error", "cancelled"}:
+        return binding
+    if motion.get("status") == "ready":
+        identity = _require_active_identity(binding["avatarId"])
+        return _AVATAR_REGISTRY.update_binding(
+            binding["bindingId"],
+            status="ready",
+            progress=100,
+            identityUrl=identity.get("identityUrl") or identity.get("avatarBinUrl"),
+            motionAssetUrl=motion.get("motionAssetUrl") or motion.get("motionUrl"),
+            error=None,
+        )
+    if motion.get("status") == "error":
+        return _AVATAR_REGISTRY.update_binding(
+            binding["bindingId"],
+            status="error",
+            error=motion.get("error") or "motion preparation failed",
+        )
+    return binding
+
+
+def _run_motion_binding_job(
+    avatar_id: str,
+    motion_id: str,
+    binding_id: str,
+    source_video: Path,
+    coach_clip: Path,
+    motion_path: Path,
+    fps: float,
+) -> None:
+    """Background LHM worker; ordinary SAM import has already completed."""
+    def progress(current: int, total: int, note: str) -> None:
+        pct = max(0, min(99, round(current * 100 / total))) if total else 0
+        _AVATAR_REGISTRY.upsert_motion(motion_id, progress=pct, progressNote=note)
+        _AVATAR_REGISTRY.update_binding(binding_id, progress=pct, progressNote=note)
+        logger.info("[%s] motion %d%% %s", motion_id, pct, note)
+
+    try:
+        started_at = time.time()
+        _AVATAR_REGISTRY.upsert_motion(
+            motion_id, status="running", progress=0, startedAt=started_at, error=None
+        )
+        _AVATAR_REGISTRY.update_binding(
+            binding_id, status="running", progress=0, startedAt=started_at, error=None
+        )
+        metadata = avatar_motion.prepare_motion_asset(
+            source_video,
+            coach_clip,
+            motion_path,
+            fps=fps,
+            progress=progress,
+        )
+        if not motion_path.is_file():
+            raise RuntimeError("motion pack returned without publishing motion.bin")
+        motion_url = _asset_url(motion_path)
+        finished_at = time.time()
+        _AVATAR_REGISTRY.upsert_motion(
+            motion_id,
+            status="ready",
+            progress=100,
+            motionAssetUrl=motion_url,
+            frameCount=metadata.get("frames"),
+            fps=metadata.get("fps"),
+            stageTransform=metadata.get("stageTransform"),
+            error=None,
+            finishedAt=finished_at,
+        )
+        identity = _find_identity(avatar_id)
+        _AVATAR_REGISTRY.update_binding(
+            binding_id,
+            status="ready",
+            progress=100,
+            identityUrl=(identity or {}).get("identityUrl")
+            or (identity or {}).get("avatarBinUrl"),
+            motionAssetUrl=motion_url,
+            error=None,
+            finishedAt=finished_at,
+        )
+        logger.info("[%s] reusable motion ready: %s", motion_id, motion_url)
+    except Exception as exc:  # noqa: BLE001
+        finished_at = time.time()
+        message = str(exc) or repr(exc)
+        _AVATAR_REGISTRY.upsert_motion(
+            motion_id,
+            status="error",
+            error=message,
+            finishedAt=finished_at,
+        )
+        _AVATAR_REGISTRY.update_binding(
+            binding_id,
+            status="error",
+            error=message,
+            finishedAt=finished_at,
+        )
+        logger.exception("[%s] avatar motion preparation failed", motion_id)
+    finally:
+        source_path = Path(source_video)
+        source_path.unlink(missing_ok=True)
+        try:
+            source_path.parent.rmdir()
+        except OSError:
+            pass
+
+
+def _recover_motion_bindings(submit) -> int:
+    """Resume durable queued/running motion jobs after a process restart."""
+    recovered = 0
+    scheduled_motions: set[str] = set()
+    bindings = sorted(
+        _AVATAR_REGISTRY.list_bindings(),
+        key=lambda record: float(record.get("createdAt") or 0),
+    )
+    for binding in bindings:
+        if binding.get("status") not in {"queued", "running"}:
+            continue
+        motion_id = binding.get("motionId")
+        if not isinstance(motion_id, str) or motion_id in scheduled_motions:
+            continue
+        try:
+            motion = _motion_record(motion_id)
+        except (KeyError, ValueError):
+            continue
+        if motion.get("status") not in {"queued", "running"}:
+            continue
+        job_id = motion.get("jobId")
+        source_video = (
+            pipeline.find_persisted_source(job_id)
+            if isinstance(job_id, str)
+            else None
+        )
+        if source_video is None:
+            message = "private source video missing during startup recovery"
+            _AVATAR_REGISTRY.upsert_motion(
+                motion_id, status="error", error=message, finishedAt=time.time()
+            )
+            _AVATAR_REGISTRY.update_binding(
+                binding["bindingId"], status="error", error=message
+            )
+            continue
+        coach_clip = config.PUBLIC_JOBS_DIR / job_id / "coach.json"
+        motion_path = _AVATAR_REGISTRY.motions_dir / motion_id / "motion.bin"
+        submit(
+            _run_motion_binding_job,
+            binding["avatarId"],
+            motion_id,
+            binding["bindingId"],
+            source_video,
+            coach_clip,
+            motion_path,
+            float(motion.get("fps") or config.DEFAULT_TARGET_FPS),
+        )
+        scheduled_motions.add(motion_id)
+        recovered += 1
+    return recovered
 
 
 def _run_avatar_job(avatar_id: str, photo_path: Path, motion_params: str) -> None:
@@ -370,6 +578,37 @@ def delete_avatar(avatar_id: str) -> dict:
     return record
 
 
+@app.get("/avatar-bindings")
+def list_avatar_bindings(
+    avatarId: Optional[str] = None,
+    motionId: Optional[str] = None,
+) -> list[dict]:
+    try:
+        records = _AVATAR_REGISTRY.list_bindings(
+            avatar_id=avatarId, motion_id=motionId
+        )
+        return [_sync_binding_status(record) for record in records]
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail={"error": str(exc)}) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail={"error": str(exc)}) from exc
+
+
+@app.post("/avatar-bindings")
+def create_avatar_binding(request: AvatarBindingRequest) -> dict:
+    _require_active_identity(request.avatarId)
+    try:
+        binding = _AVATAR_REGISTRY.create_binding(
+            request.avatarId, request.motionId
+        )
+        return _sync_binding_status(binding)
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail={"error": str(exc)}) from exc
+    except ValueError as exc:
+        status = 409 if "deleted" in str(exc).lower() else 400
+        raise HTTPException(status_code=status, detail={"error": str(exc)}) from exc
+
+
 @app.post("/import/video")
 async def import_video(
     file: UploadFile = File(...),
@@ -378,6 +617,7 @@ async def import_video(
     name: Optional[str] = Form(None),
     startSec: Optional[float] = Form(None),
     endSec: Optional[float] = Form(None),
+    avatarId: Optional[str] = Form(None),
 ):
     if app.state.estimator is None:
         raise HTTPException(status_code=503, detail={"error": "SAM model unavailable", "stage": "startup"})
@@ -387,6 +627,10 @@ async def import_video(
         raise HTTPException(status_code=400, detail={"error": "startSec must be >= 0", "stage": "input"})
     if startSec is not None and endSec is not None and endSec <= startSec:
         raise HTTPException(status_code=400, detail={"error": "endSec must be > startSec", "stage": "input"})
+    selected_identity = None
+    if avatarId and avatarId.strip():
+        avatarId = avatarId.strip()
+        selected_identity = _require_active_identity(avatarId)
 
     job_id = f"{time.strftime('%Y%m%d-%H%M%S')}-{uuid.uuid4().hex[:6]}"
     suffix = Path(file.filename or "upload.mp4").suffix or ".mp4"
@@ -424,6 +668,58 @@ async def import_video(
                     ),
                 ),
             )
+            if selected_identity is not None:
+                motion = _AVATAR_REGISTRY.upsert_motion(
+                    job_id,
+                    status="queued",
+                    progress=0,
+                    jobId=job_id,
+                    name=result.get("name"),
+                    coachClipUrl=result.get("coachClipUrl"),
+                    meshClipMetaUrl=result.get("meshClipMetaUrl"),
+                    motionAssetUrl=None,
+                    error=None,
+                )
+                binding = _AVATAR_REGISTRY.create_binding(
+                    selected_identity["avatarId"], motion["motionId"]
+                )
+                motion_path = (
+                    _AVATAR_REGISTRY.motions_dir / motion["motionId"] / "motion.bin"
+                )
+                coach_path = config.PUBLIC_JOBS_DIR / job_id / "coach.json"
+                try:
+                    source_video = pipeline.persist_source_video(upload_path, job_id)
+                except Exception as exc:  # noqa: BLE001
+                    message = str(exc) or repr(exc)
+                    _AVATAR_REGISTRY.upsert_motion(
+                        motion["motionId"],
+                        status="error",
+                        error=message,
+                        finishedAt=time.time(),
+                    )
+                    binding = _AVATAR_REGISTRY.update_binding(
+                        binding["bindingId"], status="error", error=message
+                    )
+                    logger.exception("[%s] failed to persist private avatar source", job_id)
+                else:
+                    loop.run_in_executor(
+                        None,
+                        _run_motion_binding_job,
+                        selected_identity["avatarId"],
+                        motion["motionId"],
+                        binding["bindingId"],
+                        source_video,
+                        coach_path,
+                        motion_path,
+                        float(result.get("fps") or targetFps or config.DEFAULT_TARGET_FPS),
+                    )
+                result.update(
+                    {
+                        "motionId": motion["motionId"],
+                        "bindingId": binding["bindingId"],
+                        "bindingStatus": binding["status"],
+                    }
+                )
         except FileNotFoundError as exc:
             pipeline.cleanup_job(job_id)
             raise HTTPException(status_code=500, detail={"error": str(exc), "stage": "assets"}) from exc

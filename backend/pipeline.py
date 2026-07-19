@@ -4,6 +4,7 @@ from __future__ import annotations
 import re
 import shutil
 import subprocess
+import tempfile
 from pathlib import Path
 from typing import Callable
 
@@ -152,3 +153,56 @@ def cleanup_job(job_id: str) -> None:
     job_dir = config.PUBLIC_JOBS_DIR / job_id
     if job_dir.exists():
         shutil.rmtree(job_dir, ignore_errors=True)
+
+
+def persist_source_video(video_path: Path, job_id: str) -> Path:
+    """Atomically keep a private, short-lived copy for avatar motion extraction.
+
+    The filename is deliberately omitted from every public response/manifest.
+    The background binding worker removes it on both success and terminal error.
+    """
+    video_path = Path(video_path).resolve()
+    if not video_path.is_file():
+        raise FileNotFoundError(video_path)
+    if safe_name(job_id) != job_id:
+        raise ValueError("unsafe job id")
+    suffix = video_path.suffix.lower()
+    if not re.fullmatch(r"\.[a-z0-9]{1,8}", suffix):
+        suffix = ".mp4"
+    job_dir = (config.AVATAR_PRIVATE_JOBS_DIR / job_id).resolve()
+    job_dir.mkdir(parents=True, exist_ok=True, mode=0o700)
+    try:
+        job_dir.chmod(0o700)
+    except OSError:
+        pass
+    target = job_dir / f".avatar-source{suffix}"
+    temp_name: str | None = None
+    try:
+        with tempfile.NamedTemporaryFile(
+            "wb", dir=job_dir, prefix=".avatar-source.", delete=False
+        ) as handle:
+            temp_name = handle.name
+            with video_path.open("rb") as source:
+                shutil.copyfileobj(source, handle)
+            handle.flush()
+        Path(temp_name).replace(target)
+        try:
+            target.chmod(0o600)
+        except OSError:
+            pass
+        temp_name = None
+        return target
+    except Exception:
+        if temp_name:
+            Path(temp_name).unlink(missing_ok=True)
+        raise
+
+
+def find_persisted_source(job_id: str) -> Path | None:
+    """Locate the one private source retained for an unfinished motion job."""
+    if safe_name(job_id) != job_id:
+        raise ValueError("unsafe job id")
+    job_dir = (config.AVATAR_PRIVATE_JOBS_DIR / job_id).resolve()
+    if not job_dir.is_dir():
+        return None
+    return next(iter(sorted(job_dir.glob(".avatar-source.*"))), None)
