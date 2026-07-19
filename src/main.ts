@@ -500,18 +500,6 @@ const createPage = new CreatePage({
     setExercise(newId, `Imported · ${name}`);
     router.navigate(`#/train/${newId}`);
   },
-  onAvatarReady: ({ seedId, avatarBinUrl }) => {
-    applyAvatarUrlToSeed(seedId, avatarBinUrl);
-  },
-  onAvatarEnter: ({ seedId, name }) => {
-    router.navigate(`#/train/${seedId}`);
-    // setExercise flashes its own "cache refreshed" line ~420ms after the
-    // seed swap — land the avatar hint after that so it actually sticks.
-    window.setTimeout(
-      () => connection.set(`分身「${name}」已就位 · 点「分身」模式查看`, "ready"),
-      700,
-    );
-  },
 });
 dom.importButton.addEventListener("click", () => router.navigate("#/create"));
 
@@ -863,24 +851,8 @@ interface PersistedJob {
   motion: SeedMotion;
 }
 
-/** Photo-avatar jobs (kind === "avatar") attach a baked KINEXGS1 binary to an
- * existing seed — usually a built-in one like ugc-squat — instead of creating
- * a new seed card. */
-interface PersistedAvatarJob {
-  jobId: string;
-  kind: "avatar";
-  name?: string;
-  seedId?: string;
-  status?: string;
-  progress?: number;
-  avatarBinUrl?: string;
-  error?: string;
-  createdAt?: number;
-  finishedAt?: number;
-}
-
 async function hydrateImportedJobs(): Promise<void> {
-  let payload: { jobs: Array<PersistedJob | PersistedAvatarJob> };
+  let payload: { jobs: unknown[] };
   try {
     // 4s timeout — if the backend isn't reachable (e.g. port-forward without
     // :8765) we want to drop the work, not block the carousel forever.
@@ -889,30 +861,12 @@ async function hydrateImportedJobs(): Promise<void> {
     const resp = await fetch(`${BACKEND_URL}/import/jobs`, { signal: ctrl.signal });
     window.clearTimeout(timer);
     if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-    payload = (await resp.json()) as { jobs: Array<PersistedJob | PersistedAvatarJob> };
+    payload = (await resp.json()) as { jobs: unknown[] };
   } catch (err) {
     console.warn("[imported-jobs] skip:", err);
     return;
   }
-  // Avatar jobs attach to existing seeds. Per seed only the NEWEST done job
-  // wins — the jobs list order is backend-defined, so pick by finishedAt.
-  const newestAvatarBySeed = new Map<string, PersistedAvatarJob>();
-  payload.jobs.forEach((job) => {
-    const avatarJob = job as PersistedAvatarJob;
-    if (avatarJob.kind !== "avatar" || avatarJob.status !== "done" || !avatarJob.avatarBinUrl || !avatarJob.seedId) {
-      return;
-    }
-    const seedId = avatarJob.seedId;
-    const prev = newestAvatarBySeed.get(seedId);
-    const stamp = avatarJob.finishedAt ?? avatarJob.createdAt ?? 0;
-    const prevStamp = prev ? (prev.finishedAt ?? prev.createdAt ?? 0) : -1;
-    if (!prev || stamp > prevStamp) newestAvatarBySeed.set(seedId, avatarJob);
-  });
-  newestAvatarBySeed.forEach((job) => hydrateAvatarJob(job));
-
-  const motionJobs = payload.jobs.filter(
-    (job): job is PersistedJob => (job as PersistedAvatarJob).kind !== "avatar",
-  );
+  const motionJobs = payload.jobs.filter(isPersistedMotionJob);
   await Promise.all(motionJobs.map((job) => hydrateOneJob(job)));
 
   // localStorage is only a cache. A fresh browser can rebuild the import's
@@ -925,9 +879,12 @@ async function hydrateImportedJobs(): Promise<void> {
   await avatarBindingController.discover(seedByMotion);
 }
 
-function hydrateAvatarJob(job: PersistedAvatarJob): void {
-  if (job.status !== "done" || !job.avatarBinUrl || !job.seedId) return;
-  applyAvatarUrlToSeed(job.seedId, job.avatarBinUrl);
+function isPersistedMotionJob(job: unknown): job is PersistedJob {
+  if (!job || typeof job !== "object") return false;
+  const candidate = job as Partial<PersistedJob>;
+  return typeof candidate.jobId === "string"
+    && typeof candidate.coachClipUrl === "string"
+    && typeof candidate.meshClipMetaUrl === "string";
 }
 
 async function hydrateOneJob(job: PersistedJob): Promise<void> {
@@ -1169,19 +1126,6 @@ function setLoadingCopy(title: string, detail: string): void {
   const span = document.createElement("span");
   span.textContent = detail;
   dom.loadingOverlay.replaceChildren(strong, span);
-}
-
-/** Attach a baked 3DGS avatar binary to a seed at runtime (photo-avatar
- * branch, hydrated avatar jobs). When it's the live seed, swap the stage
- * avatar in and light up the 分身 mode button immediately. */
-function applyAvatarUrlToSeed(seedId: string, avatarBinUrl: string): void {
-  const exercise = exercises[seedId];
-  if (!exercise) return;
-  exercise.avatarUrl = avatarBinUrl;
-  if (seedId === state.exerciseId) {
-    applyAvatarForSeed(seedId);
-    syncAvatarModeButton();
-  }
 }
 
 function applyMeshForSeed(seedId: string): void {
