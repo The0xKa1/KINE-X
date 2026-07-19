@@ -30,22 +30,22 @@ Add a server-backed avatar management page and decouple a person's 3DGS identity
 An identity contains only canonical appearance and skinning data:
 
 - canonical gaussian position, rotation, scale, opacity, and color;
-- canonical skeleton metadata and top-four LBS weights;
+- canonical rest-joint positions, parent hierarchy, and top-four LBS weights;
 - a stable stage transform and preview metadata;
 - no per-motion frame matrices.
 
-The binary format uses the `KINEXGSI1` header. The initial implementation may derive an identity file from an existing `KINEXGS1` file by retaining the static gaussian section and omitting the motion section.
+The binary format uses the eight-byte `KINEXGI1` header. The initial implementation may derive an identity file from an existing `KINEXGS1` file by retaining the static gaussian section and omitting the motion section.
 
 ### MotionAsset
 
 A motion contains only reusable animation data:
 
 - duration, frame rate, and frame count;
-- per-frame 55-joint SMPL-X matrices;
+- per-frame 55-joint local Quaternion rotations;
 - root translation and stage-space transform;
 - references to the corresponding CoachClip and MeshClip.
 
-The binary format uses the `KINEXGSM1` header. A motion is produced once per imported video and can drive any compatible identity.
+The binary format uses the eight-byte `KINEXGM1` header. A motion is produced once per imported video and can drive any compatible identity. It does not store final skinning matrices because those depend on the selected identity's rest-joint positions.
 
 ### AvatarBinding
 
@@ -126,7 +126,7 @@ The existing photo branch moves to the dedicated avatar page. A compatibility li
 
 ### Runtime
 
-Refactor `GaussianAvatar` into independently loadable identity and motion inputs:
+Refactor `GaussianAvatar` into independently loadable identity and motion inputs. For each displayed frame, the runtime combines the identity's rest joints and parent hierarchy with the motion's local Quaternion rotations, performs forward kinematics for 55 joints, and writes the resulting skinning matrices into the existing bone texture:
 
 ```ts
 const avatar = await GaussianAvatar.loadIdentity(identityUrl);
@@ -136,7 +136,7 @@ avatar.setProgress(progress);
 avatar.update(camera);
 ```
 
-The shader continues to perform LBS and the CPU continues depth sorting. The frame clock remains driven by `RealtimeStream`; no high-frequency data enters UI state or EventBus.
+The shader continues to perform LBS and the CPU continues depth sorting. Forward kinematics is only 55 joints per displayed frame and stays inside the render runtime. The frame clock remains driven by `RealtimeStream`; no high-frequency data enters UI state or EventBus. Euler angles are never transported or stored; the server converts LHM axis-angle output to Quaternion tuples while packing `KINEXGM1`.
 
 Legacy `KINEXGS1` remains readable during migration. The committed `gs_avatar_coach.bin` is exposed as one migrated identity plus one squat motion, without changing the existing demo behavior.
 
