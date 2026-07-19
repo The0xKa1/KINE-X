@@ -65,6 +65,12 @@ AVATAR_ALIGN_CLIP = _env_path(
 # Must stay under PUBLIC_JOBS_DIR — the frontend rsync excludes coach_clips/jobs,
 # anything outside that subtree gets wiped on the next frontend sync.
 AVATAR_JOBS_DIR = _env_path("AVATAR_JOBS_DIR", PUBLIC_JOBS_DIR / "avatar")
+# Avatar Vault manifests and binary assets are siblings under the static
+# coach-clip root so frontend URLs can be served without a separate store.
+AVATAR_REGISTRY_ROOT = _env_path("AVATAR_REGISTRY_ROOT", REPO_ROOT / "public" / "coach_clips")
+AVATAR_IDENTITIES_DIR = _env_path("AVATAR_IDENTITIES_DIR", AVATAR_REGISTRY_ROOT / "avatar-identities")
+AVATAR_MOTIONS_DIR = _env_path("AVATAR_MOTIONS_DIR", AVATAR_REGISTRY_ROOT / "motions")
+AVATAR_BINDINGS_DIR = _env_path("AVATAR_BINDINGS_DIR", AVATAR_REGISTRY_ROOT / "avatar-bindings")
 AVATAR_MAX_PHOTO_BYTES = int(os.environ.get("AVATAR_MAX_PHOTO_BYTES", str(10 * 1024 * 1024)))
 AVATAR_EXPORT_TIMEOUT_SEC = int(os.environ.get("AVATAR_EXPORT_TIMEOUT_SEC", "1200"))
 AVATAR_ALIGN_TIMEOUT_SEC = int(os.environ.get("AVATAR_ALIGN_TIMEOUT_SEC", "180"))
