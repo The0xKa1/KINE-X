@@ -38,9 +38,16 @@ class AvatarBindingApiTests(unittest.TestCase):
         self.motion_release = threading.Event()
         self.motion_finished = threading.Event()
         self.motion_error: Exception | None = None
+        self.block_sam_pipeline = False
+        self.sam_started = threading.Event()
+        self.sam_release = threading.Event()
 
         def run_pipeline(**kwargs) -> dict:
             self.pipeline_calls.append(kwargs)
+            if self.block_sam_pipeline:
+                self.sam_started.set()
+                if not self.sam_release.wait(timeout=5):
+                    raise TimeoutError("test SAM pipeline was not released")
             job_dir = self.jobs_root / kwargs["job_id"]
             job_dir.mkdir(parents=True, exist_ok=True)
             (job_dir / "coach.json").write_text(
@@ -75,6 +82,9 @@ class AvatarBindingApiTests(unittest.TestCase):
             target.parent.mkdir(parents=True, exist_ok=True)
             shutil.copy2(video_path, target)
             return target
+
+        def cleanup_job(job_id: str) -> None:
+            shutil.rmtree(self.jobs_root / job_id, ignore_errors=True)
 
         def prepare_motion_asset(
             source_video: Path,
@@ -125,6 +135,12 @@ class AvatarBindingApiTests(unittest.TestCase):
             mock.patch.object(app_module.pipeline, "run_pipeline", side_effect=run_pipeline),
             mock.patch.object(
                 app_module.pipeline,
+                "cleanup_job",
+                side_effect=cleanup_job,
+                create=True,
+            ),
+            mock.patch.object(
+                app_module.pipeline,
                 "persist_source_video",
                 side_effect=persist_source,
                 create=True,
@@ -154,6 +170,7 @@ class AvatarBindingApiTests(unittest.TestCase):
 
     def tearDown(self) -> None:
         self.motion_release.set()
+        self.sam_release.set()
         self.client_context.__exit__(None, None, None)
         for patcher in reversed(self.patches):
             patcher.stop()
@@ -293,6 +310,35 @@ class AvatarBindingApiTests(unittest.TestCase):
         self.assertEqual(response.status_code, 409)
         self.assertEqual(self.pipeline_calls, [])
 
+    def test_identity_deleted_while_sam_runs_preserves_ordinary_import(self) -> None:
+        identity = self._ready_identity()
+        self.block_sam_pipeline = True
+        outcome: dict[str, object] = {}
+
+        def request_import() -> None:
+            try:
+                outcome["response"] = self._import(identity["avatarId"])
+            except Exception as exc:  # pragma: no cover - captured for assertion
+                outcome["error"] = exc
+
+        request_thread = threading.Thread(target=request_import)
+        request_thread.start()
+        self.assertTrue(self.sam_started.wait(timeout=2))
+        self.registry.soft_delete_identity(identity["avatarId"])
+        self.sam_release.set()
+        request_thread.join(timeout=3)
+
+        self.assertFalse(request_thread.is_alive())
+        self.assertNotIn("error", outcome)
+        response = outcome["response"]
+        self.assertEqual(response.status_code, 200)
+        result = response.json()
+        self.assertEqual(result["bindingStatus"], "cancelled")
+        self.assertNotIn("bindingId", result)
+        self.assertTrue(result["motionId"].startswith("motion-"))
+        self.assertTrue((self.jobs_root / result["jobId"] / "coach.json").is_file())
+        self.assertEqual(self.registry.list_bindings(), [])
+
     def test_startup_recovery_resumes_persisted_queued_binding_and_cleans_source(self) -> None:
         identity = self._ready_identity()
         job_id = "recover-job"
@@ -326,6 +372,77 @@ class AvatarBindingApiTests(unittest.TestCase):
         self.assertEqual(ready["bindingId"], binding["bindingId"])
         self.assertEqual(ready["status"], "ready")
         self.assertFalse(source.exists())
+
+    def test_startup_reconciliation_repairs_terminal_motion_mismatches(self) -> None:
+        identity = self._ready_identity()
+        expected: dict[str, str] = {}
+        sources: list[Path] = []
+        for suffix, motion_status in (("ready", "ready"), ("error", "error")):
+            job_id = f"terminal-{suffix}"
+            fields = {
+                "status": motion_status,
+                "progress": 100 if motion_status == "ready" else 40,
+                "jobId": job_id,
+                "fps": 15,
+            }
+            if motion_status == "ready":
+                fields["motionAssetUrl"] = f"motions/motion-{job_id}/motion.bin"
+            else:
+                fields["error"] = "LHM crashed after manifest update"
+            motion = self.registry.upsert_motion(job_id, **fields)
+            binding = self.registry.create_binding(
+                identity["avatarId"], motion["motionId"]
+            )
+            self.registry.update_binding(binding["bindingId"], status="running")
+            expected[binding["bindingId"]] = motion_status
+            source = self.private_jobs_root / job_id / ".avatar-source.mp4"
+            source.parent.mkdir(parents=True)
+            source.write_bytes(b"leftover")
+            sources.append(source)
+        submitted: list[object] = []
+
+        reconciled = app_module._recover_motion_bindings(
+            lambda function, *args: submitted.append((function, args))
+        )
+
+        records = {
+            record["bindingId"]: record for record in self.registry.list_bindings()
+        }
+        self.assertEqual(reconciled, 2)
+        self.assertEqual(submitted, [])
+        for binding_id, status in expected.items():
+            self.assertEqual(records[binding_id]["status"], status)
+            if status == "ready":
+                self.assertTrue(records[binding_id]["motionAssetUrl"].endswith("/motion.bin"))
+            else:
+                self.assertIn("LHM crashed", records[binding_id]["error"])
+        for source in sources:
+            self.assertFalse(source.exists())
+            self.assertFalse(source.parent.exists())
+
+    def test_startup_reconciliation_removes_empty_private_job_directory(self) -> None:
+        identity = self._ready_identity()
+        job_id = "terminal-empty"
+        motion = self.registry.upsert_motion(
+            job_id,
+            status="ready",
+            progress=100,
+            jobId=job_id,
+            fps=15,
+            motionAssetUrl=f"motions/motion-{job_id}/motion.bin",
+        )
+        binding = self.registry.create_binding(identity["avatarId"], motion["motionId"])
+        self.registry.update_binding(binding["bindingId"], status="running")
+        private_job_dir = self.private_jobs_root / job_id
+        private_job_dir.mkdir(parents=True)
+
+        reconciled = app_module._recover_motion_bindings(
+            lambda function, *args: self.fail("terminal motion must not be submitted")
+        )
+
+        self.assertEqual(reconciled, 1)
+        self.assertEqual(self.registry.list_bindings()[0]["status"], "ready")
+        self.assertFalse(private_job_dir.exists())
 
 
 class AvatarMotionAdapterTests(unittest.TestCase):

@@ -342,12 +342,30 @@ def _run_motion_binding_job(
         )
         logger.exception("[%s] avatar motion preparation failed", motion_id)
     finally:
-        source_path = Path(source_video)
-        source_path.unlink(missing_ok=True)
-        try:
-            source_path.parent.rmdir()
-        except OSError:
-            pass
+        _remove_private_source(Path(source_video))
+
+
+def _remove_private_source(source_path: Path | None) -> None:
+    if source_path is None:
+        return
+    source_path = Path(source_path)
+    source_path.unlink(missing_ok=True)
+    try:
+        source_path.parent.rmdir()
+    except OSError:
+        pass
+
+
+def _remove_private_job(job_id: str | None, source_path: Path | None) -> None:
+    _remove_private_source(source_path)
+    if not isinstance(job_id, str) or pipeline.safe_name(job_id) != job_id:
+        return
+    job_dir = (config.AVATAR_PRIVATE_JOBS_DIR / job_id).resolve()
+    try:
+        job_dir.relative_to(config.AVATAR_PRIVATE_JOBS_DIR.resolve())
+        job_dir.rmdir()
+    except (OSError, ValueError):
+        pass
 
 
 def _recover_motion_bindings(submit) -> int:
@@ -368,14 +386,20 @@ def _recover_motion_bindings(submit) -> int:
             motion = _motion_record(motion_id)
         except (KeyError, ValueError):
             continue
-        if motion.get("status") not in {"queued", "running"}:
-            continue
+        motion_status = motion.get("status")
         job_id = motion.get("jobId")
         source_video = (
             pipeline.find_persisted_source(job_id)
             if isinstance(job_id, str)
             else None
         )
+        if motion_status in {"ready", "error"}:
+            _sync_binding_status(binding)
+            _remove_private_job(job_id, source_video)
+            recovered += 1
+            continue
+        if motion_status not in {"queued", "running"}:
+            continue
         if source_video is None:
             message = "private source video missing during startup recovery"
             _AVATAR_REGISTRY.upsert_motion(
@@ -680,46 +704,66 @@ async def import_video(
                     motionAssetUrl=None,
                     error=None,
                 )
-                binding = _AVATAR_REGISTRY.create_binding(
-                    selected_identity["avatarId"], motion["motionId"]
-                )
-                motion_path = (
-                    _AVATAR_REGISTRY.motions_dir / motion["motionId"] / "motion.bin"
-                )
-                coach_path = config.PUBLIC_JOBS_DIR / job_id / "coach.json"
                 try:
-                    source_video = pipeline.persist_source_video(upload_path, job_id)
-                except Exception as exc:  # noqa: BLE001
-                    message = str(exc) or repr(exc)
+                    binding = _AVATAR_REGISTRY.create_binding(
+                        selected_identity["avatarId"], motion["motionId"]
+                    )
+                except ValueError as exc:
+                    if "deleted" not in str(exc).lower():
+                        raise
+                    message = "selected identity became unavailable during import"
                     _AVATAR_REGISTRY.upsert_motion(
                         motion["motionId"],
-                        status="error",
+                        status="cancelled",
                         error=message,
                         finishedAt=time.time(),
                     )
-                    binding = _AVATAR_REGISTRY.update_binding(
-                        binding["bindingId"], status="error", error=message
+                    result.update(
+                        {
+                            "motionId": motion["motionId"],
+                            "bindingStatus": "cancelled",
+                            "bindingError": message,
+                        }
                     )
-                    logger.exception("[%s] failed to persist private avatar source", job_id)
+                    logger.info("[%s] %s", job_id, message)
                 else:
-                    loop.run_in_executor(
-                        None,
-                        _run_motion_binding_job,
-                        selected_identity["avatarId"],
-                        motion["motionId"],
-                        binding["bindingId"],
-                        source_video,
-                        coach_path,
-                        motion_path,
-                        float(result.get("fps") or targetFps or config.DEFAULT_TARGET_FPS),
+                    motion_path = (
+                        _AVATAR_REGISTRY.motions_dir / motion["motionId"] / "motion.bin"
                     )
-                result.update(
-                    {
-                        "motionId": motion["motionId"],
-                        "bindingId": binding["bindingId"],
-                        "bindingStatus": binding["status"],
-                    }
-                )
+                    coach_path = config.PUBLIC_JOBS_DIR / job_id / "coach.json"
+                    try:
+                        source_video = pipeline.persist_source_video(upload_path, job_id)
+                    except Exception as exc:  # noqa: BLE001
+                        message = str(exc) or repr(exc)
+                        _AVATAR_REGISTRY.upsert_motion(
+                            motion["motionId"],
+                            status="error",
+                            error=message,
+                            finishedAt=time.time(),
+                        )
+                        binding = _AVATAR_REGISTRY.update_binding(
+                            binding["bindingId"], status="error", error=message
+                        )
+                        logger.exception("[%s] failed to persist private avatar source", job_id)
+                    else:
+                        loop.run_in_executor(
+                            None,
+                            _run_motion_binding_job,
+                            selected_identity["avatarId"],
+                            motion["motionId"],
+                            binding["bindingId"],
+                            source_video,
+                            coach_path,
+                            motion_path,
+                            float(result.get("fps") or targetFps or config.DEFAULT_TARGET_FPS),
+                        )
+                    result.update(
+                        {
+                            "motionId": motion["motionId"],
+                            "bindingId": binding["bindingId"],
+                            "bindingStatus": binding["status"],
+                        }
+                    )
         except FileNotFoundError as exc:
             pipeline.cleanup_job(job_id)
             raise HTTPException(status_code=500, detail={"error": str(exc), "stage": "assets"}) from exc
