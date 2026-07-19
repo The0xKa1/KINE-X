@@ -81,10 +81,13 @@ AutoDL 开发主机上，前端为 `:5173`，导入后端为 `:8765`。后端启
 - DNA 导出在可见训练舞台上生成 613,931 字节 `video/webm`。
 - 只软删除该临时身份后，ready 绑定、动作资产和导入训练仍可播放。
 - 最终 `/healthz`、`/avatars`、`/avatar-bindings` 和前端均为 HTTP 200，后端进程环境不含 `AVATAR_EXPORT_STUB`。
+- 动作尺度修复后，又使用活跃身份 `av-legacy-demo` 创建了全新动作 `motion-20260719-165628-8d0204`。普通 8 帧导入用 4.67 秒返回，真实 LHM 绑定随后达到 `ready`。
+- 新 `KINEXGM1` 含 470 帧 / 55 关节，stage metadata 为 `scale: 1.0`、`fit: camera-axes-plus-root-translation-v2`、`scalePolicy: fixed-meter-contract`、`translationFit: coordinate-median-root-offset`。
+- 硬刷新后，新导入种子的前视、侧视、播放中段与 88.2% 进度的拖拽/缩放视图都保持完整人体轮廓，修复前的压缩团块现象未再出现。新导出为 849,066 字节 `video/webm`。
 
 ## 七、已知风险与下一步
 
-1. 分身身份库的休息姿态预览已可正常环绕/缩放；但本次短视频的真实 LHM 绑定在训练舞台上出现明显压缩/团块化观感。资产可加载、可动画且交互有响应，但动作重定向/坐标对齐的视觉质量仍需独立标定，不能仅以 manifest `ready` 判定。
+1. 修复前的压缩/团块化已确认源于用 root 轨迹错误拟合人体尺度；当前固定米制 `scale=1.0`，仅拟合 root translation。现有验收已覆盖人体形态、多视角、播放、交互与导出；但因 LHM 与 CoachClip 仍无共享 3D landmark，肢体级重定向精度仍需对更多动作样本量化评估。
 2. 旧的失败验收记录被保留为证据；不要用批量清理命令删除。
 3. `public/coach_clips/single_leg_squat_frames` 仍是死符号链接，时间轴依赖运行时自愈缩略图。
 4. 真实 WebSocket 帧流后端仍不在本仓库；默认 `ws://localhost:8000/motion` 不应被当作演示必要条件。
