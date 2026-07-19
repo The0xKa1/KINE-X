@@ -7,58 +7,58 @@ export const AVATAR_MAX_GAUSSIANS = 65536;
 const STATIC_FLOATS_PER_GAUSSIAN = 23;
 const MATRIX_FLOATS = 16;
 
+                                 
+                                
+                
+                     
+                        
+                                                                         
+                      
+                       
+                          
+                       
+                         
+                       
+                          
+                        
+                           
+                      
+                                                                     
+                             
+                                                                                 
+                          
+ 
 
+                                      
+                                
+                     
+                     
+                                                                            
+                               
+                                                        
+                             
+                                                               
+                                  
+                                                                        
+                            
+ 
 
+                                      
+                           
+                 
+                       
+                      
+ 
 
+                                  
+                      
+                       
+ 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+                        
+                      
+                 
+ 
 
 export function parseAvatarIdentity(buffer             )                 {
   const { first: count, joints, meta, cursor } = parseSplitHeader(buffer, IDENTITY_MAGIC);

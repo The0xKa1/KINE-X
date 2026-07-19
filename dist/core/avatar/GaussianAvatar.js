@@ -8,9 +8,9 @@ import {
   parseGaussianMotion,
   parseLegacyGaussianAsset,
   progressFrame,
-
-
-
+                      
+                           
+                       
 } from "./AvatarAssets.js";
 
 /**
@@ -40,18 +40,18 @@ const DATA_STRIDE = 9;
 const DATA_TEX_WIDTH = 1024;
 /** Depth sort packs (depth16 << 16) | index16, so N is capped at 2^16. */
 
-
-
-
-
-
-
-
+                            
+                 
+                                                           
+                       
+                              
+                      
+ 
 
 /** Anything with a world matrix works (THREE.Camera is structurally compatible). */
-
-
-
+                      
+                                               
+ 
 
 const VERTEX_SHADER = /* glsl */ `
 uniform sampler2D uData;
