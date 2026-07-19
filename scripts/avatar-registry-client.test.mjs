@@ -253,3 +253,29 @@ test("preview state author styles preserve the hidden contract", async () => {
     "the page-local display rule must not override hidden preview overlays",
   );
 });
+
+test("preview canvas cannot feed intrinsic dimensions back into the grid row", async () => {
+  const css = await readFile(new URL("../src/styles/avatar-vault.css", import.meta.url), "utf8");
+  const stage = cssRuleBody(css, ".avatar-preview-stage");
+  const canvas = cssRuleBody(css, "#avatarPreviewCanvas");
+
+  assert.match(
+    css,
+    /\.avatar-preview-panel\s*\{[^}]*grid-template-rows\s*:\s*auto\s+minmax\(280px,\s*1fr\)\s+auto\s*;/s,
+  );
+  assert.match(stage, /position\s*:\s*relative\s*;/);
+  assert.match(stage, /min-height\s*:\s*0\s*;/);
+  assert.match(stage, /overflow\s*:\s*hidden\s*;/);
+  assert.match(canvas, /position\s*:\s*absolute\s*;/);
+  assert.match(canvas, /inset\s*:\s*0\s*;/);
+  assert.match(canvas, /width\s*:\s*100%\s*;/);
+  assert.match(canvas, /height\s*:\s*100%\s*;/);
+  assert.match(canvas, /min-height\s*:\s*0\s*;/);
+});
+
+function cssRuleBody(css, selector) {
+  const escaped = selector.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const match = css.match(new RegExp(`${escaped}\\s*\\{([^}]*)\\}`, "s"));
+  assert.ok(match, `missing CSS rule ${selector}`);
+  return match[1];
+}
