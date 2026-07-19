@@ -47,6 +47,14 @@ export const AVATAR_BINDING_STORAGE_KEY = "kinex.avatarBindings.v1";
 
 
 
+
+
+
+
+
+
+
+
 export function buildAvatarPickerChoices(records                      )                       {
   return [
     { avatarId: null, label: "不使用分身", status: "none", progress: 0, disabled: false },
@@ -77,6 +85,62 @@ export function hasPlayableAvatarAsset(
     return false;
   }
   return Boolean(exercise.identityUrl && exercise.motionAssetUrl);
+}
+
+/** Low-frequency copy for the non-blocking train-bay binding status surface. */
+export function describeAvatarBinding(
+  exercise                                        ,
+)                            {
+  const status = exercise?.avatarBindingStatus;
+  if (!status) return { visible: false, tone: "none", title: "", detail: "" };
+  if (status === "queued") {
+    return {
+      visible: true,
+      tone: "progress",
+      title: "分身动作已排队",
+      detail: "普通教练与骨骼模式可继续使用",
+    };
+  }
+  if (status === "running") {
+    const progress = Math.round(finiteProgress(exercise.avatarBindingProgress));
+    return {
+      visible: true,
+      tone: "progress",
+      title: `分身动作准备中 · ${progress}%`,
+      detail: "普通教练与骨骼模式可继续使用",
+    };
+  }
+  if (status === "error") {
+    const error = textValue(exercise.avatarBindingError);
+    return {
+      visible: true,
+      tone: "error",
+      title: "分身准备失败",
+      detail: error ? `${error} · 普通教练仍可使用` : "普通教练与骨骼模式仍可使用",
+    };
+  }
+  if (status === "cancelled") {
+    return {
+      visible: true,
+      tone: "error",
+      title: "分身准备已取消",
+      detail: "普通教练与骨骼模式仍可使用",
+    };
+  }
+  if (exercise?.identityUrl && exercise.motionAssetUrl) {
+    return {
+      visible: true,
+      tone: "ready",
+      title: "分身资源已就绪",
+      detail: "现在可切换到分身模式",
+    };
+  }
+  return {
+    visible: true,
+    tone: "progress",
+    title: "分身资源同步中",
+    detail: "普通教练与骨骼模式可继续使用",
+  };
 }
 
 

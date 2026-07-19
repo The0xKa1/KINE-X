@@ -6,6 +6,7 @@ import {
   AvatarBindingController,
   appendSelectedAvatar,
   buildAvatarPickerChoices,
+  describeAvatarBinding,
   hasPlayableAvatarAsset,
 } from "../dist/core/avatar/AvatarBindingController.js";
 
@@ -102,6 +103,49 @@ test("playable avatar detection preserves legacy assets and waits for both reusa
   assert.equal(hasPlayableAvatarAsset({ identityUrl: "identity.bin", motionAssetUrl: "motion.bin" }), true);
   assert.equal(hasPlayableAvatarAsset({ identityUrl: "identity.bin", avatarBindingStatus: "running" }), false);
   assert.equal(hasPlayableAvatarAsset({ avatarBindingStatus: "error", avatarBindingError: "LHM failed" }), false);
+});
+
+test("avatar binding status presentation is non-blocking and explicit for every lifecycle state", () => {
+  assert.deepEqual(describeAvatarBinding({}), {
+    visible: false,
+    tone: "none",
+    title: "",
+    detail: "",
+  });
+  assert.deepEqual(describeAvatarBinding({ avatarBindingStatus: "queued", avatarBindingProgress: 0 }), {
+    visible: true,
+    tone: "progress",
+    title: "分身动作已排队",
+    detail: "普通教练与骨骼模式可继续使用",
+  });
+  assert.deepEqual(describeAvatarBinding({ avatarBindingStatus: "running", avatarBindingProgress: 41.6 }), {
+    visible: true,
+    tone: "progress",
+    title: "分身动作准备中 · 42%",
+    detail: "普通教练与骨骼模式可继续使用",
+  });
+  assert.deepEqual(describeAvatarBinding({ avatarBindingStatus: "error", avatarBindingError: "motion bake failed" }), {
+    visible: true,
+    tone: "error",
+    title: "分身准备失败",
+    detail: "motion bake failed · 普通教练仍可使用",
+  });
+  assert.deepEqual(describeAvatarBinding({ avatarBindingStatus: "cancelled" }), {
+    visible: true,
+    tone: "error",
+    title: "分身准备已取消",
+    detail: "普通教练与骨骼模式仍可使用",
+  });
+  assert.deepEqual(describeAvatarBinding({
+    avatarBindingStatus: "ready",
+    identityUrl: "identity.bin",
+    motionAssetUrl: "motion.bin",
+  }), {
+    visible: true,
+    tone: "ready",
+    title: "分身资源已就绪",
+    detail: "现在可切换到分身模式",
+  });
 });
 
 test("tracking persists pending metadata and deduplicates the background poll", () => {

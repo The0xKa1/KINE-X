@@ -44,6 +44,7 @@ import { GaussianAvatar, GaussianMotion } from "./core/avatar/GaussianAvatar.js"
 import { AvatarRegistryClient } from "./core/avatar/AvatarRegistryClient.js";
 import {
   AvatarBindingController,
+  describeAvatarBinding,
   type AvatarBindingSnapshot,
 } from "./core/avatar/AvatarBindingController.js";
 import { Router } from "./core/Router.js";
@@ -90,6 +91,9 @@ import { loadMeshClip, type MeshClip } from "./core/import/MeshClip.js";
 import type { CameraView, JointMetricSeed, MotionMode, SeedMotion } from "./types/motion.js";
 
 const dom = collectDomRefs();
+const avatarBindingStatusSurface = createAvatarBindingStatusSurface(
+  dom.stageTitle.parentElement ?? dom.stageBay,
+);
 const bus = new EventBus();
 drawerStack.init(dom.drawerBackdrop);
 const frameBuffer = new MotionFrameBuffer();
@@ -1121,21 +1125,42 @@ function assignBindingSnapshot(
 
 function syncAvatarBindingSurface(exercise: AvatarExerciseConfig): void {
   const status = exercise.avatarBindingStatus;
+  const presentation = describeAvatarBinding(exercise);
+  avatarBindingStatusSurface.root.hidden = !presentation.visible;
+  avatarBindingStatusSurface.root.dataset.tone = presentation.tone;
+  avatarBindingStatusSurface.title.textContent = presentation.title;
+  avatarBindingStatusSurface.detail.textContent = presentation.detail;
   dom.loadingOverlay.dataset.avatarBindingStatus = status ?? "none";
-  if (status === "queued" || status === "running") {
-    const progress = Math.round(exercise.avatarBindingProgress ?? 0);
-    setLoadingCopy(`分身动作准备中 · ${progress}%`, "教练与骨骼模式可继续使用");
-    return;
-  }
-  if (status === "error" || status === "cancelled") {
-    setLoadingCopy("分身准备失败", exercise.avatarBindingError ?? "教练与骨骼模式仍可正常使用");
-    return;
-  }
-  if (status === "ready" && exercise.identityUrl && exercise.motionAssetUrl) {
-    setLoadingCopy("分身资源已就绪", "切换到分身模式后载入身份与动作");
+  if (presentation.visible) {
+    setLoadingCopy(presentation.title, presentation.detail);
     return;
   }
   setLoadingCopy("初始化全息舱…", "预加载 SMPL-Lite 骨骼 / 校准动作 DNA");
+}
+
+interface AvatarBindingStatusSurface {
+  root: HTMLElement;
+  title: HTMLElement;
+  detail: HTMLElement;
+}
+
+function createAvatarBindingStatusSurface(parent: HTMLElement): AvatarBindingStatusSurface {
+  const root = document.createElement("div");
+  root.className = "avatar-binding-status";
+  root.hidden = true;
+  root.setAttribute("role", "status");
+  root.setAttribute("aria-live", "polite");
+  root.setAttribute("aria-atomic", "true");
+
+  const marker = document.createElement("i");
+  marker.setAttribute("aria-hidden", "true");
+  const copy = document.createElement("span");
+  const title = document.createElement("strong");
+  const detail = document.createElement("small");
+  copy.append(title, detail);
+  root.append(marker, copy);
+  parent.appendChild(root);
+  return { root, title, detail };
 }
 
 function setLoadingCopy(title: string, detail: string): void {
