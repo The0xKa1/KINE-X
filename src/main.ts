@@ -834,6 +834,10 @@ async function hydrateImportedJobs(): Promise<void> {
       .filter((job) => (job as PersistedAvatarJob).kind !== "avatar")
       .map((job) => hydrateOneJob(job as PersistedJob)),
   );
+  // LibraryPage renders once on enter() and has no subscriptions; boot starts
+  // the router before this hydration finishes, so a direct refresh would
+  // never show imported seeds. Re-render if the user is sitting on #/.
+  if (router.currentRoute().name === "library") libraryPage.enter();
 }
 
 function hydrateAvatarJob(job: PersistedAvatarJob): void {
