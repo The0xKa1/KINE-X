@@ -212,6 +212,8 @@ class AvatarRegistry:
                 handle.flush()
                 os.fsync(handle.fileno())
             Path(temp_name).replace(path)
+            temp_name = None
+            _fsync_directory(path.parent)
         except Exception:
             if temp_name:
                 Path(temp_name).unlink(missing_ok=True)
@@ -220,6 +222,24 @@ class AvatarRegistry:
 
 def _new_id(prefix: str) -> str:
     return f"{prefix}{uuid.uuid4().hex}"
+
+
+def _fsync_directory(directory: Path) -> None:
+    """Durably publish a replaced manifest when directory syncing is supported."""
+    flags = os.O_RDONLY | getattr(os, "O_DIRECTORY", 0)
+    try:
+        descriptor = os.open(str(directory), flags)
+    except (AttributeError, OSError):
+        return
+    try:
+        try:
+            os.fsync(descriptor)
+        except OSError:
+            # Some supported platforms reject fsync on a directory (for example
+            # with EINVAL). The file was still atomically replaced above.
+            pass
+    finally:
+        os.close(descriptor)
 
 
 def _motion_id(value: str) -> str:
