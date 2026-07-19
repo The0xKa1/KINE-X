@@ -454,7 +454,46 @@ class AvatarMotionAdapterTests(unittest.TestCase):
             raise AssertionError("backend.avatar_motion must exist") from exc
         return avatar_motion
 
-    def test_stage_transform_pins_camera_axes_scale_and_root_centering(self) -> None:
+    def test_stage_transform_preserves_meter_scale_for_uncorrelated_root_motion(self) -> None:
+        avatar_motion = self._module()
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            lhm_translations = (
+                [0.0, 0.8, 0.0],
+                [0.9, 1.0, 0.5],
+                [1.8, 1.2, 1.0],
+            )
+            lhm_frames = []
+            for index, translation in enumerate(lhm_translations):
+                path = root / f"{index:05}.json"
+                path.write_text(json.dumps({"trans": translation}), encoding="utf-8")
+                lhm_frames.append(path)
+            coach_path = root / "coach.json"
+            coach_path.write_text(
+                json.dumps(
+                    {
+                        "frames": [
+                            {"pelvis": {"position": [0.0000, 0.0010, 0.0000]}},
+                            {"pelvis": {"position": [0.0008, 0.0009, -0.0002]}},
+                            {"pelvis": {"position": [0.0010, 0.0012, -0.0001]}},
+                        ]
+                    }
+                ),
+                encoding="utf-8",
+            )
+
+            transform = avatar_motion.compute_stage_transform(lhm_frames, coach_path)
+
+            self.assertEqual(transform["scale"], 1.0)
+            self.assertEqual(transform["scalePolicy"], "fixed-meter-contract")
+            converted = np.asarray(lhm_translations) @ np.asarray(transform["R"]).T
+            transformed = transform["scale"] * converted + np.asarray(transform["t"])
+            np.testing.assert_allclose(
+                np.ptp(transformed, axis=0), np.ptp(converted, axis=0)
+            )
+            self.assertGreater(float(np.max(np.ptp(transformed, axis=0))), 1.0)
+
+    def test_stage_transform_pins_camera_axes_and_aligns_root_translation(self) -> None:
         avatar_motion = self._module()
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
@@ -478,13 +517,14 @@ class AvatarMotionAdapterTests(unittest.TestCase):
 
             transform = avatar_motion.compute_stage_transform(lhm_frames, coach_path)
 
-            self.assertAlmostEqual(transform["scale"], 2.0)
+            self.assertEqual(transform["scale"], 1.0)
             self.assertEqual(
                 transform["R"], [[1.0, 0.0, 0.0], [0.0, -1.0, 0.0], [0.0, 0.0, -1.0]]
             )
-            for actual, expected in zip(transform["t"], [10, 20, 30]):
+            for actual, expected in zip(transform["t"], [11.5, 17, 26]):
                 self.assertAlmostEqual(actual, expected)
-            self.assertAlmostEqual(transform["rootResidualMeanM"], 0.0)
+            self.assertAlmostEqual(transform["rootResidualMeanM"], 1.5)
+            self.assertEqual(transform["translationFit"], "coordinate-median-root-offset")
 
     def test_prepare_motion_invokes_lhm_normalizes_split_json_and_atomically_packs(self) -> None:
         avatar_motion = self._module()
@@ -553,6 +593,15 @@ class AvatarMotionAdapterTests(unittest.TestCase):
             self.assertEqual(output.read_bytes()[:8], b"KINEXGM1")
             self.assertEqual(meta["frames"], 2)
             self.assertEqual(meta["fps"], 15)
+            stage_transform = meta["stageTransform"]
+            self.assertEqual(stage_transform["scale"], 1.0)
+            source_roots = np.asarray(([0, 0, 0], [1, 2, 2]), dtype=np.float64)
+            transformed_roots = (
+                source_roots @ np.asarray(stage_transform["R"]).T
+            ) * stage_transform["scale"] + np.asarray(stage_transform["t"])
+            np.testing.assert_allclose(
+                np.ptp(transformed_roots, axis=0), [1.0, 2.0, 2.0]
+            )
 
     def test_prepare_motion_decodes_subprocess_output_independent_of_locale(self) -> None:
         avatar_motion = self._module()

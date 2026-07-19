@@ -1,16 +1,16 @@
 """LHM video-motion extraction and deterministic KINE//X stage adaptation.
 
 The available LHM motion output contains SMPL-X rotations and a camera-space
-root translation, but no landmark set shared with the SAM CoachClip.  The
-adapter therefore pins the known camera-to-stage axis conversion and fits only
-one positive scale plus translation against the two root trajectories.  The
-recorded residual quantifies the remaining alignment risk; limb-level drift
-cannot be solved until both pipelines expose shared 3D landmarks.
+root translation, but no landmark set shared with the SAM CoachClip.  Both
+formats use meters, so root motion cannot identify body scale: the adapter pins
+the known camera-to-stage axis conversion and unit scale, then robustly aligns
+only the root translation.  The recorded residual quantifies the remaining
+alignment risk; limb-level drift cannot be solved until both pipelines expose
+shared 3D landmarks.
 """
 from __future__ import annotations
 
 import json
-import math
 import subprocess
 import tempfile
 from pathlib import Path
@@ -26,7 +26,7 @@ CAMERA_TO_STAGE = np.diag([1.0, -1.0, -1.0])
 
 
 def compute_stage_transform(frame_paths: Iterable[Path], coach_clip: Path) -> dict:
-    """Fit ``stage = scale * CAMERA_TO_STAGE @ camera + t`` on root motion."""
+    """Align roots with fixed meter scale after camera-to-stage conversion."""
     paths = [Path(path) for path in frame_paths]
     if not paths:
         raise ValueError("motion requires at least one LHM frame")
@@ -35,19 +35,9 @@ def compute_stage_transform(frame_paths: Iterable[Path], coach_clip: Path) -> di
     coach_roots = _coach_pelvis_positions(Path(coach_clip))
     target = _resample_trajectory(coach_roots, len(paths))
 
-    source_center = converted.mean(axis=0)
-    target_center = target.mean(axis=0)
-    source_zero = converted - source_center
-    target_zero = target - target_center
-    denominator = float(np.sum(source_zero * source_zero))
-    if denominator < 1e-12:
-        scale = 1.0
-    else:
-        scale = float(np.sum(source_zero * target_zero) / denominator)
-        if not math.isfinite(scale) or scale <= 1e-8:
-            raise ValueError("LHM and CoachClip root trajectories have no positive scale fit")
-    translation = target_center - scale * source_center
-    fitted = scale * converted + translation
+    scale = 1.0
+    translation = np.median(target - converted, axis=0)
+    fitted = converted + translation
     residual = np.linalg.norm(fitted - target, axis=1)
     return {
         "scale": scale,
@@ -55,7 +45,9 @@ def compute_stage_transform(frame_paths: Iterable[Path], coach_clip: Path) -> di
         "t": translation.tolist(),
         "rootResidualMeanM": float(residual.mean()),
         "rootResidualMaxM": float(residual.max()),
-        "fit": "camera-axes-plus-root-similarity-v1",
+        "fit": "camera-axes-plus-root-translation-v2",
+        "scalePolicy": "fixed-meter-contract",
+        "translationFit": "coordinate-median-root-offset",
     }
 
 
