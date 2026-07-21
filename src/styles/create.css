@@ -239,56 +239,12 @@
 
 .create-avatar-picker-list {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(132px, 1fr));
   gap: 8px;
 }
 
-.create-avatar-choice {
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr);
-  gap: 8px;
-  align-items: start;
-  min-height: 58px;
-  padding: 9px;
-  border: 2px solid var(--ink);
-  background: var(--paper);
-  cursor: pointer;
-}
-
-.create-avatar-choice:has(input:checked) {
-  background: var(--hot);
-}
-
-.create-avatar-choice.is-disabled {
-  border-style: dashed;
-  color: var(--muted);
-  background: var(--surface);
-  cursor: not-allowed;
-}
-
-.create-avatar-choice input {
-  margin: 2px 0 0;
-  accent-color: var(--ink);
-}
-
-.create-avatar-choice span {
-  display: grid;
-  gap: 4px;
-  min-width: 0;
-}
-
-.create-avatar-choice strong,
-.create-avatar-choice small {
-  overflow-wrap: anywhere;
-}
-
-.create-avatar-choice strong {
-  font: 800 12px/1.2 var(--sans);
-}
-
-.create-avatar-choice small {
-  font: 500 9px/1.35 var(--mono);
-  color: var(--muted);
+/* Dropdown variant: single select instead of the old radio card grid. */
+.create-avatar-select select {
+  text-overflow: ellipsis;
 }
 
 .create-avatar-picker-foot .settings-hint {

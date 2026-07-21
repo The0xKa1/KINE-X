@@ -84,10 +84,6 @@ export class CreatePage implements Page {
               <span>动作类型</span>
               <select id="createMotion">
                 <option value="flow">Flow · 通用 / 流动</option>
-                <option value="squat">Squat · 下蹲</option>
-                <option value="hinge">Hinge · 髋铰</option>
-                <option value="bounce">Bounce · 弹跳</option>
-                <option value="throw">Throw · 投掷</option>
               </select>
             </label>
             <fieldset class="create-avatar-picker" aria-describedby="createAvatarPickerStatus">
@@ -191,30 +187,28 @@ export class CreatePage implements Page {
   private renderAvatarPicker(choices: AvatarPickerChoice[]): void {
     const host = $("#createAvatarPicker");
     host.textContent = "";
+
+    const field = document.createElement("label");
+    field.className = "settings-field create-avatar-select";
+    const select = document.createElement("select");
+    select.setAttribute("aria-label", "可选分身");
     choices.forEach((choice) => {
-      const label = document.createElement("label");
-      label.className = "create-avatar-choice";
-      label.classList.toggle("is-disabled", choice.disabled);
-
-      const input = document.createElement("input");
-      input.type = "radio";
-      input.name = "createAvatarIdentity";
-      input.value = choice.avatarId ?? "";
-      input.disabled = choice.disabled;
-      input.checked = choice.avatarId === this.selectedAvatarId;
-      input.addEventListener("change", () => {
-        if (input.checked) this.selectedAvatarId = choice.avatarId;
-      });
-
-      const copy = document.createElement("span");
-      const name = document.createElement("strong");
-      name.textContent = choice.label;
-      const detail = document.createElement("small");
-      detail.textContent = pickerDetail(choice);
-      copy.append(name, detail);
-      label.append(input, copy);
-      host.appendChild(label);
+      const option = document.createElement("option");
+      option.value = choice.avatarId ?? "";
+      option.disabled = choice.disabled;
+      option.textContent = choice.avatarId
+        ? `${choice.label} · ${pickerDetail(choice)}`
+        : choice.label;
+      select.appendChild(option);
     });
+    // A previously selected identity may have become unavailable.
+    select.value = this.selectedAvatarId ?? "";
+    if (select.value !== (this.selectedAvatarId ?? "")) this.selectedAvatarId = null;
+    select.addEventListener("change", () => {
+      this.selectedAvatarId = select.value || null;
+    });
+    field.appendChild(select);
+    host.appendChild(field);
   }
 
   private syncSteps(state: ImportFlowState): void {
