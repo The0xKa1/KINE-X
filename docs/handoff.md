@@ -4,10 +4,10 @@
 
 ## 零、停止点
 
-- main：用户自配 AI API、DNA 导出移除、训练记录单条删除，以及 AI API 紧凑入口与直达配置区均已落地；部署到服务器 `/root/KINE-X`，尚未 push GitHub `origin/main`。
-- 门禁：`npm run check` ✓、`npm run test:ai` 8/8 ✓、`npm run test:session` 3/3 ✓、`npm run test:avatar` 46/46 ✓；后端未改，Python 四套件本轮未重跑；`npx tsc --noEmit` 保留 8 个既有参考诊断（未入门禁）。
+- main：用户自配 AI API、DNA 导出移除、训练记录单条删除，以及导入完成后的分身补绑均已落地；`v0.1.10` 已部署到服务器 `/root/KINE-X`，尚未 push GitHub `origin/main`。
+- 门禁：`npm run check` ✓、`npm run test:ai` 8/8 ✓、`npm run test:session` 3/3 ✓、`npm run test:avatar` 48/48 ✓；Python 四套件 57/57 ✓；`npx tsc --noEmit` 保留 8 个既有参考诊断（未入门禁）。
 - AutoDL 全栈运行：**单端口 `:8765` 同时服务前端静态与 API**（Starlette 挂载仓库根，带 Range）；旧 `:5173`（http.server）仍在但视频不可 seek，仅作兜底。
-- 2026-07-21 公网部署复验：HTTPS `/healthz` 返回 CUDA ready；根页为 `v0.1.9`，AI 设置区可真实测试 MLLM 图片/JSON 与 COACH SSE 两条链路并分项报错；赛后首轮诊断与追问使用独立提示词，追问只携带最近 4 轮 / 4000 字历史且单次输入最多 500 字；Vault 桌面端压缩顶部介绍/上传区，预览元数据改为两列并把纵向空间归还 3DGS 画布，档案列表保持独立滚动；可复用身份支持自然站 / 叉腰 / 胜利 V / 展臂四种预览姿态；公网训练记录删除与 AI 自配入口仍在，旧 DNA 导出 DOM 不存在；身份/绑定仍为 4/5，代表性 `segment.mp4` Range 请求返回 206。
+- 2026-07-21 公网部署复验：HTTPS `/healthz` 返回 CUDA ready，根页为 `v0.1.10`；用 `avatarId + jobId` 为任务 `20260721-203028-f26db1` 请求“绫波丽”时返回既有 ready 绑定 `binding-9d1d48f458954a1980f5a4281ee50e58` 与同一 `motion-20260721-203028-f26db1`，证明后置补绑契约已上线且幂等。AI 双链路测试、追问上下文限制、Vault 四种预览姿态、训练记录删除与 DNA 导出移除仍保留。
 - 种子卡：squat / ugc-squat / ugc-yoga(flow) / ugc-dance(bounce)；身份 `av-legacy-demo`（白裙少女，ready）× 两条 `motion-<jobId>` 的绑定均 ready，训练舱分身按钮已解锁。
 - 播放同步批次：① 采样边界统一 clamp（`sampleClip`/`sampleFrameIndex`/`updateAvatar`，progress=1 不再跳回第 0 帧）；② CoachVideo 速率按 `speed×video时长/clip时长` 跟踪 + 结算后钉住末帧；③ 时间轴帧条=唯一进度面（点帧跳转并暂停、整条拖拽刮擦、playhead 竖线），右侧 timeSlider 删除，左侧 Tempo 加 `×0.65` 实时读数；④ 后端静态挂载修视频 seek + 全量 mp4 faststart；⑤ `resolveBackendUrl` 回退改同源（5173 除外）+ `/import/jobs` 水合等 load 事件并重试；⑥ 分身二进制与前端本地业务模块/CSS 已统一做版本化缓存失效。
 
