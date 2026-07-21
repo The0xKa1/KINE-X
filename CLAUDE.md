@@ -11,8 +11,9 @@ KINE//X is a hackathon prototype: import a short sports clip → reconstruct it 
 - `npm run check` — build, then run `scripts/guardrails.mjs`. **Run it before declaring any change done**.
 - `npm run test:avatar` — avatar vault frontend tests (`node --test scripts/avatar-*.test.mjs`).
 - `python3 -m unittest backend.test_avatar_assets backend.test_avatar_registry backend.test_avatar_api backend.test_avatar_binding` — avatar backend regression gate.
-- `npm run server:install` / `npm run server` — LLM proxy on :8766 (needs `.env`, see `.env.example`).
-- Type-checking is advisory only: `npx tsc --noEmit` currently reports ~12 known diagnostics (`noUncheckedIndexedAccess` strictness in a handful of files). Not wired into the gate.
+- `npm run test:ai` — direct OpenAI-compatible MLLM / post-session API client contract tests.
+- `npm run test:session` — local workout archive deletion and history UI contract tests.
+- Type-checking is advisory only: `npx tsc --noEmit` currently reports 8 known diagnostics (`noUncheckedIndexedAccess` strictness in a handful of files). Not wired into the gate.
 
 No linter or formatter. The guardrail script plus the avatar test suites are the source of truth.
 
@@ -66,8 +67,8 @@ Key boundaries:
 - **`src/core/SessionGate.ts`** — session lifecycle `idle → countdown(3s) → active → finished`. Live scoring (`applyLiveScore`) only runs in `active`. The countdown starts from the start button or a held OK hand gesture (`OkGestureDetector`, 0.6s hold); `SessionStartOverlay` renders the gate UI. Reaching `progress >= 1` in `active` auto-opens the results screen.
 - **`src/core/EventBus.ts`** — typed pub/sub for low-frequency UI events only: `score:update`, `pipeline:update`, `seed:update`, `camera:update`, `camera:error`, `session:state`, `session:gesture`, `calibration:ready`. Never put per-frame data on the bus.
 - **`src/main.ts`** — composition root. Boot runs through `BootSequence` (full-screen overlay whose checks light up on real milestones: clip/mesh hydration, MediaPipe probe, stream standby; click or 9s failsafe skips), then the `Router` enters the initial route (default `#/`). Also resolves `BACKEND_URL` (:8765 import backend; `?backend=` override persisted to localStorage), hydrates built-in clips + default SMPL-X mesh + imported jobs (video jobs become new seeds, then `AvatarBindingController` discovers/restores bindings from server manifests; once hydration lands, the library re-renders if visible and a pending train deep link is repaired), and self-heals timeline thumbnails (`healTimelineThumbnails` re-renders them from the in-memory mesh clip when the baked JPGs 404).
-- **`src/core/scoring/SessionArchive.ts`** — localStorage history of finished sessions (`kinex.sessions.v1`, newest first, max 20). Written by `ResultsScreen.open()`; consumed by the report page and library stats.
-- **`src/config.ts`** — `API_BASE_URL` for the LLM proxy (:8766; `?api=` override persisted to localStorage).
+- **`src/core/scoring/SessionArchive.ts`** — localStorage history of finished sessions (`kinex.sessions.v1`, newest first, max 20). Written by `ResultsScreen.open()`; consumed by the report page and library stats. Individual records can be removed from either the library history or the active report after confirmation.
+- **`src/components/gameui/CameraSettings.ts`** — camera, MediaPipe, calibration, persona, and user-owned AI API settings. Base URL / API Key plus separate MLLM and coach model names are stored in browser localStorage; requests go directly to the configured OpenAI-compatible endpoint.
 - **`src/components/`** — `layout/` (`AppShell`) and `gameui/` (overlay widgets). UI subscribes to bus events; it never reads from `MotionFrameBuffer`.
 
 ### Coordinate & rotation contract
@@ -80,7 +81,7 @@ Key boundaries:
 ## Backend services (separate processes, optional for the frontend demo)
 
 - `backend/` :8765 — SAM 3D Body video import + Avatar Vault (FastAPI + GPU). `POST /import/video` (multipart; optional `startSec`/`endSec` slicing, `motion`, `targetFps`, `name`, `avatarId`; the job record carries `sourceVideoUrl` once `segment.mp4` exists), `GET /import/jobs`, `GET|POST /avatars`, `PATCH|DELETE /avatars/{avatarId}`, `GET|POST /avatar-bindings`, `GET /healthz`. Video artifacts land in `public/coach_clips/jobs/<jobId>/`; the vault registry lives under `public/coach_clips/{avatar-identities,motions,avatar-bindings}/`; private LHM source videos live in `~/.local/share/kinex/avatar-jobs/` — never under the static root. Heavy deps (torch, sam-3d-body, LHM, ffmpeg) are **not** in `backend/requirements.txt` — see `backend/README.md`.
-- `server/` :8766 — LLM proxy (FastAPI + httpx). `POST /api/segment` (MLLM video segmentation from sampled frames), `POST /api/chat-stream` (OpenAI-compatible SSE passthrough), `GET /api/health`. API credentials live server-side in `.env`; the browser never holds an LLM key (persona is selectable in the camera settings drawer).
+- AI API calls are browser-direct and user-owned. `VideoSegmentationClient` sends sampled frames to the configured MLLM, while `LLMClient` streams post-session analysis from the separately configured coach model. Providers must expose a CORS-enabled OpenAI-compatible `/chat/completions` endpoint.
 
 ## Legacy / dead code (do not resurrect without a reason)
 
@@ -95,7 +96,7 @@ Key boundaries:
 - Adding a new exercise seed: extend `src/data/exercises.ts`; attach a clip via `COACH_CLIP_MANIFEST` in `src/core/import/loadCoachClip.ts`, or generate one through the import drawer (backend import).
 - `#/create` is the video import wizard (`ImportFlow` → `POST /import/video`) with an optional single READY-identity picker before analysis. Photo → identity lives on its own page `#/avatars` (`AvatarVaultPage` → `POST /avatars`); the old `#/create` photo branch and the `AvatarImportFlow` jobId flow are retired — `POST /import/avatar` survives only as a compatibility alias.
 - Wiring a real frame backend: serve `FRAME_STREAM` packets over WebSocket and point the app at it with `?ws=`. The packet shape in README "运动数据契约" is the contract; the frontend side is already done.
-- LLM / AI coach work: `src/core/llm/` (`LLMClient`, `buildPrompt`, `renderMarkdown`) talks to `server/main.py`; MLLM video segmentation lives in `src/core/mllm/`.
+- LLM / AI coach work: `src/core/llm/` (`LLMClient`, `buildPrompt`, `renderMarkdown`) talks directly to the user-configured OpenAI-compatible endpoint; MLLM video segmentation lives in `src/core/mllm/` and shares the Base URL / API Key while using its own model field.
 - Touching anything render-loop adjacent: re-run `npm run check` and verify no new `Euler` / `useState` / `ref(` slipped in, and that any new rotation work goes through quaternions.
 
 ## Docs map

@@ -1,12 +1,13 @@
 # KINE//X 交接文档
 
-> 事实快照：2026-07-21（动作同步重烘与资产版本化后）。只记当前可复现状态与下一步，不记开发流水。
+> 事实快照：2026-07-21（动作同步重烘、用户自配 AI API 与导出移除后）。只记当前可复现状态与下一步，不记开发流水。
 
 ## 零、停止点
 
-- main：当前代码停止点 `9d84494`（`fix(avatar): version rebaked and frontend assets`）；本地 `main` 相对 `origin/main` ahead 5，代码已部署 AutoDL，但这 5 个提交尚未 push。
-- 门禁：`npm run check` ✓、`npm run test:avatar` 42/42 ✓、Python 四套件 54/54 ✓；`npx tsc --noEmit` 12 行参考诊断（未入门禁）。
+- main：运行时功能提交 `9b6e21a`（用户自配 AI API、DNA 导出移除、训练记录单条删除）已推送 `autodl/main` 并 fast-forward 到服务器 `/root/KINE-X`；尚未 push GitHub `origin/main`。
+- 门禁：`npm run check` ✓、`npm run test:ai` 3/3 ✓、`npm run test:session` 3/3 ✓、`npm run test:avatar` 42/42 ✓；后端未改，Python 四套件本轮未重跑；`npx tsc --noEmit` 保留 8 个既有参考诊断（未入门禁）。
 - AutoDL 全栈运行：**单端口 `:8765` 同时服务前端静态与 API**（Starlette 挂载仓库根，带 Range）；旧 `:5173`（http.server）仍在但视频不可 seek，仅作兜底。
+- 2026-07-21 公网部署复验：HTTPS `/healthz` 返回 CUDA ready；根页为 `v0.1.2` 且含 Base URL / MLLM / Coach 模型设置；公网 `LibraryPage.js` / `ReportPage.js` 均含确认删除链路；旧 DNA 导出 DOM 不存在；身份/绑定仍为 4/5，代表性 `segment.mp4` Range 请求返回 206。
 - 种子卡：squat / ugc-squat / ugc-yoga(flow) / ugc-dance(bounce)；身份 `av-legacy-demo`（白裙少女，ready）× 两条 `motion-<jobId>` 的绑定均 ready，训练舱分身按钮已解锁。
 - 播放同步批次：① 采样边界统一 clamp（`sampleClip`/`sampleFrameIndex`/`updateAvatar`，progress=1 不再跳回第 0 帧）；② CoachVideo 速率按 `speed×video时长/clip时长` 跟踪 + 结算后钉住末帧；③ 时间轴帧条=唯一进度面（点帧跳转并暂停、整条拖拽刮擦、playhead 竖线），右侧 timeSlider 删除，左侧 Tempo 加 `×0.65` 实时读数；④ 后端静态挂载修视频 seek + 全量 mp4 faststart；⑤ `resolveBackendUrl` 回退改同源（5173 除外）+ `/import/jobs` 水合等 load 事件并重试；⑥ 分身二进制与前端本地业务模块/CSS 已统一做版本化缓存失效。
 
@@ -27,7 +28,7 @@
 ## 一、产品边界
 
 单 DOM 五页 hash-router SPA：`#/` 动作库、`#/train/:seedId` 训练舱、`#/report/:sessionId?` 报告、`#/create` 视频导入、`#/avatars` 分身身份库。
-训练主链 CoachClip / MeshClip 立即可用；分身绑定后台渐进就绪，失败不阻塞教练/骨骼/评分/报告/WebM 导出。
+训练主链 CoachClip / MeshClip 立即可用；分身绑定后台渐进就绪，失败不阻塞教练/骨骼/评分/报告。训练后的 DNA/WebM 视频导出已移除。
 
 ## 二、可复用分身架构（身份 × 动作解耦）
 
@@ -77,7 +78,8 @@ python3 -m unittest backend.test_avatar_assets backend.test_avatar_registry back
 
 ## 六、坑位备忘（只留真坑）
 
-- 前端版本当前为 `0.1.1`。`index.html` 的入口 CSS/JS、23 个 CSS `@import` 与构建产物内全部相对 JS 模块引用使用同一 `?v=0.1.1`；版本号来自 `package.json`，guardrail 会拒绝不一致。部署新版本后普通刷新一次即可，不应再要求用户清缓存或换浏览器。
+- 前端版本当前为 `0.1.2`。`index.html` 的入口 CSS/JS、22 个 CSS `@import` 与构建产物内全部相对 JS 模块引用使用同一 `?v=0.1.2`；版本号来自 `package.json`，guardrail 会拒绝不一致。部署新版本后普通刷新一次即可，不应再要求用户清缓存或换浏览器。
+- MLLM 与赛后教练由浏览器直连用户填写的 OpenAI-compatible API：Base URL / API Key 共用，模型名分开配置，保存在当前浏览器 localStorage；服务商必须支持 CORS，建议只用可撤销、有限额的 Key。
 - `python -m http.server` 不支持 Range：Chrome 线性下载完也 `seekable=[0,0]`，`currentTime` 赋值全部弹回 0——教练视频"能播不能拖"。前端必须走 :8765 的 Starlette 静态挂载；mp4 另需 `ffmpeg -c copy -movflags +faststart`（moov 前置）。**注意：faststart 后的文件放在无 Range 的服务器上反而更糟——Chrome 能发起 seek 却无法完成，视频从"能播不能拖"退化为永久 seeking 卡死；`CoachVideo` 的 `video.seekable` 守卫已生效，只在线性可播放时降级。**
 - 采样边界语义：`sampleClip`/`sampleFrameIndex`/`updateAvatar` 统一 clamp——预览循环的回绕在上游 RealtimeStream 完成，progress=1 只会出现在会话结算，各层必须钉住末帧而不是跳回第 0 帧。
 - `_run_motion_binding_job` 的 `finally` 会删除传入的 source_video：复用该 worker 必须给私有副本。公开资产（如 `segment.mp4`）曾被误删导致种子视频窗消失；`d790102` 起删除被限制在私有根内。
@@ -96,7 +98,7 @@ python3 -m unittest backend.test_avatar_assets backend.test_avatar_registry back
 3. 长期：`tsc` 清零入门禁；真实 WS 帧流后端；Google Fonts 本地化。
 4. ~~数字分身vault页美化~~（已修复，2026-07-21）：① 预览人物沉进网格——身份 rest pose 脚底 y<0，`GaussianAvatar` 新增 `restGroundY` + `setBaseOffsetY`（折叠进 `uTrans`，训练舱默认 0 不受影响），vault 预览抬到脚踩网格；② 档案卡一片黑——legacy 身份无 `previewUrl`，预览渲染 6 帧后同帧 `toDataURL` 快照自愈卡片（任何缺 preview 的身份通用），快照已持久化为服务器 `preview.png` 并补写 `record.json`；占位块改为网格底 + 首字母大字。③ 档案卡图片优先显示原始照片（`identityUrl` 目录 + `sourcePhoto` 拼 URL），竖图 `object-position: center 18%` 保头部。
 5. ~~分身切换 UI~~（2026-07-21 完成）：训练舱渲染模式旁新增 `AvatarSwitcher`（`src/components/gameui/AvatarSwitcher.ts`，样式 `src/styles/avatar-switcher.css`）——仅 motion 类种子可见；列出全部 READY 身份及该身份×当前 motion 的绑定状态（使用中/切换/建立绑定/准备中）；无绑定时 `POST /avatar-bindings` 创建（双资产现成即建即 ready），快照经 `assignBindingSnapshot` + `controller.track()` 换绑并热替换舞台分身。注意：`applyBindingSnapshotToSeed` 的 bindingId 守卫要求换绑先改 exercise 再 track；localStorage 记录仍是选择真源，服务器 discovery 在同 motion 多绑定时选 createdAt 最旧者。
-6. ~~分身与前端缓存版本化~~（2026-07-21 完成）：API 文件 URL 按真实文件状态生成版本；终态绑定启动时重对账；旧 avatar 实例在资产 key 变化时释放；前端 `0.1.1` 对入口、CSS 依赖和完整本地业务 ES module 图统一 cache bust。线上已核验 `/healthz`、根页、`/avatars`、`/avatar-bindings` 与两条重烘 motion SHA-256。
+6. ~~分身与前端缓存版本化~~（2026-07-21 完成）：API 文件 URL 按真实文件状态生成版本；终态绑定启动时重对账；旧 avatar 实例在资产 key 变化时释放；前端入口、CSS 依赖和完整本地业务 ES module 图统一 cache bust。线上已核验 `/healthz`、根页、`/avatars`、`/avatar-bindings` 与两条重烘 motion SHA-256。
 
 ## 八、修改原则
 

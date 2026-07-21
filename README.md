@@ -30,7 +30,7 @@ KINE//X 是一个面向运动教学、健身跟练和黑客松现场演示的 We
 - **动作级实时评分**：摄像头采集用户姿态，按关节角度、骨骼方向、3D 距离和动作历史窗口做匹配，输出综合同步分、Combo 与风险关节。
 - **可交互 3D 动作舞台**：标准动作在右侧全息舞台中播放，支持 front / side / top 视角、拖拽旋转、滚轮缩放和时间轴 scrub。
 - **标定与延迟容忍**：T-pose 标定用于适配不同身高体型；CoachHistory 滑动窗口吸收用户比教练慢半拍的自然反应延迟。
-- **AI 教练总结**：训练结束后将 SessionSummary 交给 OpenAI-compatible LLM 代理，流式输出中文动作反馈。
+- **AI 教练总结**：训练结束后将 SessionSummary 从浏览器直接交给用户配置的 OpenAI-compatible API，流式输出中文动作反馈。
 - **前后端解耦**：高频帧进入 `MotionFrameBuffer`，渲染层由 RAF 主动拉取；低频 UI 事件走 `EventBus`，方便替换真实 WebSocket 后端。
 
 ## 系统架构
@@ -45,7 +45,7 @@ flowchart LR
   D --> G
   G --> H["实时反馈<br/>SYNC / Combo / Risk / Timeline"]
   H --> I["SessionRecorder"]
-  I --> J["LLM Proxy :8766<br/>OpenAI-compatible SSE"]
+  I --> J["用户配置的 AI API<br/>OpenAI-compatible SSE"]
   J --> K["AI Coach Feedback"]
 ```
 
@@ -57,11 +57,11 @@ flowchart LR
 | MediaPipe Pose / Hand / Face | 已本地离线运行 |
 | 视频导入为 CoachClip | 已可用：可选 MLLM 分段，上传 SAM3D 后端逐帧重建；训练舱直接回放原视频切片 |
 | 可复用 3DGS 分身 | 已可用：身份（KINEXGI1）× 动作（KINEXGM1）解耦，绑定渐进就绪，训练舱实时组合 |
-| 资产缓存一致性 | 前端 `0.1.1`：入口、CSS 依赖和完整本地业务 ES module 图统一版本；可重烘的身份 / 动作 / 预览 URL 按文件状态自动换版 |
+| 资产缓存一致性 | 前端 `0.1.2`：入口、CSS 依赖和完整本地业务 ES module 图统一版本；可重烘的身份 / 动作 / 预览 URL 按文件状态自动换版 |
 | SAM 3D Body 导入后端 | 已接入，需要本机模型资产与 Python 环境 |
 | 用户标定与实时评分 | 已可用，摄像头开启后参与评分 |
-| Session 结果页与 AI 教练 | 已可用，LLM 代理需配置环境变量 |
-| Session 历史存档 | 已可用，localStorage 保留最近 20 场，驱动报告页与动作库统计 |
+| Session 结果页与 AI 教练 | 已可用；用户在摄像头设置中填写 Base URL、API Key 与赛后分析模型 |
+| Session 历史存档 | 已可用，localStorage 保留最近 20 场，驱动报告页与动作库统计；动作库或当前报告均可确认后删除单场记录 |
 | WebSocket 外部帧流 | 接口已预留，当前前端可用本地 RealtimeStream / mock 兜底演示 |
 
 ## 技术栈
@@ -70,7 +70,7 @@ flowchart LR
 - **Motion Runtime**：Quaternion rotation, right-hand coordinate system, meter-based 3D positions
 - **Scoring**：MediaPipe world landmarks, pose normalization, joint-angle solver, One-Euro smoothing, history-window matching
 - **Import Backend**：FastAPI, ffmpeg, SAM 3D Body, SMPL-X mesh packing
-- **LLM Backend**：FastAPI, httpx, OpenAI-compatible `/chat/completions` SSE proxy
+- **AI API**：浏览器直连用户配置的 OpenAI-compatible `/chat/completions`；MLLM 与赛后分析模型可分别指定
 - **Build**：Node `stripTypeScriptTypes`，无打包器；构建时为相对 ES module import 注入与 `package.json` 一致的版本 query，`index.html` 加载同版本 `dist/main.js`
 
 ## 快速开始
@@ -89,36 +89,16 @@ http://localhost:5173
 
 `npm run dev` 会先执行构建，再用 Python 静态服务器托管前端。页面默认会连接 `ws://localhost:8000/motion`；如果没有真实 WebSocket 后端，系统仍可使用本地 RealtimeStream / mock 路径完成演示。
 
-### 2. 启动 LLM 代理服务
+### 2. 配置用户自己的 AI API
 
-AI 教练与 MLLM 视频分段通过 `server/` 下的代理服务调用，浏览器不会直接持有模型 API Key。
+打开训练舱右上角的摄像头设置，在 **AI API** 区填写：
 
-```bash
-npm run server:install
-cp .env.example .env
-```
+- OpenAI-compatible Base URL（例如 `https://api.openai.com/v1`，也可直接填完整的 `/chat/completions` 地址）
+- API Key
+- MLLM 视频切片模型
+- 赛后分析模型
 
-编辑 `.env`：
-
-```bash
-LLM_BASE_URL=https://your-openai-compatible-endpoint/v1
-LLM_API_KEY=your-api-key
-LLM_MODEL=your-model
-```
-
-启动代理：
-
-```bash
-npm run server
-```
-
-默认端口为 `8766`，主要端点：
-
-| Method | Path | 用途 |
-| --- | --- | --- |
-| `GET` | `/api/health` | 检查 LLM 配置 |
-| `POST` | `/api/segment` | 视频关键帧分段 |
-| `POST` | `/api/chat-stream` | AI 教练流式文本 |
+配置保存在当前浏览器的 `localStorage`，视频关键帧和赛后摘要都由浏览器直接发往该 API，不经过 KINE//X 服务器。服务商必须允许浏览器跨域请求；建议使用限额且可随时撤销的 Key，不要在共享设备保存生产密钥。
 
 ### 3. 启动 SAM 3D Body 导入后端
 
@@ -151,7 +131,7 @@ http://localhost:5173/?backend=http://localhost:8765
 ├── index.html                 # 浏览器入口，importmap 指向本地 MediaPipe 与本地 Three.js（public/three/）
 ├── src/                       # TypeScript 源码
 │   ├── bootstrap/             # DOM 收集、启动辅助与 mock stream（遗留）
-│   ├── components/            # UI 组件：layout / gameui / pages（四页：动作库、训练舱、报告、创作）
+│   ├── components/            # UI 组件：layout / gameui / pages（五页：动作库、训练舱、报告、创作、分身身份库）
 │   ├── core/                  # 路由、动作渲染、摄像头、MediaPipe、评分、导入、LLM 客户端
 │   ├── data/                  # 内置动作种子与 pipeline 配置
 │   ├── hooks/                 # WebSocket 帧流入口
@@ -163,7 +143,6 @@ http://localhost:5173/?backend=http://localhost:8765
 │   ├── three/                 # 本地化 Three.js（r160）
 │   └── coach_clips/           # 预置或导入生成的动作资源
 ├── backend/                   # SAM 3D Body 视频导入服务
-├── server/                    # LLM Proxy Backend
 ├── sam_3d_body/               # SAM / SMPL-X 转换与导出脚本
 ├── scripts/                   # 构建、guardrail 检查与调试工具
 └── docs/                      # 项目文档、视觉参考与后续 demo 视频
@@ -181,7 +160,7 @@ http://localhost:5173/?backend=http://localhost:8765
 | `#/create` | 创作工坊 | 视频上传 → MLLM 分片 → SAM3D 重建 → 入库四步向导（可选一个 READY 分身身份） |
 | `#/avatars` | 分身身份库 | 照片 → 3DGS 身份：上传、重命名、保守软删除、实时环绕预览 |
 
-训练记录（最近 20 场）保存在浏览器 localStorage（`kinex.sessions.v1`）。
+训练记录（最近 20 场）保存在浏览器 localStorage（`kinex.sessions.v1`）。动作库列出全部保留记录，每场可单独删除；报告页也可删除当前记录，删除后历史统计和趋势立即重算。
 
 ## 运动数据契约
 

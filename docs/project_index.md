@@ -8,12 +8,11 @@ KINE//X 的项目结构索引。
 
 ## 根目录
 
-`index.html`：浏览器入口，按 `package.json` 版本加载 `src/styles.css?v=…` 与构建后的 `dist/main.js?v=…`；含 boot overlay、五个页面容器（`#page-library` / `#page-train` / `#page-report` / `#page-create` / `#page-avatars`）、两个全局抽屉与两个模态；importmap 把 `@mediapipe/tasks-vision` 映射到 `public/mediapipe/`，把 `three` 映射到 `public/three/`。
-`package.json`：本地命令入口（build / dev / check / server:install / server）。
+`index.html`：浏览器入口，按 `package.json` 版本加载 `src/styles.css?v=…` 与构建后的 `dist/main.js?v=…`；含 boot overlay、五个页面容器（`#page-library` / `#page-train` / `#page-report` / `#page-create` / `#page-avatars`）、两个全局抽屉与结算模态；importmap 把 `@mediapipe/tasks-vision` 映射到 `public/mediapipe/`，把 `three` 映射到 `public/three/`。
+`package.json`：本地命令入口（build / dev / check / test:avatar / test:ai / test:session）。
 `tsconfig.json`：TypeScript 诊断配置（`noEmit: true`），不负责构建输出。
 `README.md`：使用说明、模块清单、数据契约。
 `CLAUDE.md` / `AGENTS.md`：面向代码助手的工程约束说明（内容一致，修改时保持同步）。
-`.env.example`：LLM 代理（server/）的环境变量模板。
 `assets/`：历史演示资源；`smpl-lite-rig.gltf` 为未被代码引用的占位文件。
 `public/`：离线运行时资产。`public/mediapipe/`（约 73MB）、`public/three/`（r160 min，670KB）、`public/coach_clips/`（内置 clip、SMPL-X mesh、导入产物 `jobs/`）。
 `docs/`：项目文档与海报参考。
@@ -21,7 +20,6 @@ KINE//X 的项目结构索引。
 `src/`：TypeScript / CSS 源码。
 `dist/`：构建产物，不手工修改。
 `backend/`：SAM 3D Body 视频导入 + Avatar Vault 身份/动作/绑定服务（FastAPI，:8765）。
-`server/`：LLM 代理服务（FastAPI，:8766）。
 `sam_3d_body/`：SAM / SMPL-X 转换与导出的一次性 CLI 脚本（backend 不 import 它们）。
 
 ## 常用命令
@@ -29,25 +27,25 @@ KINE//X 的项目结构索引。
 `npm run build`：将 `src/**/*.ts` 类型擦除为 `dist/**/*.js`，并为构建产物内相对 `.js` import 追加与 `package.json` 一致的版本 query（Node 内置 `stripTypeScriptTypes`，无打包）。
 `npm run dev`：构建并启动 `5173` 静态服务。
 `npm run check`：构建并跑 `scripts/guardrails.mjs`，是唯一发布门禁。
-`npm run server:install` / `npm run server`：安装并启动 LLM 代理（:8766，需 `.env`）。
+`npm run test:ai`：构建后验证浏览器直连 OpenAI-compatible MLLM / 赛后分析 API 的请求合同与配置校验。
+`npm run test:session`：构建后验证本地训练存档单条删除、失败语义及动作库/报告页删除入口。
 源码 `import` 必须使用 `.js` 后缀，浏览器在 `dist/` 解析模块。
 项目零 `dependencies`；three 与 MediaPipe 均走本地 `public/`，仅 Google Fonts 走 CDN。
-`npx tsc --noEmit` 仅作参考，目前 12 个已知诊断，未入门禁。
+`npx tsc --noEmit` 仅作参考，目前 8 个已知诊断，未入门禁。
 
 ## 信息架构（hash 路由）
 
 `src/core/Router.ts`：`#/` 动作库、`#/train/:seedId` 训练舱、`#/report/:sessionId?` 报告、`#/create` 创作、`#/avatars` 分身身份库；未知路由回退 `#/`。
 页面是同一 DOM 中的容器（`hidden` 切换 + `enter/leave` 生命周期），**不做整页跳转**——MediaPipe、WebSocket、摄像头流在页面间存活。
-`src/components/pages/LibraryPage.ts`：种子卡墙（封面 / 场次 / 最好成绩）+ 导入入口 + 最近训练条。
+`src/components/pages/LibraryPage.ts`：种子卡墙（封面 / 场次 / 最好成绩）+ 导入入口 + 全部本地训练记录（查看报告 / 确认删除）。
 `src/components/pages/TrainPage.ts`：训练舱生命周期封装（enter 恢复渲染与播放、leave 停 stage RAF 与播放、路由 seed 同步）。
-`src/components/pages/ReportPage.ts`：存档 session 的整页报告（总分 / 勋章 / 阶段条 / 趋势条 / 关节表 / AI 教练）。
+`src/components/pages/ReportPage.ts`：存档 session 的整页报告（总分 / 勋章 / 阶段条 / 趋势条 / 关节表 / AI 教练），可确认删除当前记录并回退到下一条或空状态。
 `src/components/pages/CreatePage.ts`：视频 → 虚拟教练四步向导，驱动 `ImportFlow`；解析前通过 `AvatarRegistryClient` 显示可选的 READY 身份。
 `src/components/pages/AvatarVaultPage.ts`：服务器身份档案库；上传、重命名、保守软删除、持久化列表与独立 3DGS 实时预览。
 
 ## src 总览
 
 `src/main.ts`：组合根；装配 EventBus、帧缓存、Stage、RealtimeStream、SessionGate、Router 与五个页面、全部 UI 组件、MediaPipe、Calibration、Scoring、SessionRecorder / SessionArchive、AI Coach；启动时驱动 BootSequence、水合 clip / mesh / 导入 jobs，并从服务器 manifest 发现和恢复分身绑定。
-`src/config.ts`：`API_BASE_URL` 解析（`?api=` → localStorage → 当前 host :8766）。
 `src/types/`：前后端数据契约类型 + 手写三方库声明。
 `src/core/`：路由、渲染、帧流、会话门禁、摄像头、MediaPipe、评分、导入、LLM / MLLM 客户端、资源生命周期。
 `src/components/`：UI 组件（layout / gameui / pages）。
@@ -78,9 +76,8 @@ KINE//X 的项目结构索引。
 `SessionStartOverlay.ts`：Session 门禁 UI——开始按钮、3s 倒计时、OK 手势进度条。
 `CalibrationOverlay.ts`：用户标定流程的全屏遮罩与进度（站直采样 / 跳过 / 重做）。
 `ResultsScreen.ts`：结算模态（count-up、印章勋章、四宫格、关节报告表、跳完整报告）；`open()` 时把整场写入 `SessionArchive`；modalA11y 焦点圈禁。
-`DnaExport.ts`：用 `canvas.captureStream(30)` + `MediaRecorder` 录制真实 4 秒 WebM，生成 blob 预览与下载链接。
 `DnaDrawer.ts`：右侧 DNA 抽屉（注册进 DrawerStack）。
-`CameraSettings.ts`：摄像头 + MediaPipe 设置抽屉（设备、分辨率、画面适配、镜像、安全区、模型档位、模态开关、重新校准、AI persona）。
+`CameraSettings.ts`：摄像头 + MediaPipe + AI API 设置抽屉（设备、分辨率、画面适配、镜像、安全区、模型档位、模态开关、重新校准、AI persona；以及共用 Base URL / API Key、独立 MLLM / 赛后模型）。
 `AiCoachPanel.ts`：流式 AI 教练文本面板（结算模态与报告页各一个实例）。
 
 ## core
@@ -100,7 +97,7 @@ KINE//X 的项目结构索引。
 `core/AudioFx.ts`：WebAudio 合成器（PERFECT 叮、Combo 升档、种子激活、低 BPM kick / BGM）。
 `core/ThreeResourceTracker.ts`：资源释放与场景重建。
 `core/DrawerStack.ts`：抽屉栈单例；互斥开启、backdrop 点击 / Esc 关闭。
-`core/modalA11y.ts`：模态焦点圈禁 + Esc（ResultsScreen / DnaExport 使用）。
+`core/modalA11y.ts`：模态焦点圈禁 + Esc（ResultsScreen 使用）。
 `core/motionPrefs.ts`：`prefers-reduced-motion` 媒体查询助手。
 `core/motion/skeleton.ts`：骨骼连接表与风险关节映射（纯数据）。
 `core/motion/StageInteractions.ts`：canvas 拖拽、滚轮缩放、双击复位的指针交互；记录 `lastInputAt` 供舞台 idle 摆动。
@@ -121,7 +118,7 @@ KINE//X 的项目结构索引。
 `UserPoseSource.ts`：MediaPipe world landmarks → `PoseScorer` / `CalibrationController` 的桥。
 `LandmarkSmoother.ts` / `OneEuroFilter.ts`：landmark 平滑。
 `SessionRecorder.ts`：监听 `score:update`，累计 per-joint 统计与阶段（intro/mid/peak/outro）均分，结算页消费。
-`SessionArchive.ts`：已结算 session 的 `localStorage` 存档（`kinex.sessions.v1`，最多 20 场）；报告页与动作库统计的数据源。
+`SessionArchive.ts`：已结算 session 的 `localStorage` 存档（`kinex.sessions.v1`，最多 20 场）；报告页与动作库统计的数据源，支持按 id 删除单场记录。
 `normalize.ts` / `jointAngles.ts` / `boneTable.ts`：landmark 归一化、关节角度定义、骨骼锚点表。
 
 ### core/import
@@ -137,18 +134,18 @@ KINE//X 的项目结构索引。
 
 ### core/llm
 
-`LLMClient.ts`：`streamChat(settings, messages, onDelta)`；POST 到 :8766 `/api/chat-stream`，逐行解析 SSE。
+`LLMClient.ts`：`streamChat(settings, messages, onDelta)`；按用户配置的 Base URL / API Key / 模型直连 OpenAI-compatible `/chat/completions`，逐行解析 SSE。
 `buildPrompt.ts`：`SessionSummary` → 系统 + 用户提示词；含本地兜底文案 `buildFallbackText`。
 `renderMarkdown.ts`：极简安全 markdown → HTML 渲染器。
 
 ### core/mllm
 
-`VideoSegmentationClient.ts`：MLLM 视频分片客户端；`sampleFramesAtInterval` 抽帧，POST 到 :8766 `/api/segment`。
+`VideoSegmentationClient.ts`：MLLM 视频分片客户端；`sampleFramesAtInterval` 抽帧，携带时间戳图片直连用户配置的 OpenAI-compatible `/chat/completions` 并解析 JSON 分片结果。
 `SegmentResourceStore.ts`：分片结果内存 store。
 
 ## styles
 
-`src/styles.css`：仅含带统一版本 query 的 `@import` 入口（23 个分文件）。
+`src/styles.css`：仅含带统一版本 query 的 `@import` 入口（22 个分文件）。
 `styles/tokens.css`：颜色、字体、`--hairline`、`--slant`、`--mono-cjk` 等变量。
 `styles/base.css`：reset、`app-shell`、`workspace` 网格、全局噪点纹理层。
 `styles/controls.css`：按钮、range、toggle、segmented、status / risk badge（统一 hover/press/disabled）。
@@ -161,7 +158,6 @@ KINE//X 的项目结构索引。
 `styles/drawer.css`：DNA / 摄像头设置抽屉、metric / pipeline 行、风险态、import/segment 通用样式（创作工坊复用）。
 `styles/timeline.css`：时间轴横向滚动（缩略图印刷化灰度）。
 `styles/results.css`：结算页四宫格 + 关节报告表 + AI 教练面板。
-`styles/dna-export.css`：二维码导出弹窗。
 `styles/responsive.css`：媒体查询。
 `styles/c3-surfaces.css` / `styles/c3-workspace.css`：c3 视觉迭代表面 / 工作区覆盖层（含 bay crosshair 角标）。
 `styles/boot.css`：开机编排 overlay 与首屏交错入场。
@@ -216,9 +212,9 @@ UI 视觉调整：进入 `src/styles/` 对应分文件（boot/pages/library/repo
 渲染层调整：`src/core/MotionStage.ts` 与 `src/core/motion/`。
 摄像头 / MediaPipe：`src/core/WebCamManager.ts`、`src/core/CameraOverlay.ts`、`src/core/PoseLandmarkerManager.ts`。
 评分逻辑：`src/core/scoring/`；新指标补到 `jointAngles.ts` / `PoseScorer.ts`。
-视频导入：`src/components/pages/CreatePage.ts`、`src/core/import/ImportFlow.ts` 与 `backend/`；MLLM 分片进 `src/core/mllm/` 与 `server/main.py`。
+视频导入：`src/components/pages/CreatePage.ts`、`src/core/import/ImportFlow.ts` 与 `backend/`；MLLM 分片进入 `src/core/mllm/` 并直连用户 API。
 分身身份/动作/绑定：`src/components/pages/AvatarVaultPage.ts`、`src/core/avatar/`、`backend/avatar*.py` 与 `public/coach_clips/{avatar-identities,motions,avatar-bindings}`；私有上传视频不得进 `public/`。
-LLM 集成：`src/core/llm/` 与 `src/components/gameui/AiCoachPanel.ts`；凭据在 `server/.env`。
+LLM 集成：`src/core/llm/`、`src/components/gameui/AiCoachPanel.ts` 与 `CameraSettings.ts`；Base URL / API Key / 两类模型名保存在当前浏览器 localStorage。
 后端联调：`src/hooks/useWebSocket.ts` 与 `src/core/RealtimeStream.ts`。
 动作数据修改：`src/data/`。
 DOM id 变化：同步 `src/bootstrap/dom.ts` 与 `index.html`。
