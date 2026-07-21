@@ -353,6 +353,46 @@ test("boot discovery restores a server-only binding and keeps the original impor
   assert.equal(ready[0].seedId, "imported-job-7");
 });
 
+test("boot discovery refreshes versioned assets for a persisted ready binding", async () => {
+  const storage = makeStorage({
+    [AVATAR_BINDING_STORAGE_KEY]: JSON.stringify({
+      version: 1,
+      bindings: [binding({
+        status: "ready",
+        progress: 100,
+        identityUrl: "identity.bin",
+        motionAssetUrl: "motion.bin",
+      })],
+    }),
+  });
+  const ready = [];
+  const controller = new AvatarBindingController({
+    backendUrl: "http://backend.test",
+    storage,
+    fetch: async () => jsonResponse([{
+      bindingId: "binding-1",
+      avatarId: "av-1",
+      motionId: "motion-1",
+      status: "ready",
+      progress: 100,
+      identityUrl: "identity.bin?v=identity-v2",
+      motionAssetUrl: "motion.bin?v=motion-v2",
+    }]),
+    schedule: () => 1,
+    cancelSchedule: () => {},
+    onReady: (record) => ready.push(record),
+  });
+
+  controller.resume();
+  await controller.discover(new Map([["motion-1", "imported-job-1"]]));
+
+  assert.equal(ready.length, 2, "stored and refreshed versions each hydrate once");
+  assert.equal(controller.get("imported-job-1").identityUrl, "identity.bin?v=identity-v2");
+  assert.equal(controller.get("imported-job-1").motionAssetUrl, "motion.bin?v=motion-v2");
+  const persisted = JSON.parse(storage.read(AVATAR_BINDING_STORAGE_KEY));
+  assert.equal(persisted.bindings[0].motionAssetUrl, "motion.bin?v=motion-v2");
+});
+
 test("boot discovery retries a transient offline failure without blocking ordinary seed state", async () => {
   const scheduler = makeScheduler();
   let attempts = 0;

@@ -1,7 +1,7 @@
 // MediaPipe Pose worldLandmarks: x:right, y:down, z:toward camera (image-aligned).
 // KINE//X WORLD_SPACE: y:up, x:right, z:out-of-screen, right-hand.
 // v1 default: (-x, -y, -z). Re-tune here once we have empirical L/R alignment data.
-import { THREE,                    } from "../three-compat.js";
+import { THREE,                    } from "../three-compat.js?v=0.1.1";
 
 
 export function normalizeMediaPipeWorld(landmarks                      )                  {

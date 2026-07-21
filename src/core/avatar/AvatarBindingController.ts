@@ -277,16 +277,16 @@ export class AvatarBindingController {
   }
 
   /**
-   * Rebuild missing local metadata from the server manifest during boot. The
+   * Rebuild or refresh local metadata from the server manifest during boot. The
    * import backend gives every motion job a stable `motion-<jobId>` id, so the
-   * caller can join server bindings back to its runtime seed without relying on
-   * localStorage. Existing local records remain authoritative because they
-   * preserve the exact binding selected when the import was created.
+   * caller can join server bindings back to its runtime seed. Existing local
+   * records preserve the exact selected binding, while the matching server
+   * record refreshes status and versioned asset URLs after a rebake.
    */
   async discover(seedByMotion: ReadonlyMap<string, string>): Promise<void> {
     if (this.disposed || seedByMotion.size === 0) return;
     seedByMotion.forEach((seedId, motionId) => {
-      if (!this.records.has(seedId)) this.discoveryTargets.set(motionId, seedId);
+      this.discoveryTargets.set(motionId, seedId);
     });
     await this.pollNow();
   }
@@ -347,7 +347,7 @@ export class AvatarBindingController {
     );
     let changed = false;
     this.records.forEach((current, seedId) => {
-      if (!current.bindingId || TERMINAL_STATUSES.has(current.status)) return;
+      if (!current.bindingId) return;
       const server = byBindingId.get(current.bindingId);
       if (!server) return;
       if (server.avatarId !== current.avatarId || server.motionId !== current.motionId) return;
@@ -394,7 +394,16 @@ export class AvatarBindingController {
   private notify(record: AvatarBindingSnapshot): void {
     this.onUpdate({ ...record });
     if (!TERMINAL_STATUSES.has(record.status)) return;
-    const key = `${record.seedId}:${bindingKey(record)}:${record.status}`;
+    // A rebake keeps the binding id and ready status but changes the versioned
+    // asset URL. Include both URLs so that transition hydrates the new binary
+    // exactly once instead of treating it as an already-notified terminal.
+    const key = [
+      record.seedId,
+      bindingKey(record),
+      record.status,
+      record.identityUrl ?? "",
+      record.motionAssetUrl ?? "",
+    ].join(":");
     if (this.terminalNotifications.has(key)) return;
     this.terminalNotifications.add(key);
     if (record.status === "ready" && record.identityUrl && record.motionAssetUrl) {

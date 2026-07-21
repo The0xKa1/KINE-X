@@ -1,4 +1,4 @@
-import { modalA11y,                      } from "../../core/modalA11y.js";
+import { modalA11y,                      } from "../../core/modalA11y.js?v=0.1.1";
 
 
 

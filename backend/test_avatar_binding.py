@@ -13,6 +13,7 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 from types import SimpleNamespace
 from unittest import mock
+from urllib.parse import parse_qs, urlsplit
 
 import numpy as np  # Keep NumPy resident across the temporary pipeline import stub.
 from fastapi.testclient import TestClient
@@ -264,7 +265,9 @@ class AvatarBindingApiTests(unittest.TestCase):
         self.motion_release.set()
         ready = self._wait_binding(result["bindingId"], "ready")
         self.assertEqual(ready["motionId"], result["motionId"])
-        self.assertTrue(ready["motionAssetUrl"].endswith("/motion.bin"))
+        motion_url = urlsplit(ready["motionAssetUrl"])
+        self.assertTrue(motion_url.path.endswith("/motion.bin"))
+        self.assertIn("v", parse_qs(motion_url.query))
         self.assertFalse(source.exists())
 
     def test_repeated_binding_requests_return_the_same_binding(self) -> None:
@@ -285,6 +288,26 @@ class AvatarBindingApiTests(unittest.TestCase):
         self.assertEqual(first.json()["bindingId"], second.json()["bindingId"])
         self.assertEqual(first.json()["status"], "ready")
         self.assertEqual(len(self.client.get("/avatar-bindings").json()), 1)
+
+    def test_ready_binding_motion_version_changes_after_atomic_rebake(self) -> None:
+        identity = self._ready_identity()
+        motion = self.registry.upsert_motion(
+            "manual",
+            status="ready",
+            progress=100,
+            motionAssetUrl="motions/motion-manual/motion.bin",
+        )
+        motion_path = self.root / "motions" / "motion-manual" / "motion.bin"
+        motion_path.write_bytes(b"motion-v1")
+        binding = self.registry.create_binding(identity["avatarId"], motion["motionId"])
+        self.registry.update_binding(binding["bindingId"], status="ready", progress=100)
+
+        first = self.client.get("/avatar-bindings").json()[0]["motionAssetUrl"]
+        motion_path.write_bytes(b"motion-version-two")
+        second = self.client.get("/avatar-bindings").json()[0]["motionAssetUrl"]
+
+        self.assertEqual(urlsplit(first).path, urlsplit(second).path)
+        self.assertNotEqual(first, second)
 
     def test_background_publish_keeps_the_imports_selected_identity(self) -> None:
         selected = self._ready_identity("Ada")
@@ -435,7 +458,9 @@ class AvatarBindingApiTests(unittest.TestCase):
         for binding_id, status in expected.items():
             self.assertEqual(records[binding_id]["status"], status)
             if status == "ready":
-                self.assertTrue(records[binding_id]["motionAssetUrl"].endswith("/motion.bin"))
+                self.assertTrue(
+                    urlsplit(records[binding_id]["motionAssetUrl"]).path.endswith("/motion.bin")
+                )
             else:
                 self.assertIn("LHM crashed", records[binding_id]["error"])
         for source in sources:

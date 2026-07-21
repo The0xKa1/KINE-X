@@ -1,4 +1,4 @@
-import { THREE,                    } from "../three-compat.js";
+import { THREE,                    } from "../three-compat.js?v=0.1.1";
 
 
 
@@ -8,10 +8,10 @@ import { THREE,                    } from "../three-compat.js";
 
 
 
-import { SCORING_BONES,               } from "./boneTable.js";
-import { CoachHistory } from "./CoachHistory.js";
-import { JOINT_ANGLES } from "./jointAngles.js";
-import { normalizeMediaPipeWorld } from "./normalize.js";
+import { SCORING_BONES,               } from "./boneTable.js?v=0.1.1";
+import { CoachHistory } from "./CoachHistory.js?v=0.1.1";
+import { JOINT_ANGLES } from "./jointAngles.js?v=0.1.1";
+import { normalizeMediaPipeWorld } from "./normalize.js?v=0.1.1";
 
 
 

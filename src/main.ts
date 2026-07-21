@@ -1064,6 +1064,10 @@ function applyAvatarForSeed(seedId: string): void {
   }
   // Skeleton/mesh fallback stays on stage while the avatar streams in.
   stage.setAvatar(null);
+  if (cached) {
+    cached.avatar.dispose();
+    avatarBySeed.delete(seedId);
+  }
   if (state.mode === "avatar") dom.loadingOverlay.classList.remove("is-hidden");
   let pending = avatarLoads.get(seedId);
   if (!pending || pending.assetKey !== asset.key) {

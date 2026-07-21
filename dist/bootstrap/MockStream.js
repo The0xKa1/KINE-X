@@ -1,10 +1,10 @@
 
 
 
-import { createMockPacket } from "../mock/mockFrameSource.js";
-import { applyLiveScore,                    } from "../core/scoring/PoseScorer.js";
+import { createMockPacket } from "../mock/mockFrameSource.js?v=0.1.1";
+import { applyLiveScore,                    } from "../core/scoring/PoseScorer.js?v=0.1.1";
 
-import { sampleClip } from "../core/import/CoachClip.js";
+import { sampleClip } from "../core/import/CoachClip.js?v=0.1.1";
 
 
 

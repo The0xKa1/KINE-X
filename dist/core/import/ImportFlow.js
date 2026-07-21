@@ -1,14 +1,14 @@
-import { buildFrameThumbnailsFromMeta, loadCoachClip } from "./loadCoachClip.js";
-import { loadMeshClip,               } from "./MeshClip.js";
-import { VideoSeeker } from "./VideoSeeker.js";
-import { SegmentResourceStore,                      } from "../mllm/SegmentResourceStore.js";
+import { buildFrameThumbnailsFromMeta, loadCoachClip } from "./loadCoachClip.js?v=0.1.1";
+import { loadMeshClip,               } from "./MeshClip.js?v=0.1.1";
+import { VideoSeeker } from "./VideoSeeker.js?v=0.1.1";
+import { SegmentResourceStore,                      } from "../mllm/SegmentResourceStore.js?v=0.1.1";
 import {
   VideoSegmentationClient,
   sampleFramesAtInterval,
 
-} from "../mllm/VideoSegmentationClient.js";
+} from "../mllm/VideoSegmentationClient.js?v=0.1.1";
 
-import { appendSelectedAvatar } from "../avatar/AvatarBindingController.js";
+import { appendSelectedAvatar } from "../avatar/AvatarBindingController.js?v=0.1.1";
 
 const SEGMENT_SAMPLE_INTERVAL_SEC = 1.5;
 const SEGMENT_THUMB_MAX_WIDTH = 160;

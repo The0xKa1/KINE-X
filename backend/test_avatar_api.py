@@ -10,6 +10,7 @@ import unittest
 from contextlib import asynccontextmanager
 from pathlib import Path
 from unittest import mock
+from urllib.parse import parse_qs, urlsplit
 import sys
 
 import numpy as np
@@ -131,8 +132,46 @@ class AvatarApiTests(unittest.TestCase):
         self.release.set()
         finished = self._wait_for_status(created["avatarId"], "ready")
         self.assertEqual(finished["progress"], 100)
-        self.assertTrue(finished["identityUrl"].endswith("/identity.bin"))
-        self.assertTrue(finished["previewUrl"].endswith("/preview.png"))
+        identity_url = urlsplit(finished["identityUrl"])
+        preview_url = urlsplit(finished["previewUrl"])
+        self.assertTrue(identity_url.path.endswith("/identity.bin"))
+        self.assertTrue(preview_url.path.endswith("/preview.png"))
+        self.assertIn("v", parse_qs(identity_url.query))
+        self.assertIn("v", parse_qs(preview_url.query))
+
+    def test_ready_identity_asset_versions_change_when_files_are_replaced(self) -> None:
+        identity = self.registry.create_identity(
+            "Ada",
+            status="ready",
+            progress=100,
+            identityUrl="avatar-identities/ada/identity.bin",
+            previewUrl="avatar-identities/ada/preview.png",
+        )
+        identity_dir = self.root / "avatar-identities" / "ada"
+        identity_dir.mkdir(parents=True)
+        identity_path = identity_dir / "identity.bin"
+        preview_path = identity_dir / "preview.png"
+        identity_path.write_bytes(b"identity-v1")
+        preview_path.write_bytes(b"preview-v1")
+
+        first = next(
+            record for record in self.client.get("/avatars").json()
+            if record["avatarId"] == identity["avatarId"]
+        )
+        first_identity = first["identityUrl"]
+        first_preview = first["previewUrl"]
+
+        identity_path.write_bytes(b"identity-version-two")
+        preview_path.write_bytes(b"preview-version-two")
+        second = next(
+            record for record in self.client.get("/avatars").json()
+            if record["avatarId"] == identity["avatarId"]
+        )
+
+        self.assertEqual(urlsplit(first_identity).path, urlsplit(second["identityUrl"]).path)
+        self.assertEqual(urlsplit(first_preview).path, urlsplit(second["previewUrl"]).path)
+        self.assertNotEqual(first_identity, second["identityUrl"])
+        self.assertNotEqual(first_preview, second["previewUrl"])
 
     def test_legacy_import_alias_returns_identity_without_attaching_seed(self) -> None:
         response = self.client.post(
@@ -286,7 +325,7 @@ class AvatarApiTests(unittest.TestCase):
                 current = persisted[original["avatarId"]]
                 self.assertEqual(current["status"], "ready")
                 self.assertEqual(current["progress"], 100)
-                self.assertTrue(current["identityUrl"].endswith("/identity.bin"))
+                self.assertTrue(urlsplit(current["identityUrl"]).path.endswith("/identity.bin"))
 
     def test_startup_recovery_is_idempotent_while_recovered_job_is_pending(self) -> None:
         identity = self.registry.create_identity(

@@ -1,9 +1,9 @@
 
-import { formatCm } from "../../core/coordinates.js";
-import { buildDiagnosisMessages, buildFallbackText,                   } from "../../core/llm/buildPrompt.js";
-import { streamChat,                  } from "../../core/llm/LLMClient.js";
-import { renderMarkdown } from "../../core/llm/renderMarkdown.js";
-import { AiCoachPanel } from "../gameui/AiCoachPanel.js";
+import { formatCm } from "../../core/coordinates.js?v=0.1.1";
+import { buildDiagnosisMessages, buildFallbackText,                   } from "../../core/llm/buildPrompt.js?v=0.1.1";
+import { streamChat,                  } from "../../core/llm/LLMClient.js?v=0.1.1";
+import { renderMarkdown } from "../../core/llm/renderMarkdown.js?v=0.1.1";
+import { AiCoachPanel } from "../gameui/AiCoachPanel.js?v=0.1.1";
 
 
 

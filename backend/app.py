@@ -12,6 +12,7 @@ import uuid
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Optional
+from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
@@ -43,6 +44,7 @@ _AVATAR_EXPORT_LOCK = threading.Lock()
 _SCHEDULED_AVATAR_IDENTITIES: set[str] = set()
 _SCHEDULED_AVATAR_IDENTITIES_LOCK = threading.Lock()
 _AVATAR_REGISTRY = AvatarRegistry(config.AVATAR_REGISTRY_ROOT)
+_VERSIONED_ASSET_FIELDS = ("identityUrl", "motionAssetUrl", "previewUrl", "avatarBinUrl")
 
 
 class AvatarRenameRequest(BaseModel):
@@ -199,7 +201,57 @@ def _list_avatar_jobs() -> list[dict]:
                 continue
             records[job_id] = meta
     records.update(_AVATAR_JOBS)
-    return sorted(records.values(), key=lambda r: r.get("createdAt") or 0.0)
+    public_records = [_with_asset_versions(record) for record in records.values()]
+    return sorted(public_records, key=lambda r: r.get("createdAt") or 0.0)
+
+
+def _with_asset_versions(record: dict) -> dict:
+    """Return a public record whose replaceable assets carry cache versions.
+
+    Manifests keep stable query-free paths. At the HTTP boundary we derive a
+    version from the current file stat, so historical records need no migration
+    and an atomic rebake immediately changes both the browser URL and the
+    frontend's in-memory avatar cache key.
+    """
+    public = dict(record)
+    for field in _VERSIONED_ASSET_FIELDS:
+        value = public.get(field)
+        if isinstance(value, str):
+            public[field] = _version_asset_url(value)
+    return public
+
+
+def _version_asset_url(url: str) -> str:
+    parsed = urlsplit(url)
+    if parsed.scheme or parsed.netloc or not parsed.path or parsed.path.startswith("/"):
+        return url
+    relative = Path(parsed.path)
+    if any(part in {"", ".", ".."} for part in relative.parts):
+        return url
+    candidates = (
+        (config.REPO_ROOT, config.REPO_ROOT / relative),
+        (_AVATAR_REGISTRY.root, _AVATAR_REGISTRY.root / relative),
+    )
+    asset_path: Path | None = None
+    for root, candidate in candidates:
+        try:
+            resolved = candidate.resolve()
+            resolved.relative_to(root.resolve())
+        except (OSError, ValueError):
+            continue
+        if resolved.is_file():
+            asset_path = resolved
+            break
+    if asset_path is None:
+        return url
+    try:
+        stat = asset_path.stat()
+    except OSError:
+        return url
+    version = f"{stat.st_mtime_ns:x}-{stat.st_size:x}"
+    query = [(key, value) for key, value in parse_qsl(parsed.query, keep_blank_values=True) if key != "v"]
+    query.append(("v", version))
+    return urlunsplit((parsed.scheme, parsed.netloc, parsed.path, urlencode(query), parsed.fragment))
 
 
 def _persist_avatar_meta(record: dict) -> None:
@@ -682,7 +734,7 @@ async def _queue_avatar_identity(
 
 @app.get("/avatars")
 def list_avatars() -> list[dict]:
-    return _AVATAR_REGISTRY.list_identities()
+    return [_with_asset_versions(record) for record in _AVATAR_REGISTRY.list_identities()]
 
 
 @app.post("/avatars", status_code=202)
@@ -712,7 +764,7 @@ def rename_avatar(avatar_id: str, request: AvatarRenameRequest) -> dict:
     if not name:
         raise HTTPException(status_code=400, detail={"error": "name must not be empty"})
     try:
-        return _AVATAR_REGISTRY.update_identity(avatar_id, name=name)
+        return _with_asset_versions(_AVATAR_REGISTRY.update_identity(avatar_id, name=name))
     except KeyError as exc:
         raise HTTPException(status_code=404, detail={"error": str(exc)}) from exc
     except ValueError as exc:
@@ -743,7 +795,7 @@ def list_avatar_bindings(
         records = _AVATAR_REGISTRY.list_bindings(
             avatar_id=avatarId, motion_id=motionId
         )
-        return [_sync_binding_status(record) for record in records]
+        return [_with_asset_versions(_sync_binding_status(record)) for record in records]
     except KeyError as exc:
         raise HTTPException(status_code=404, detail={"error": str(exc)}) from exc
     except ValueError as exc:
@@ -757,7 +809,7 @@ def create_avatar_binding(request: AvatarBindingRequest) -> dict:
         binding = _AVATAR_REGISTRY.create_binding(
             request.avatarId, request.motionId
         )
-        return _sync_binding_status(binding)
+        return _with_asset_versions(_sync_binding_status(binding))
     except KeyError as exc:
         raise HTTPException(status_code=404, detail={"error": str(exc)}) from exc
     except ValueError as exc:

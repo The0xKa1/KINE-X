@@ -24,6 +24,10 @@ async function walk(directory, predicate) {
 const sourceFiles = await walk(path.join(root, "src"), (file) => file.endsWith(".ts") || file.endsWith(".css"));
 const distFiles = await walk(path.join(root, "dist"), (file) => file.endsWith(".js"));
 const sourceText = (await Promise.all(sourceFiles.map((file) => readFile(file, "utf8")))).join("\n");
+const indexText = await readFile(path.join(root, "index.html"), "utf8");
+const stylesText = await readFile(path.join(root, "src", "styles.css"), "utf8");
+const packageMetadata = JSON.parse(await readFile(path.join(root, "package.json"), "utf8"));
+const assetVersion = encodeURIComponent(packageMetadata.version);
 
 const requiredPatterns = [
   ["meters unit contract", /unit:\s*"meters"/],
@@ -51,7 +55,30 @@ for (const [label, pattern] of forbiddenPatterns) {
   if (pattern.test(sourceText)) failures.push(`Forbidden pattern found: ${label}`);
 }
 
+if (!indexText.includes(`href="./src/styles.css?v=${assetVersion}"`)) {
+  failures.push("Frontend stylesheet entry does not match package asset version");
+}
+if (!indexText.includes(`src="./dist/main.js?v=${assetVersion}"`)) {
+  failures.push("Frontend module entry does not match package asset version");
+}
+const displayedVersions = [...indexText.matchAll(/motion coaching system · v([0-9.]+)/gi)].map((match) => match[1]);
+if (displayedVersions.length === 0 || displayedVersions.some((version) => version !== packageMetadata.version)) {
+  failures.push("Displayed frontend version does not match package asset version");
+}
+
+for (const match of stylesText.matchAll(/@import\s+["'](\.[^"']+)["']/g)) {
+  if (!match[1].endsWith(`?v=${assetVersion}`)) {
+    failures.push(`CSS import does not match package asset version: ${match[1]}`);
+  }
+}
+
 for (const file of distFiles) {
+  const code = await readFile(file, "utf8");
+  for (const match of code.matchAll(/(?:\bfrom\s*|\bimport\s*(?:\(\s*)?)["'](\.{1,2}\/[^"']+\.js(?:\?[^"']*)?)["']/g)) {
+    if (!match[1].endsWith(`?v=${assetVersion}`)) {
+      failures.push(`Module import does not match package asset version in ${path.relative(root, file)}: ${match[1]}`);
+    }
+  }
   const result = spawnSync(process.execPath, ["--check", file], { cwd: root, encoding: "utf8" });
   if (result.status !== 0) {
     failures.push(`Syntax check failed for ${path.relative(root, file)}\n${result.stderr || result.stdout}`);
