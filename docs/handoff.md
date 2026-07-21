@@ -64,7 +64,7 @@ python3 -m unittest backend.test_avatar_assets backend.test_avatar_registry back
 
 - 服务器一键起：`bash /root/start_all.sh`（pgrep 守卫，不会重复起）。
 - 隧道：`ssh -i .deploy-tmp/autodl_ed25519 -p 24060 -N -L 15173:localhost:5173 -L 18765:localhost:8765 root@connect.westc.seetacloud.com`，**浏览器开 `http://localhost:18765/`**（单端口，前端+API 同源；`15173` 是旧 http.server，视频不可 seek，别用）。
-- 同步代码：显式文件清单 rsync（`backend/`、`dist/`、`src/`、`scripts/`、`index.html`），**不带 `--delete`**，不动注册表与私有源。
+- 同步代码（2026-07-21 起 git 化）：服务器 `/root/KINE-X` 是 git 工作区（main，origin 指向裸仓 `/root/kinex.git`）；本地 remote `autodl` 已配好（`core.sshCommand` 带密钥）。流程：本地 `git push autodl main` → 服务器 `git -C /root/KINE-X pull`（工作区保持干净即可快进）。注册表目录（`avatar-identities/motions/avatar-bindings`）与 `jobs/` 未跟踪，不受 pull 影响；faststart mp4 已入库。旧的显式 rsync 清单弃用。
 - 重启后端：`pkill -f "[u]vicorn backend.app"`（**方括号必须有**，否则 pkill 匹配到自身远程 shell、ssh 直接断）→ `bash /root/start_all.sh` → 轮询 `/healthz`（冷启动 ~15–60s）。
 - 后端启动脚本（`/root/start_backend.sh`）负责 SAM / MHR / SMPL-X / LHM 路径与 `PYTHONPATH`。
 
