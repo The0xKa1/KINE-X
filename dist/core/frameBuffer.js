@@ -1,4 +1,4 @@
-import { THREE, quaternionFromTuple } from "./three-compat.js?v=0.1.9";
+import { THREE, quaternionFromTuple } from "./three-compat.js?v=0.1.10";
 
 
 const orderedJoints              = [

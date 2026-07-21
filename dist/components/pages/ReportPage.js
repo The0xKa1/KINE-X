@@ -1,15 +1,15 @@
 
-import { formatCm } from "../../core/coordinates.js?v=0.1.9";
+import { formatCm } from "../../core/coordinates.js?v=0.1.10";
 import {
   buildDiagnosisMessages,
   buildFallbackText,
   buildFollowupMessages,
   FOLLOWUP_MAX_QUESTION_CHARS,
 
-} from "../../core/llm/buildPrompt.js?v=0.1.9";
-import { streamChat,                                    } from "../../core/llm/LLMClient.js?v=0.1.9";
-import { renderMarkdown } from "../../core/llm/renderMarkdown.js?v=0.1.9";
-import { AiCoachPanel } from "../gameui/AiCoachPanel.js?v=0.1.9";
+} from "../../core/llm/buildPrompt.js?v=0.1.10";
+import { streamChat,                                    } from "../../core/llm/LLMClient.js?v=0.1.10";
+import { renderMarkdown } from "../../core/llm/renderMarkdown.js?v=0.1.10";
+import { AiCoachPanel } from "../gameui/AiCoachPanel.js?v=0.1.10";
 
 
 

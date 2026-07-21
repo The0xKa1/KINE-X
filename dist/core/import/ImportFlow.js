@@ -1,18 +1,20 @@
-import { buildFrameThumbnailsFromMeta, loadCoachClip } from "./loadCoachClip.js?v=0.1.9";
-import { loadMeshClip,               } from "./MeshClip.js?v=0.1.9";
-import { VideoSeeker } from "./VideoSeeker.js?v=0.1.9";
-import { SegmentResourceStore,                      } from "../mllm/SegmentResourceStore.js?v=0.1.9";
+import { buildFrameThumbnailsFromMeta, loadCoachClip } from "./loadCoachClip.js?v=0.1.10";
+import { loadMeshClip,               } from "./MeshClip.js?v=0.1.10";
+import { VideoSeeker } from "./VideoSeeker.js?v=0.1.10";
+import { SegmentResourceStore,                      } from "../mllm/SegmentResourceStore.js?v=0.1.10";
 import {
   VideoSegmentationClient,
   sampleFramesAtInterval,
 
-} from "../mllm/VideoSegmentationClient.js?v=0.1.9";
+} from "../mllm/VideoSegmentationClient.js?v=0.1.10";
 
 
-import { appendSelectedAvatar } from "../avatar/AvatarBindingController.js?v=0.1.9";
+import { appendSelectedAvatar } from "../avatar/AvatarBindingController.js?v=0.1.10";
 
 const SEGMENT_SAMPLE_INTERVAL_SEC = 1.5;
 const SEGMENT_THUMB_MAX_WIDTH = 160;
+
+
 
 
 
@@ -421,6 +423,7 @@ export class ImportFlow {
       clip,
       meshClip,
       motion: meta.motion,
+      sourceVideoUrl: meta.sourceVideoUrl,
       hint: buildHint(this.selectedSegment),
       avatarId: avatarId ?? undefined,
       motionId: meta.motionId,

@@ -198,16 +198,20 @@ only at the HTTP response boundary. Absolute external URLs are left unchanged.
 
 - `GET /avatar-bindings?avatarId=&motionId=` — list all bindings or filter by
   either stable id.
-- `POST /avatar-bindings` — JSON
-  `{ "avatarId": "av-...", "motionId": "motion-..." }`; returns the existing
-  pair binding or creates a queued one.
+- `POST /avatar-bindings` — JSON accepts exactly one source:
+  `{ "avatarId": "av-...", "motionId": "motion-..." }` reuses an existing
+  motion, while `{ "avatarId": "av-...", "jobId": "2026..." }` creates the
+  deterministic `motion-<jobId>` from a completed import's `segment.mp4` and
+  starts LHM in the background. Repeated requests are idempotent and do not
+  start a second worker for the same motion.
 
 `POST /import/video` accepts an optional `avatarId`. The ordinary CoachClip and
 MeshClip response is still produced synchronously first. When an identity was
 selected, the same response also carries `motionId`, `bindingId`, and
 `bindingStatus`; private source-video persistence and LHM motion preparation
 continue in the background. Without `avatarId`, the legacy response shape is
-unchanged.
+unchanged; the browser can later use that response's `jobId` with
+`POST /avatar-bindings`.
 
 Registry layout:
 

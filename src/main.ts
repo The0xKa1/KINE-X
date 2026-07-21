@@ -470,6 +470,7 @@ const createPage = new CreatePage({
     clip,
     meshClip,
     motion,
+    sourceVideoUrl,
     hint,
     avatarId,
     motionId,
@@ -497,6 +498,8 @@ const createPage = new CreatePage({
       },
       metrics: pickMetricsForMotion(motion),
       clip,
+      jobId: id,
+      coachVideo: sourceVideoUrl ? { front: sourceVideoUrl } : undefined,
       avatarId,
       motionId,
       bindingId,
@@ -987,6 +990,7 @@ async function hydrateOneJob(job: PersistedJob): Promise<void> {
       },
       metrics: pickMetricsForMotion(job.motion),
       clip,
+      jobId: job.jobId,
       // The sliced source video doubles as the coach (twin) video for
       // imported seeds; no baked photoreal clip is produced anymore.
       coachVideo: job.sourceVideoUrl ? { front: job.sourceVideoUrl } : undefined,
@@ -1018,10 +1022,16 @@ function syncAvatarModeButton(): void {
     if (button.dataset.mode === "avatar") button.hidden = !hasAvatar;
   });
   if (!hasAvatar && state.mode === "avatar") setMode("coach");
-  // The switcher only makes sense for seeds backed by a reusable motion.
+  // Imported jobs may create their reusable motion lazily when the user first
+  // chooses a post-import identity.
   avatarSwitcher.setContext(
-    exercise?.motionId
-      ? { seedId: state.exerciseId, motionId: exercise.motionId, avatarId: exercise.avatarId }
+    exercise?.motionId || exercise?.jobId
+      ? {
+          seedId: state.exerciseId,
+          motionId: exercise.motionId,
+          jobId: exercise.jobId,
+          avatarId: exercise.avatarId,
+        }
       : null,
   );
 }

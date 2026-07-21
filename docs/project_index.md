@@ -107,7 +107,7 @@ KINE//X 的项目结构索引。
 `AvatarAssets.ts`：`KINEXGI1` / `KINEXGM1` / 历史 `KINEXGS1` 二进制解析与校验；四元数 FK、休息骨架皮肤矩阵和 stage similarity 只应用一次。
 `GaussianAvatar.ts`：高斯分身渲染器；可分别加载身份与 `GaussianMotion`，顶点 shader 做 top-4 LBS，CPU 做深度排序。
 `AvatarRegistryClient.ts`：`/avatars` CRUD 与低频 watch；明确区分服务离线、HTTP 失败和本地重命名草稿。
-`AvatarBindingController.ts`：按 seed 保存绑定快照，轮询 `/avatar-bindings`，对排队/运行/就绪/失败做非阻塞呈现，并能从服务器 motionId 重建 localStorage 丢失的绑定；启动 discovery 也会刷新已 ready 快照，使重烘后的版本 URL 替换旧浏览器缓存。
+`AvatarBindingController.ts`：按 seed 保存绑定快照，轮询 `/avatar-bindings`，对排队/运行/就绪/失败做非阻塞呈现，并能从服务器 motionId 重建 localStorage 丢失的绑定；启动 discovery 也会刷新已 ready 快照，使重烘后的版本 URL 替换旧浏览器缓存。`AvatarSwitcher.ts` 对已有 motion 发送 `motionId`，对未预选分身的已完成导入发送 `jobId`，让后端延迟创建动作资产。
 
 ### core/scoring
 
@@ -190,7 +190,7 @@ KINE//X 的项目结构索引。
 
 ## backend
 
-`backend/app.py`：FastAPI 路由与组合根；视频导入、身份 CRUD、绑定创建/查询和后台任务状态协调；API 返回可覆盖资产时按实际文件状态追加版本 query，manifest 保持原始稳定路径。
+`backend/app.py`：FastAPI 路由与组合根；视频导入、身份 CRUD、绑定创建/查询和后台任务状态协调；`POST /avatar-bindings` 可从既有 `motionId` 或已完成视频 `jobId` 幂等建绑，并保证同一动作只有一个进程内 worker；API 返回可覆盖资产时按实际文件状态追加版本 query，manifest 保持原始稳定路径。
 `backend/avatar.py`：照片校验、LHM 导出、坐标对齐和身份资产发布。
 `backend/avatar_assets.py`：`KINEXGI1` / `KINEXGM1` codec，历史 combined asset 拆分、旋转/四元数验证与原子写入。
 `backend/avatar_registry.py`：文件系统 manifest 真源；稳定 id、幂等 identity×motion 绑定、软删除和原子 JSON replace。

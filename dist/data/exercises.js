@@ -1,5 +1,7 @@
 
-import { hasPlayableAvatarAsset } from "../core/avatar/AvatarBindingController.js?v=0.1.9";
+import { hasPlayableAvatarAsset } from "../core/avatar/AvatarBindingController.js?v=0.1.10";
+
+
 
 
 

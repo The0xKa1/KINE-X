@@ -40,6 +40,7 @@ class AvatarBindingApiTests(unittest.TestCase):
         self.motion_release = threading.Event()
         self.motion_finished = threading.Event()
         self.motion_error: Exception | None = None
+        self.motion_calls = 0
         self.block_sam_pipeline = False
         self.sam_started = threading.Event()
         self.sam_release = threading.Event()
@@ -67,6 +68,18 @@ class AvatarBindingApiTests(unittest.TestCase):
             # Deliberately differs from the multipart upload bytes.  The motion
             # worker must receive this sliced artifact, not the full upload.
             (job_dir / "segment.mp4").write_bytes(b"cropped-segment-bytes")
+            (job_dir / "mesh.meta.json").write_text(
+                json.dumps(
+                    {
+                        "frameCount": 2,
+                        "durationSeconds": 2 / 15,
+                        "fps": 15,
+                        "name": "test",
+                        "motion": "squat",
+                    }
+                ),
+                encoding="utf-8",
+            )
             return {
                 "jobId": kwargs["job_id"],
                 "coachClipUrl": "public/coach_clips/jobs/test/coach.json",
@@ -100,6 +113,7 @@ class AvatarBindingApiTests(unittest.TestCase):
             fps: float,
             progress=None,
         ) -> dict:
+            self.motion_calls += 1
             self.motion_started.set()
             if progress:
                 progress(1, 2, "LHM motion")
@@ -170,6 +184,8 @@ class AvatarBindingApiTests(unittest.TestCase):
         ]
         for patcher in self.patches:
             patcher.start()
+        with app_module._SCHEDULED_AVATAR_MOTIONS_LOCK:
+            app_module._SCHEDULED_AVATAR_MOTIONS.clear()
         app_module.app.state.estimator = object()
         self.client_context = TestClient(app_module.app)
         self.client = self.client_context.__enter__()
@@ -178,6 +194,8 @@ class AvatarBindingApiTests(unittest.TestCase):
         self.motion_release.set()
         self.sam_release.set()
         self.client_context.__exit__(None, None, None)
+        with app_module._SCHEDULED_AVATAR_MOTIONS_LOCK:
+            app_module._SCHEDULED_AVATAR_MOTIONS.clear()
         for patcher in reversed(self.patches):
             patcher.stop()
         self.tmp.cleanup()
@@ -269,6 +287,64 @@ class AvatarBindingApiTests(unittest.TestCase):
         self.assertTrue(motion_url.path.endswith("/motion.bin"))
         self.assertIn("v", parse_qs(motion_url.query))
         self.assertFalse(source.exists())
+
+    def test_completed_import_can_apply_an_avatar_after_upload(self) -> None:
+        identity = self._ready_identity("Rei")
+        imported = self._import()
+        self.assertEqual(imported.status_code, 200)
+        job_id = imported.json()["jobId"]
+
+        first = self.client.post(
+            "/avatar-bindings",
+            json={"avatarId": identity["avatarId"], "jobId": job_id},
+        )
+        second = self.client.post(
+            "/avatar-bindings",
+            json={"avatarId": identity["avatarId"], "jobId": job_id},
+        )
+
+        self.assertEqual(first.status_code, 200)
+        self.assertEqual(second.status_code, 200)
+        self.assertEqual(first.json()["bindingId"], second.json()["bindingId"])
+        self.assertEqual(first.json()["motionId"], f"motion-{job_id}")
+        self.assertEqual(first.json()["status"], "queued")
+        self.assertTrue(self.motion_started.wait(timeout=2))
+        self.assertEqual(self.motion_calls, 1)
+        self.assertEqual(len(self.pipeline_calls), 1)
+        source = self.private_jobs_root / job_id / ".avatar-source.mp4"
+        self.assertEqual(source.read_bytes(), b"cropped-segment-bytes")
+
+        self.motion_release.set()
+        ready = self._wait_binding(first.json()["bindingId"], "ready")
+        self.assertEqual(ready["avatarId"], identity["avatarId"])
+        self.assertFalse(source.exists())
+
+    def test_post_import_binding_requires_exactly_one_source(self) -> None:
+        identity = self._ready_identity()
+        missing = self.client.post(
+            "/avatar-bindings", json={"avatarId": identity["avatarId"]}
+        )
+        both = self.client.post(
+            "/avatar-bindings",
+            json={
+                "avatarId": identity["avatarId"],
+                "motionId": "motion-manual",
+                "jobId": "job-manual",
+            },
+        )
+
+        self.assertEqual(missing.status_code, 400)
+        self.assertEqual(both.status_code, 400)
+
+    def test_post_import_binding_rejects_unknown_video_job(self) -> None:
+        identity = self._ready_identity()
+        response = self.client.post(
+            "/avatar-bindings",
+            json={"avatarId": identity["avatarId"], "jobId": "missing-job"},
+        )
+
+        self.assertEqual(response.status_code, 404)
+        self.assertIn("does not exist", response.json()["detail"]["error"])
 
     def test_repeated_binding_requests_return_the_same_binding(self) -> None:
         identity = self._ready_identity()

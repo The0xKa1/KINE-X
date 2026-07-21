@@ -9,7 +9,7 @@
 ## 阶段
 
 复赛产品化打磨阶段，多页面骨架已落地。
-当前前端与静态资产版本为 `0.1.9`（版本真源为 `package.json`）。
+当前前端与静态资产版本为 `0.1.10`（版本真源为 `package.json`）。
 hash 路由五页：动作库 `#/`、训练舱 `#/train/:seedId`、训练报告 `#/report/:sessionId?`、创作工坊 `#/create`、分身身份库 `#/avatars`。
 单 DOM 容器切页，无整页跳转：MediaPipe 资产、WebSocket、摄像头流在页面间存活。
 3D 舞台为真实 Three.js WebGL 渲染（圆柱骨骼 + 球关节 + 可选 SMPL-X mesh clip 回放 + 可选 3DGS 数字分身层）。分身身份与动作已拆分为 `KINEXGI1` / `KINEXGM1`，运行时由 `GaussianAvatar` 组合驱动；历史 `KINEXGS1` 仅作内置兼容。
@@ -41,7 +41,7 @@ boot 完成后进入初始路由，默认 `#/`。
 动作库：海报式标题 + 种子卡墙（封面缩略图、时长 / 帧数 / 训练场次与最好成绩）+ 导入入口卡 + 训练记录条（点击直达对应报告，确认后可逐条删除）。
 训练舱为左右两舱：左舱「现实镜像」摄像头水平镜像 + 2D 骨骼贴合层；右舱「全息标准舱」由教练视频层与结构蓝图（Three.js 3D 教练）共享——模式决定主视图（教练模式 = 视频主角、蓝图缩为角标小卡；骨骼 / 应力 / 分身模式 = 蓝图主角、视频缩为小卡），点击小卡即换主视图。
 右舱模式行为四键：教练（视频主角：导入种子播原视频切片，ugc-squat 另有 twin/LHM 三视角）/ 分身（3DGS 数字分身全幅，当种子绑定 ready 或持兼容 `avatarUrl` 时显示）/ 骨骼（线框 + 骨架）/ 应力（蒙皮 + 风险着色）；绑定排队或失败不阻塞普通教练与骨骼模式。
-渲染模式旁的分身切换器仅在 motion 类种子显示；列出全部 READY 身份及其与当前 motion 的使用中 / 切换 / 建立绑定 / 准备中状态，切换不重做动作资产。
+渲染模式旁的分身切换器在已有 motion 或仍保留 `jobId` 的导入种子显示；无 motion 时按钮为“应用分身”，选择 READY 身份后用 `jobId` 后置生成一次 `KINEXGM1`，已有 motion 时只切换身份、不重做动作资产。
 右下 SYNC 巨数区（clamp 72–132px Archivo Black），分数跳变机械闪切；PERFECT 触发全屏描边巨字（描边→填橙）。
 两个 bay 四角 crosshair 角标，右舱左下 mono telemetry 数据带（FRAME / PROG / LAT / Δ），顶栏连接指示带实时延迟读数。
 全站覆盖低透明度 SVG 噪点纹理（multiply），时间轴缩略图印刷化灰度处理（active/hover 恢复全彩）。
@@ -83,7 +83,7 @@ EventBus 事件共八类：`score:update` / `pipeline:update` / `seed:update` / 
 1. 上传后可先点「用 MLLM 切片」：`VideoSeeker` 每 1.5s 采一个关键帧，`VideoSegmentationClient` 从 CameraSettings 读取 Base URL / API Key / MLLM 模型，直接 POST 到用户的 OpenAI-compatible `/chat/completions`，渲染可选片段（含中段缩略图）。
 2. 点「开始解析」：`FormData` 上传视频（选中片段时附 `startSec` / `endSec`）到 :8765 `POST /import/video`。
 3. 后端 ffmpeg 抽帧 → SAM 3D Body 逐帧推理 → pack / bake / coach，产出 `coach.json` + `mesh.bin` + 逐帧 jpg；请求同步返回普通动作产物。选了 `avatarId` 时，响应同时带 `motionId / bindingId / bindingStatus`，分身动作在后台继续准备。
-4. 前端 `loadCoachClip` + `loadMeshClip` 拉取产物，`onApply` 立即生成 `imported-<jobId>` 新种子并进入训练；`AvatarBindingController` 低频轮询服务器 manifest，只在身份与动作资产都 ready 后解锁“分身”。
+4. 前端 `loadCoachClip` + `loadMeshClip` 拉取产物，`onApply` 保留 `jobId` 与 `sourceVideoUrl`，立即生成 `imported-<jobId>` 新种子并进入训练；未预选身份也会显示“应用分身”，后续选择后才补做 LHM 动作。`AvatarBindingController` 低频轮询服务器 manifest，只在身份与动作资产都 ready 后解锁“分身”。
 5. 页面刷新后 `main.ts hydrateImportedJobs()` 从 `GET /import/jobs` 再水合已导入种子；等待页面 load 后使用 5s 单次超时与有界指数退避，失败不阻塞内置动作。
 6. 旧浏览器端 heavy 模型导入链路（`landmarksToPose.ts` / `postProcess.ts`）已废弃，文件保留但未引用；旧 `ImportDrawer` 已删除，逻辑由 `ImportFlow` 继承。
 
@@ -91,7 +91,7 @@ EventBus 事件共八类：`score:update` / `pipeline:update` / `seed:update` / 
 
 1. `#/avatars` 或兼容端点 `POST /import/avatar` 上传单人全身照；服务端建立稳定 `avatarId`，通过 `GET /avatars` 持久化状态。`seedId` 参数仅兼容接收，不再把身份绑死到种子。
 2. 照片经 LHM 导出、坐标对齐与严格校验后生成 `KINEXGI1` 身份；身份只含静态高斯与 55 关节休息骨架，可被多个动作复用。
-3. 视频导入选择身份后，原始视频私有副本落在 `~/.local/share/kinex/avatar-jobs`，LHM 后台提取 `KINEXGM1` 动作；`GET /avatar-bindings` 记录 `queued / running / ready / error / cancelled`。
+3. 视频导入时可预选身份，也可在完成后从训练舱选择。后置选择向 `POST /avatar-bindings` 发送 `avatarId + jobId`，复用公共 `segment.mp4` 持久化私有工作副本并异步提取唯一的 `motion-<jobId>`；同一动作的重复请求不重复启动 LHM。`GET /avatar-bindings` 记录 `queued / running / ready / error / cancelled`。
 4. 前端分身预览加载身份后，可用四种一帧内存动作驱动同一套 55 关节 FK / LBS；历史合并资产保持原始姿态。训练舞台仍只把 `KINEXGI1` 与真实 `KINEXGM1` 组合，通过顶点 shader LBS + CPU 深度排序回放。
 5. 删除身份是保守软删除：从活跃身份库移除并取消未完成绑定，已 ready 的训练绑定和动作产物保留可播放。
 6. `/avatars` 与 `/avatar-bindings` 的可覆盖文件 URL 带 `?v=<mtime_ns-size>`；磁盘 manifest 保持稳定无 query。`AvatarBindingController` 启动时也刷新已 ready 的本地快照，版本变化会释放旧内存 avatar 并加载新资产。

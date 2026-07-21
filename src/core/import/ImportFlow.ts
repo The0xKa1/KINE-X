@@ -20,6 +20,7 @@ export interface ImportApplyPayload {
   clip: CoachClip;
   meshClip: MeshClip | null;
   motion: SeedMotion;
+  sourceVideoUrl?: string | undefined;
   /** User-facing coaching hint derived from MLLM segment metadata. */
   hint?: string | undefined;
   avatarId?: string | undefined;
@@ -54,6 +55,7 @@ interface ImportJobResult {
   fps: number;
   name: string;
   motion: SeedMotion;
+  sourceVideoUrl?: string;
   elapsedSeconds?: number;
   motionId?: string;
   bindingId?: string;
@@ -421,6 +423,7 @@ export class ImportFlow {
       clip,
       meshClip,
       motion: meta.motion,
+      sourceVideoUrl: meta.sourceVideoUrl,
       hint: buildHint(this.selectedSegment),
       avatarId: avatarId ?? undefined,
       motionId: meta.motionId,

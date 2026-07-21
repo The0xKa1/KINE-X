@@ -1,5 +1,5 @@
 
-import { prefersReducedMotion } from "../../core/motionPrefs.js?v=0.1.9";
+import { prefersReducedMotion } from "../../core/motionPrefs.js?v=0.1.10";
 
 
 

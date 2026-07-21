@@ -56,8 +56,8 @@ flowchart LR
 | 前端 UI / 动作舞台 / 时间轴 | 已可演示，hash 路由五页（动作库 / 训练舱 / 报告 / 创作 / 分身身份库） |
 | MediaPipe Pose / Hand / Face | 已本地离线运行 |
 | 视频导入为 CoachClip | 已可用：可选 MLLM 分段，上传 SAM3D 后端逐帧重建；训练舱直接回放原视频切片 |
-| 可复用 3DGS 分身 | 已可用：身份（KINEXGI1）× 动作（KINEXGM1）解耦，绑定渐进就绪，训练舱实时组合；Vault 可切换自然站 / 叉腰 / 胜利 V / 展臂预览姿态 |
-| 资产缓存一致性 | 前端 `0.1.9`：入口、CSS 依赖和完整本地业务 ES module 图统一版本；可重烘的身份 / 动作 / 预览 URL 按文件状态自动换版 |
+| 可复用 3DGS 分身 | 已可用：身份（KINEXGI1）× 动作（KINEXGM1）解耦，导入时或导入后均可选择分身；Vault 可切换自然站 / 叉腰 / 胜利 V / 展臂预览姿态 |
+| 资产缓存一致性 | 前端 `0.1.10`：入口、CSS 依赖和完整本地业务 ES module 图统一版本；可重烘的身份 / 动作 / 预览 URL 按文件状态自动换版 |
 | SAM 3D Body 导入后端 | 已接入，需要本机模型资产与 Python 环境 |
 | 用户标定与实时评分 | 已可用，摄像头开启后参与评分 |
 | Session 结果页与 AI 教练 | 已可用；首次短诊断与后续追问使用独立提示词，追问保留最近 4 轮且历史最多 4000 字 |
@@ -121,6 +121,7 @@ python -m uvicorn backend.app:app --host 0.0.0.0 --port 8765
 | `GET` | `/healthz` | 检查 SAM 模型加载状态 |
 | `GET` | `/import/jobs` | 列出已完成导入任务 |
 | `POST` | `/import/video` | 上传视频并生成 CoachClip / MeshClip |
+| `POST` | `/avatar-bindings` | 用现有 `motionId` 绑定身份，或用已完成导入的 `jobId` 后置生成动作并绑定 |
 
 前端默认会访问当前 host 的 `:8765`。如需覆盖导入后端地址，可在 URL 中加入：
 

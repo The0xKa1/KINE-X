@@ -1,7 +1,7 @@
 import {
   AvatarRegistryClient,
 
-} from "../../core/avatar/AvatarRegistryClient.js?v=0.1.9";
+} from "../../core/avatar/AvatarRegistryClient.js?v=0.1.10";
 
 
 
@@ -12,6 +12,22 @@ import {
 
 
 
+
+
+
+
+
+
+
+
+export function buildAvatarBindingRequest(
+  context                       ,
+  avatarId        ,
+)                             {
+  if (context.motionId) return { avatarId, motionId: context.motionId };
+  if (context.jobId) return { avatarId, jobId: context.jobId };
+  throw new Error("当前动作缺少可绑定的视频来源");
+}
 
 
 
@@ -79,7 +95,7 @@ export class AvatarSwitcher {
     });
   }
 
-  /** Point the switcher at a seed; null hides it (seed has no reusable motion). */
+  /** Point the switcher at a reusable motion or an imported source job. */
   setContext(context                              )       {
     this.context = context;
     if (!context) this.setOpen(false);
@@ -161,10 +177,10 @@ export class AvatarSwitcher {
     try {
       let binding = this.bindingFor(avatarId);
       if (!binding || binding.status === "error" || binding.status === "cancelled") {
-        binding = await this.createBinding(avatarId, context.motionId);
+        binding = await this.createBinding(avatarId, context);
         this.bindings = [
           ...this.bindings.filter(
-            (candidate) => !(candidate.avatarId === avatarId && candidate.motionId === context.motionId),
+            (candidate) => !(candidate.avatarId === avatarId && candidate.motionId === binding?.motionId),
           ),
           binding,
         ];
@@ -181,11 +197,14 @@ export class AvatarSwitcher {
     }
   }
 
-          async createBinding(avatarId        , motionId        )                               {
+          async createBinding(
+    avatarId        ,
+    context                       ,
+  )                               {
     const response = await fetch(`${this.backendUrl}/avatar-bindings`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ avatarId, motionId }),
+      body: JSON.stringify(buildAvatarBindingRequest(context, avatarId)),
     });
     const payload = (await response.json())           ;
     if (!response.ok) {
@@ -237,12 +256,13 @@ export class AvatarSwitcher {
     }
     this.el.hidden = false;
     const rows = this.renderRows(context);
+    const hasMotion = Boolean(context.motionId);
     this.el.innerHTML = `
-      <button type="button" class="avatar-switcher-toggle" data-switcher-toggle aria-expanded="${this.open}" aria-label="切换分身">
-        <span>⇄ 分身</span><b>▾</b>
+      <button type="button" class="avatar-switcher-toggle" data-switcher-toggle aria-expanded="${this.open}" aria-label="${hasMotion ? "切换分身" : "应用分身"}">
+        <span>${hasMotion ? "⇄ 分身" : "+ 应用分身"}</span><b>▾</b>
       </button>
       <div class="avatar-switcher-popover" role="menu" ${this.open ? "" : "hidden"}>
-        <div class="avatar-switcher-head"><span>IDENTITY × MOTION</span><b>${escapeHtml(context.motionId)}</b></div>
+        <div class="avatar-switcher-head"><span>${hasMotion ? "IDENTITY × MOTION" : "VIDEO → AVATAR"}</span><b>${escapeHtml(context.motionId ?? context.jobId ?? "")}</b></div>
         ${rows}
       </div>
     `;
@@ -265,11 +285,11 @@ export class AvatarSwitcher {
         const current = identity.avatarId === context.avatarId;
         const busy = identity.avatarId === this.busyAvatarId;
         const state = busy
-          ? "切换中…"
+          ? context.motionId ? "切换中…" : "生成动作…"
           : current
             ? "使用中"
             : !binding || binding.status === "error" || binding.status === "cancelled"
-              ? "建立绑定"
+              ? context.motionId ? "建立绑定" : "应用并生成动作"
               : binding.status === "ready"
                 ? "切换"
                 : `准备中 ${Math.round(typeof binding.progress === "number" ? binding.progress : 0)}%`;

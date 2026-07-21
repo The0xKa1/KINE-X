@@ -74,11 +74,11 @@ python3 -m unittest backend.test_avatar_assets backend.test_avatar_registry back
 - `GET /healthz`；`GET /import/jobs`（记录含 `sourceVideoUrl`，当 `segment.mp4` 存在时）
 - `POST /import/video`：multipart；可选 `startSec / endSec / motion / targetFps / name / avatarId`
 - `GET|POST /avatars`；`PATCH|DELETE /avatars/{avatarId}`；`POST /import/avatar` 仅为兼容别名（`seedId` 忽略）
-- `GET|POST /avatar-bindings`：绑定要求动作记录已存在（动作只在带 `avatarId` 的导入或后台 worker 中产生）
+- `GET /avatar-bindings`；`POST /avatar-bindings` 支持 `avatarId + motionId` 复用已有动作，或 `avatarId + jobId` 为已完成但未选分身的导入延迟生成 `motion-<jobId>` 并建绑
 
 ## 六、坑位备忘（只留真坑）
 
-- 前端版本当前为 `0.1.9`。`index.html` 的入口 CSS/JS、22 个 CSS `@import` 与构建产物内全部相对 JS 模块引用使用同一 `?v=0.1.9`；版本号来自 `package.json`，guardrail 会拒绝不一致。部署新版本后普通刷新一次即可，不应再要求用户清缓存或换浏览器。
+- 前端版本当前为 `0.1.10`。`index.html` 的入口 CSS/JS、22 个 CSS `@import` 与构建产物内全部相对 JS 模块引用使用同一 `?v=0.1.10`；版本号来自 `package.json`，guardrail 会拒绝不一致。部署新版本后普通刷新一次即可，不应再要求用户清缓存或换浏览器。
 - MLLM 与赛后教练由浏览器直连用户填写的 OpenAI-compatible API：Base URL / API Key 共用，模型名分开配置，保存在当前浏览器 localStorage；服务商必须支持 CORS，建议只用可撤销、有限额的 Key。
 - `python -m http.server` 不支持 Range：Chrome 线性下载完也 `seekable=[0,0]`，`currentTime` 赋值全部弹回 0——教练视频"能播不能拖"。前端必须走 :8765 的 Starlette 静态挂载；mp4 另需 `ffmpeg -c copy -movflags +faststart`（moov 前置）。**注意：faststart 后的文件放在无 Range 的服务器上反而更糟——Chrome 能发起 seek 却无法完成，视频从"能播不能拖"退化为永久 seeking 卡死；`CoachVideo` 的 `video.seekable` 守卫已生效，只在线性可播放时降级。**
 - 采样边界语义：`sampleClip`/`sampleFrameIndex`/`updateAvatar` 统一 clamp——预览循环的回绕在上游 RealtimeStream 完成，progress=1 只会出现在会话结算，各层必须钉住末帧而不是跳回第 0 帧。
@@ -97,7 +97,7 @@ python3 -m unittest backend.test_avatar_assets backend.test_avatar_registry back
 2. 打磨清单（P1 余项、答辩叙事；原 `docs/review.md` 已随 2026-07-21 文档精简移除，内容按需从 git 历史取回）。
 3. 长期：`tsc` 清零入门禁；真实 WS 帧流后端；Google Fonts 本地化。
 4. ~~数字分身vault页美化~~（已修复，2026-07-21）：① 预览人物沉进网格——身份 rest pose 脚底 y<0，`GaussianAvatar` 新增 `restGroundY` + `setBaseOffsetY`（折叠进 `uTrans`，训练舱默认 0 不受影响），vault 预览抬到脚踩网格；② 档案卡一片黑——legacy 身份无 `previewUrl`，预览渲染 6 帧后同帧 `toDataURL` 快照自愈卡片（任何缺 preview 的身份通用），快照已持久化为服务器 `preview.png` 并补写 `record.json`；占位块改为网格底 + 首字母大字。③ 档案卡图片优先显示原始照片（`identityUrl` 目录 + `sourcePhoto` 拼 URL），竖图 `object-position: center 18%` 保头部。
-5. ~~分身切换 UI~~（2026-07-21 完成）：训练舱渲染模式旁新增 `AvatarSwitcher`（`src/components/gameui/AvatarSwitcher.ts`，样式 `src/styles/avatar-switcher.css`）——仅 motion 类种子可见；列出全部 READY 身份及该身份×当前 motion 的绑定状态（使用中/切换/建立绑定/准备中）；无绑定时 `POST /avatar-bindings` 创建（双资产现成即建即 ready），快照经 `assignBindingSnapshot` + `controller.track()` 换绑并热替换舞台分身。注意：`applyBindingSnapshotToSeed` 的 bindingId 守卫要求换绑先改 exercise 再 track；localStorage 记录仍是选择真源，服务器 discovery 在同 motion 多绑定时选 createdAt 最旧者。
+5. ~~分身切换与导入后补绑 UI~~（2026-07-21 完成）：训练舱渲染模式旁的 `AvatarSwitcher` 对 motion 类种子提供换绑；对没有 motion 但保留 `jobId` 的已导入种子显示“应用分身”，选择 READY 身份后由 `POST /avatar-bindings` 延迟生成唯一 `motion-<jobId>`，不重复 SAM 解析，同动作进程内去重 worker。快照经 `assignBindingSnapshot` + `controller.track()` 轮询并在 ready 后自动上场。注意：`applyBindingSnapshotToSeed` 的 bindingId 守卫要求换绑先改 exercise 再 track；localStorage 记录仍是选择真源，服务器 discovery 在同 motion 多绑定时选 createdAt 最旧者。
 6. ~~分身与前端缓存版本化~~（2026-07-21 完成）：API 文件 URL 按真实文件状态生成版本；终态绑定启动时重对账；旧 avatar 实例在资产 key 变化时释放；前端入口、CSS 依赖和完整本地业务 ES module 图统一 cache bust。线上已核验 `/healthz`、根页、`/avatars`、`/avatar-bindings` 与两条重烘 motion SHA-256。
 
 ## 八、修改原则

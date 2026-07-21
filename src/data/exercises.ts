@@ -4,6 +4,8 @@ import { hasPlayableAvatarAsset } from "../core/avatar/AvatarBindingController.j
 export type AvatarBindingStatus = "queued" | "running" | "ready" | "error" | "cancelled";
 
 export interface AvatarExerciseConfig extends ExerciseConfig {
+  /** Stable backend import id used to build a reusable motion after import. */
+  jobId?: string | undefined;
   avatarId?: string | undefined;
   motionId?: string | undefined;
   bindingId?: string | undefined;
