@@ -1,4 +1,4 @@
-import { THREE,                    } from "../three-compat.js?v=0.1.7";
+import { THREE,                    } from "../three-compat.js?v=0.1.8";
 import {
   AVATAR_JOINT_COUNT,
   assertReusableIdentity,
@@ -11,7 +11,7 @@ import {
 
 
 
-} from "./AvatarAssets.js?v=0.1.7";
+} from "./AvatarAssets.js?v=0.1.8";
 
 /**
  * GaussianAvatar — frame-deformable 3DGS (3D Gaussian Splatting) digital human.

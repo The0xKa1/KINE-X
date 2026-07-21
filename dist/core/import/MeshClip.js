@@ -1,4 +1,4 @@
-import { THREE } from "../three-compat.js?v=0.1.7";
+import { THREE } from "../three-compat.js?v=0.1.8";
 
 
 

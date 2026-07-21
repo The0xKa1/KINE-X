@@ -8,6 +8,11 @@ import type { CalibrationController } from "../../core/scoring/CalibrationContro
 import type { UserProfileStore } from "../../core/scoring/UserProfile.js";
 import type { CoachPersona } from "../../core/llm/buildPrompt.js";
 import type { LlmSettings } from "../../core/llm/LLMClient.js";
+import {
+  probeCoachConnection,
+  probeMllmConnection,
+  type LlmProbeResult,
+} from "../../core/llm/LlmConnectionProbe.js";
 import { drawerStack } from "../../core/DrawerStack.js";
 
 export interface CameraSettingsCallbacks {
@@ -38,6 +43,7 @@ interface CameraSettingsOptions {
   llmApiKey: HTMLInputElement;
   mllmModel: HTMLInputElement;
   coachModel: HTMLInputElement;
+  llmTestButton: HTMLButtonElement;
   llmClearButton: HTMLButtonElement;
   llmStatusLabel: HTMLElement;
   personaSelect: HTMLSelectElement;
@@ -73,6 +79,8 @@ export class CameraSettings {
   private safeZone = false;
   private persona: CoachPersona = "biomech";
   private aiHighlightTimer: number | null = null;
+  private llmTestAbort: AbortController | null = null;
+  private llmTestGeneration = 0;
 
   constructor(options: CameraSettingsOptions) {
     this.options = options;
@@ -199,6 +207,7 @@ export class CameraSettings {
     });
 
     const persistLlm = () => {
+      this.cancelLlmTest();
       this.persist();
       this.refreshLlmStatus();
     };
@@ -206,6 +215,7 @@ export class CameraSettings {
     this.options.llmApiKey.addEventListener("change", persistLlm);
     this.options.mllmModel.addEventListener("change", persistLlm);
     this.options.coachModel.addEventListener("change", persistLlm);
+    this.options.llmTestButton.addEventListener("click", () => void this.testLlmSettings());
     this.options.llmClearButton.addEventListener("click", () => this.clearLlmSettings());
 
     this.options.personaSelect.addEventListener("change", () => {
@@ -365,11 +375,103 @@ export class CameraSettings {
   private refreshLlmStatus(): void {
     const mllmReady = Boolean(this.getMllmConfig());
     const coachReady = Boolean(this.getCoachConfig());
-    this.options.llmStatusLabel.textContent =
-      mllmReady && coachReady ? "MLLM / COACH READY" : mllmReady ? "MLLM READY" : coachReady ? "COACH READY" : "NOT CONFIGURED";
+    const text =
+      mllmReady && coachReady
+        ? "CONFIGURED · NOT TESTED"
+        : mllmReady
+          ? "MLLM CONFIGURED · COACH MISSING"
+          : coachReady
+            ? "COACH CONFIGURED · MLLM MISSING"
+            : "NOT CONFIGURED";
+    this.setLlmStatus(text, mllmReady && coachReady ? "configured" : "idle");
+  }
+
+  private async testLlmSettings(): Promise<void> {
+    const mllm = this.getMllmConfig();
+    const coach = this.getCoachConfig();
+    if (!mllm || !coach) {
+      this.setLlmStatus("请补全 Base URL、API Key 和两个模型名称", "error");
+      const missing = [
+        this.options.llmBaseUrl,
+        this.options.llmApiKey,
+        this.options.mllmModel,
+        this.options.coachModel,
+      ].find((input) => !input.value.trim());
+      missing?.focus();
+      return;
+    }
+
+    this.cancelLlmTest();
+    this.persist();
+    const generation = ++this.llmTestGeneration;
+    const controller = new AbortController();
+    this.llmTestAbort = controller;
+    const timeout = window.setTimeout(() => controller.abort(), 15_000);
+    this.options.llmTestButton.disabled = true;
+    this.options.llmTestButton.textContent = "TESTING · 2 ENDPOINTS";
+    this.options.llmStatusLabel.setAttribute("aria-busy", "true");
+    this.setLlmStatus("正在验证 MLLM 图片请求与 COACH 流式输出…", "busy");
+
+    const imageDataUrl = createApiProbeImageDataUrl();
+    const [mllmResult, coachResult] = await Promise.allSettled([
+      probeMllmConnection(mllm, imageDataUrl, controller.signal),
+      probeCoachConnection(coach, controller.signal),
+    ]);
+    window.clearTimeout(timeout);
+    if (generation !== this.llmTestGeneration) return;
+
+    this.llmTestAbort = null;
+    this.options.llmTestButton.disabled = false;
+    this.options.llmTestButton.textContent = "测试两项连接";
+    this.options.llmStatusLabel.removeAttribute("aria-busy");
+    if (mllmResult.status === "fulfilled" && coachResult.status === "fulfilled") {
+      this.setLlmStatus(
+        `VERIFIED · MLLM ${mllmResult.value.latencyMs}ms · COACH ${coachResult.value.latencyMs}ms`,
+        "ready",
+      );
+      return;
+    }
+
+    const mllmLabel = this.probeResultLabel("MLLM", mllmResult);
+    const coachLabel = this.probeResultLabel("COACH", coachResult);
+    this.setLlmStatus(`${mllmLabel} · ${coachLabel}`, "error");
+  }
+
+  private probeResultLabel(
+    label: string,
+    result: PromiseSettledResult<LlmProbeResult>,
+  ): string {
+    if (result.status === "fulfilled") return `${label} OK ${result.value.latencyMs}ms`;
+    return `${label} FAIL: ${this.friendlyProbeError(result.reason)}`;
+  }
+
+  private friendlyProbeError(error: unknown): string {
+    if (error instanceof DOMException && error.name === "AbortError") return "请求超时（15s）";
+    const raw = error instanceof Error ? error.message : String(error);
+    const apiKey = this.options.llmApiKey.value.trim();
+    const safe = apiKey ? raw.split(apiKey).join("[REDACTED]") : raw;
+    if (/failed to fetch|load failed|networkerror|network request failed/i.test(safe)) {
+      return "网络失败或服务商未允许浏览器 CORS";
+    }
+    return safe.replace(/\s+/g, " ").slice(0, 140);
+  }
+
+  private setLlmStatus(text: string, tone: "idle" | "configured" | "busy" | "ready" | "error"): void {
+    this.options.llmStatusLabel.textContent = text;
+    this.options.llmStatusLabel.dataset.tone = tone;
+  }
+
+  private cancelLlmTest(): void {
+    this.llmTestGeneration += 1;
+    this.llmTestAbort?.abort();
+    this.llmTestAbort = null;
+    this.options.llmTestButton.disabled = false;
+    this.options.llmTestButton.textContent = "测试两项连接";
+    this.options.llmStatusLabel.removeAttribute("aria-busy");
   }
 
   private clearLlmSettings(): void {
+    this.cancelLlmTest();
     this.options.llmBaseUrl.value = "";
     this.options.llmApiKey.value = "";
     this.options.mllmModel.value = "";
@@ -384,4 +486,17 @@ export class CameraSettings {
       this.options.llmClearButton.disabled = false;
     }, 1400);
   }
+}
+
+function createApiProbeImageDataUrl(): string {
+  const canvas = document.createElement("canvas");
+  canvas.width = 32;
+  canvas.height = 32;
+  const context = canvas.getContext("2d");
+  if (!context) return "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9WlWfKsAAAAASUVORK5CYII=";
+  context.fillStyle = "#ff4d00";
+  context.fillRect(0, 0, 32, 32);
+  context.fillStyle = "#111111";
+  context.fillRect(8, 8, 16, 16);
+  return canvas.toDataURL("image/png");
 }

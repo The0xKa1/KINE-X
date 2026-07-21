@@ -1,12 +1,12 @@
-import { formatCm } from "../../core/coordinates.js?v=0.1.7";
+import { formatCm } from "../../core/coordinates.js?v=0.1.8";
 
-import { modalA11y,                      } from "../../core/modalA11y.js?v=0.1.7";
-import { prefersReducedMotion } from "../../core/motionPrefs.js?v=0.1.7";
+import { modalA11y,                      } from "../../core/modalA11y.js?v=0.1.8";
+import { prefersReducedMotion } from "../../core/motionPrefs.js?v=0.1.8";
 
 
 
-import { buildDiagnosisMessages, buildFallbackText,                   } from "../../core/llm/buildPrompt.js?v=0.1.7";
-import { streamChat,                  } from "../../core/llm/LLMClient.js?v=0.1.7";
+import { buildDiagnosisMessages, buildFallbackText,                   } from "../../core/llm/buildPrompt.js?v=0.1.8";
+import { streamChat,                  } from "../../core/llm/LLMClient.js?v=0.1.8";
 
 
 

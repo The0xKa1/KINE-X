@@ -357,6 +357,7 @@ const cameraSettings = new CameraSettings({
   llmApiKey: dom.llmApiKey,
   mllmModel: dom.mllmModel,
   coachModel: dom.coachModel,
+  llmTestButton: dom.llmTest,
   llmClearButton: dom.llmClear,
   llmStatusLabel: dom.llmStatus,
   personaSelect: dom.personaSelect,

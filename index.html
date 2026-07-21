@@ -12,7 +12,7 @@
       href="https://fonts.googleapis.com/css2?family=Archivo+Black&family=JetBrains+Mono:wght@400;500;600;700&family=Noto+Sans+SC:wght@400;500;700;900&display=swap"
     />
 
-    <link rel="stylesheet" href="./src/styles.css?v=0.1.7" />
+    <link rel="stylesheet" href="./src/styles.css?v=0.1.8" />
 
     <script type="importmap">
       {
@@ -26,7 +26,7 @@
   <body class="boot-pending">
     <div id="bootOverlay" class="boot-overlay" aria-label="系统启动中">
       <div class="boot-frame">
-        <p class="boot-eyebrow">REAL-TIME MOTION COACHING SYSTEM · v0.1.7</p>
+        <p class="boot-eyebrow">REAL-TIME MOTION COACHING SYSTEM · v0.1.8</p>
         <h1 class="boot-brand">KINE<b>//</b>X</h1>
         <ul class="boot-checks">
           <li data-check="clip"><span>COACH CLIP</span><i class="boot-dots"></i><b>WAIT</b></li>
@@ -68,7 +68,7 @@
       <main class="workspace">
         <header class="topbar">
           <div class="title-block">
-          <p>real time motion coaching system · v0.1.7</p>
+          <p>real time motion coaching system · v0.1.8</p>
             <h1>KINE<b>//</b>X</h1>
           </div>
 
@@ -401,8 +401,12 @@
               <option value="baduanjin">八段锦传人</option>
             </select>
           </label>
-          <button id="llmClear" type="button" class="secondary-button">清除本机 API 配置</button>
-          <p id="llmStatus" class="ai-api-status">NOT CONFIGURED</p>
+          <p class="settings-hint">测试会向两个模型各发送一次极小请求：MLLM 检查图片输入与 JSON 模式，赛后模型检查流式输出；服务商可能产生少量计费。</p>
+          <div class="ai-api-actions">
+            <button id="llmTest" type="button" class="primary-button">测试两项连接</button>
+            <button id="llmClear" type="button" class="secondary-button">清除本机配置</button>
+          </div>
+          <p id="llmStatus" class="ai-api-status" data-tone="idle" aria-live="polite">NOT CONFIGURED</p>
           <p class="settings-hint">配置只保存在本机 localStorage。请求由浏览器直接发送给你的服务商，因此服务商必须允许浏览器跨域访问；建议使用限额、可随时撤销的 Key。</p>
         </section>
       </div>
@@ -510,6 +514,6 @@
       </div>
     </div>
 
-    <script type="module" src="./dist/main.js?v=0.1.7"></script>
+    <script type="module" src="./dist/main.js?v=0.1.8"></script>
   </body>
 </html>

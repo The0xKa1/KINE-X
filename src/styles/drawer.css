@@ -82,8 +82,46 @@
   margin: 0;
   padding: 8px 10px;
   border: 2px solid var(--ink);
-  font: 800 10px/1 var(--mono);
+  font: 800 10px/1.45 var(--mono-cjk);
   letter-spacing: 0.12em;
+}
+
+.ai-api-actions {
+  display: grid;
+  grid-template-columns: minmax(0, 1.15fr) minmax(0, 0.85fr);
+  gap: 8px;
+}
+
+.ai-api-actions button {
+  min-width: 0;
+  min-height: 42px;
+  padding-inline: 10px;
+}
+
+.ai-api-actions button:active:not(:disabled) {
+  transform: translateY(1px);
+}
+
+.ai-api-status[data-tone="configured"] {
+  border-left-width: 8px;
+}
+
+.ai-api-status[data-tone="busy"] {
+  border-left: 8px solid var(--hot);
+  background: var(--ink);
+  color: var(--paper);
+}
+
+.ai-api-status[data-tone="ready"] {
+  border-left: 8px solid var(--ink);
+  background: var(--hot);
+  color: var(--ink);
+}
+
+.ai-api-status[data-tone="error"] {
+  border-left: 8px solid var(--hot);
+  background: var(--paper);
+  color: var(--ink);
 }
 
 .drawer-section .section-head {

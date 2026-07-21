@@ -3,6 +3,10 @@ import { readFileSync } from "node:fs";
 import test from "node:test";
 
 import { streamChat } from "../dist/core/llm/LLMClient.js";
+import {
+  probeCoachConnection,
+  probeMllmConnection,
+} from "../dist/core/llm/LlmConnectionProbe.js";
 import { VideoSegmentationClient } from "../dist/core/mllm/VideoSegmentationClient.js";
 
 const settings = {
@@ -116,6 +120,55 @@ test("AI clients reject incomplete user configuration before fetching", async (t
   );
 });
 
+test("connection test probes the real multimodal and streaming contracts", async (t) => {
+  const originalFetch = globalThis.fetch;
+  t.after(() => {
+    globalThis.fetch = originalFetch;
+  });
+
+  const requests = [];
+  globalThis.fetch = async (url, init) => {
+    const payload = JSON.parse(init.body);
+    requests.push({ url: String(url), init, payload });
+    if (payload.stream) {
+      return new Response('data: {"choices":[{"delta":{"content":"OK"}}]}\n\ndata: [DONE]\n\n', {
+        status: 200,
+        headers: { "Content-Type": "text/event-stream" },
+      });
+    }
+    return Response.json({ choices: [{ message: { content: '{"status":"ok"}' } }] });
+  };
+
+  const [mllm, coach] = await Promise.all([
+    probeMllmConnection(settings, "data:image/png;base64,AAAA"),
+    probeCoachConnection({ ...settings, model: "coach-model" }),
+  ]);
+
+  assert.ok(mllm.latencyMs >= 0);
+  assert.ok(coach.latencyMs >= 0);
+  assert.equal(requests.length, 2);
+  const mllmRequest = requests.find((request) => request.payload.stream === false);
+  const coachRequest = requests.find((request) => request.payload.stream === true);
+  assert.equal(mllmRequest.url, "https://provider.example/v1/chat/completions");
+  assert.equal(mllmRequest.payload.response_format.type, "json_object");
+  assert.equal(mllmRequest.payload.messages[1].content[1].type, "image_url");
+  assert.equal(coachRequest.payload.model, "coach-model");
+  assert.equal(coachRequest.payload.max_tokens, 8);
+});
+
+test("coach connection test rejects an empty or incompatible stream", async (t) => {
+  const originalFetch = globalThis.fetch;
+  t.after(() => {
+    globalThis.fetch = originalFetch;
+  });
+  globalThis.fetch = async () => new Response("data: [DONE]\n\n", { status: 200 });
+
+  await assert.rejects(
+    () => probeCoachConnection(settings),
+    /未返回可解析的流式文本/,
+  );
+});
+
 test("AI settings entry covers both models and targets the AI section", () => {
   const createSource = readFileSync(new URL("../src/components/pages/CreatePage.ts", import.meta.url), "utf8");
   const settingsSource = readFileSync(new URL("../src/components/gameui/CameraSettings.ts", import.meta.url), "utf8");
@@ -130,7 +183,11 @@ test("AI settings entry covers both models and targets the AI section", () => {
   assert.match(settingsSource, /aiApiSection\.scrollIntoView/);
   assert.match(mainSource, /cameraSettings\.openAiSettings\(\)/);
   assert.match(html, /id="aiApiSettingsSection"/);
+  assert.match(html, /id="llmTest"/);
   assert.match(html, /赛后分析模型/);
+  assert.match(settingsSource, /probeMllmConnection/);
+  assert.match(settingsSource, /probeCoachConnection/);
+  assert.match(settingsSource, /VERIFIED · MLLM/);
   assert.match(css, /\.create-api-settings/);
   assert.match(css, /width: auto/);
 });

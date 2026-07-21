@@ -1,4 +1,4 @@
-import { AVATAR_JOINT_COUNT,                          } from "./AvatarAssets.js?v=0.1.7";
+import { AVATAR_JOINT_COUNT,                          } from "./AvatarAssets.js?v=0.1.8";
 
 
 

@@ -99,6 +99,7 @@ export interface DomRefs {
   llmApiKey: HTMLInputElement;
   mllmModel: HTMLInputElement;
   coachModel: HTMLInputElement;
+  llmTest: HTMLButtonElement;
   llmClear: HTMLButtonElement;
   llmStatus: HTMLElement;
   personaSelect: HTMLSelectElement;
@@ -230,6 +231,7 @@ export function collectDomRefs(): DomRefs {
     llmApiKey: $("#llmApiKey") as HTMLInputElement,
     mllmModel: $("#mllmModel") as HTMLInputElement,
     coachModel: $("#coachModel") as HTMLInputElement,
+    llmTest: $("#llmTest") as HTMLButtonElement,
     llmClear: $("#llmClear") as HTMLButtonElement,
     llmStatus: $("#llmStatus"),
     personaSelect: $("#personaSelect") as HTMLSelectElement,

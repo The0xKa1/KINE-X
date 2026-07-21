@@ -137,6 +137,7 @@ export const $$ =                    (selector        )      =>
 
 
 
+
 export function collectDomRefs()          {
   return {
     stageTitle: $("#stageTitle"),
@@ -230,6 +231,7 @@ export function collectDomRefs()          {
     llmApiKey: $("#llmApiKey")                    ,
     mllmModel: $("#mllmModel")                    ,
     coachModel: $("#coachModel")                    ,
+    llmTest: $("#llmTest")                     ,
     llmClear: $("#llmClear")                     ,
     llmStatus: $("#llmStatus"),
     personaSelect: $("#personaSelect")                     ,
