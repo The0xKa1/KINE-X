@@ -35,7 +35,7 @@ body[data-route="avatars"] .workspace {
 
 .avatar-vault-head > div {
   min-width: 0;
-  padding: clamp(18px, 2vw, 28px);
+  padding: clamp(14px, 1.5vw, 22px);
   border-right: 2px solid var(--ink);
 }
 
@@ -68,7 +68,7 @@ body[data-route="avatars"] .workspace {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   gap: 8px;
-  padding: 18px;
+  padding: 12px;
   background: var(--bg);
 }
 
@@ -158,11 +158,11 @@ body[data-route="avatars"] .workspace {
 }
 
 .avatar-vault-section-head {
-  min-height: 62px;
+  min-height: 56px;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 10px 16px;
+  padding: 8px 14px;
   border-bottom: 2px solid var(--ink);
   background: var(--paper);
 }
@@ -592,7 +592,7 @@ body[data-route="avatars"] .workspace {
 
 .avatar-preview-poses button {
   min-width: 0;
-  min-height: 48px;
+  min-height: 44px;
   display: grid;
   place-content: center;
   gap: 4px;
@@ -708,6 +708,7 @@ body[data-route="avatars"] .workspace {
 }
 
 .avatar-preview-meta {
+  grid-template-columns: auto minmax(0, 1fr) auto minmax(0, 1fr);
   gap: 5px 12px;
   padding: 8px 10px;
   border-top: 2px solid var(--paper);
@@ -777,6 +778,10 @@ body[data-route="avatars"] .workspace {
   .avatar-preview-panel {
     min-height: 520px;
     border-top: 5px solid var(--ink);
+  }
+
+  .avatar-preview-meta {
+    grid-template-columns: auto minmax(0, 1fr);
   }
 }
 

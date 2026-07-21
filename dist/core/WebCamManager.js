@@ -1,4 +1,4 @@
-import { WORLD_SPACE } from "./coordinates.js?v=0.1.6";
+import { WORLD_SPACE } from "./coordinates.js?v=0.1.7";
 
 
 
