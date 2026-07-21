@@ -49,6 +49,7 @@ import {
 } from "./core/avatar/AvatarBindingController.js";
 import { Router } from "./core/Router.js";
 import { TrainPage } from "./components/pages/TrainPage.js";
+import { AvatarSwitcher } from "./components/gameui/AvatarSwitcher.js";
 import { LibraryPage } from "./components/pages/LibraryPage.js";
 import { useWebSocket } from "./hooks/useWebSocket.js";
 
@@ -441,6 +442,29 @@ const avatarBindingController = new AvatarBindingController({
   onNetworkError: (error) => {
     console.warn("[avatar-binding] status refresh failed; ordinary coach remains available", error);
   },
+});
+
+// Train-bay avatar switcher: rebinds the current seed's motion to any READY
+// identity. Adopted snapshots replace the seed's bindingId, so the guard in
+// applyBindingSnapshotToSeed must see the reassignment first.
+const avatarSwitcher = new AvatarSwitcher({
+  el: document.getElementById("avatarSwitcher")               ,
+  backendUrl: BACKEND_URL,
+  onSwitch: (snapshot) => {
+    const exercise = exercises[snapshot.seedId];
+    if (!exercise) return;
+    assignBindingSnapshot(exercise, snapshot);
+    avatarBindingController.track(snapshot);
+    if (snapshot.seedId !== state.exerciseId) return;
+    syncAvatarBindingSurface(exercise);
+    syncAvatarModeButton();
+    applyAvatarForSeed(snapshot.seedId);
+    connection.set(
+      snapshot.status === "ready" ? "分身已切换" : "分身绑定准备中 · 就绪后自动上场",
+      "ready",
+    );
+  },
+  onError: (message) => connection.set(`分身切换失败 · ${message}`, "busy"),
 });
 
 const createPage = new CreatePage({
@@ -992,11 +1016,18 @@ function setMode(nextMode            )       {
 /** Keep pending/error reusable bindings out of avatar mode while preserving
  * legacy KINEXGS1 visibility. */
 function syncAvatarModeButton()       {
-  const hasAvatar = hasPlayableAvatar(exercises[state.exerciseId]);
+  const exercise = exercises[state.exerciseId];
+  const hasAvatar = hasPlayableAvatar(exercise);
   dom.modeButtons.forEach((button) => {
     if (button.dataset.mode === "avatar") button.hidden = !hasAvatar;
   });
   if (!hasAvatar && state.mode === "avatar") setMode("coach");
+  // The switcher only makes sense for seeds backed by a reusable motion.
+  avatarSwitcher.setContext(
+    exercise?.motionId
+      ? { seedId: state.exerciseId, motionId: exercise.motionId, avatarId: exercise.avatarId }
+      : null,
+  );
 }
 
 function setExercise(nextId        , message        )       {
