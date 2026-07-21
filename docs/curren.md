@@ -9,7 +9,7 @@
 ## 阶段
 
 复赛产品化打磨阶段，多页面骨架已落地。
-当前前端与静态资产版本为 `0.1.4`（版本真源为 `package.json`）。
+当前前端与静态资产版本为 `0.1.5`（版本真源为 `package.json`）。
 hash 路由五页：动作库 `#/`、训练舱 `#/train/:seedId`、训练报告 `#/report/:sessionId?`、创作工坊 `#/create`、分身身份库 `#/avatars`。
 单 DOM 容器切页，无整页跳转：MediaPipe 资产、WebSocket、摄像头流在页面间存活。
 3D 舞台为真实 Three.js WebGL 渲染（圆柱骨骼 + 球关节 + 可选 SMPL-X mesh clip 回放 + 可选 3DGS 数字分身层）。分身身份与动作已拆分为 `KINEXGI1` / `KINEXGM1`，运行时由 `GaussianAvatar` 组合驱动；历史 `KINEXGS1` 仅作内置兼容。
@@ -47,7 +47,7 @@ boot 完成后进入初始路由，默认 `#/`。
 全站覆盖低透明度 SVG 噪点纹理（multiply），时间轴缩略图印刷化灰度处理（active/hover 恢复全彩）。
 训练报告页：总分巨数 / 印章勋章 / 四宫格统计 / 阶段均分条（最差阶段标橙）/ 历史趋势条（当前场标橙）/ 关节报告表 / AI 教练全文。
 创作工坊：四步向导（01 上传 → 02 分片 → 03 解析 → 04 入库），解析前可选择一个 READY 分身身份；默认为“不使用分身”。
-分身身份库：服务器持久化档案、照片上传、重命名、保守软删除，以及独立 Three.js 实时预览（拖拽环绕 / 滚轮缩放）。桌面端外壳锁定视口高度，档案列表独立滚动，左侧全局 rail 不参与页面纵向滚动。
+分身身份库：服务器持久化档案、照片上传、重命名、保守软删除，以及独立 Three.js 实时预览（拖拽环绕 / 滚轮缩放）。可复用身份默认以叉腰姿态展示，并可切换自然站 / 叉腰 / 胜利 V / 原始展臂；姿态是一帧浏览器内存动作，不写回身份或训练动作。桌面端外壳锁定视口高度，档案列表独立滚动，左侧全局 rail 不参与页面纵向滚动。
 切页过渡为统一的 pageIn 上浮淡入；控件统一 hover/press 反馈；模态 modalA11y 焦点圈禁 + Esc。
 
 ## 数据流
@@ -92,7 +92,7 @@ EventBus 事件共八类：`score:update` / `pipeline:update` / `seed:update` / 
 1. `#/avatars` 或兼容端点 `POST /import/avatar` 上传单人全身照；服务端建立稳定 `avatarId`，通过 `GET /avatars` 持久化状态。`seedId` 参数仅兼容接收，不再把身份绑死到种子。
 2. 照片经 LHM 导出、坐标对齐与严格校验后生成 `KINEXGI1` 身份；身份只含静态高斯与 55 关节休息骨架，可被多个动作复用。
 3. 视频导入选择身份后，原始视频私有副本落在 `~/.local/share/kinex/avatar-jobs`，LHM 后台提取 `KINEXGM1` 动作；`GET /avatar-bindings` 记录 `queued / running / ready / error / cancelled`。
-4. 前端分身预览仅加载身份休息姿态；训练舞台把 `KINEXGI1` 与 `KINEXGM1` 组合，通过顶点 shader LBS + CPU 深度排序回放。
+4. 前端分身预览加载身份后，可用四种一帧内存动作驱动同一套 55 关节 FK / LBS；历史合并资产保持原始姿态。训练舞台仍只把 `KINEXGI1` 与真实 `KINEXGM1` 组合，通过顶点 shader LBS + CPU 深度排序回放。
 5. 删除身份是保守软删除：从活跃身份库移除并取消未完成绑定，已 ready 的训练绑定和动作产物保留可播放。
 6. `/avatars` 与 `/avatar-bindings` 的可覆盖文件 URL 带 `?v=<mtime_ns-size>`；磁盘 manifest 保持稳定无 query。`AvatarBindingController` 启动时也刷新已 ready 的本地快照，版本变化会释放旧内存 avatar 并加载新资产。
 

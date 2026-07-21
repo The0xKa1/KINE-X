@@ -1,7 +1,7 @@
 import {
   AvatarRegistryClient,
 
-} from "../../core/avatar/AvatarRegistryClient.js?v=0.1.4";
+} from "../../core/avatar/AvatarRegistryClient.js?v=0.1.5";
 
 
 

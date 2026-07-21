@@ -41,7 +41,7 @@ KINE//X 的项目结构索引。
 `src/components/pages/TrainPage.ts`：训练舱生命周期封装（enter 恢复渲染与播放、leave 停 stage RAF 与播放、路由 seed 同步）。
 `src/components/pages/ReportPage.ts`：存档 session 的整页报告（总分 / 勋章 / 阶段条 / 趋势条 / 关节表 / AI 教练），可确认删除当前记录并回退到下一条或空状态。
 `src/components/pages/CreatePage.ts`：视频 → 虚拟教练四步向导，驱动 `ImportFlow`；解析前通过 `AvatarRegistryClient` 显示可选的 READY 身份。
-`src/components/pages/AvatarVaultPage.ts`：服务器身份档案库；上传、重命名、保守软删除、持久化列表与独立 3DGS 实时预览。
+`src/components/pages/AvatarVaultPage.ts`：服务器身份档案库；上传、重命名、保守软删除、持久化列表与独立 3DGS 实时预览；通过 `AvatarPreviewPoses.ts` 切换自然站 / 叉腰 / 胜利 V / 展臂的一帧内存姿态。
 
 ## src 总览
 

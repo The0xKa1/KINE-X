@@ -261,7 +261,7 @@ test("preview canvas cannot feed intrinsic dimensions back into the grid row", a
 
   assert.match(
     css,
-    /\.avatar-preview-panel\s*\{[^}]*grid-template-rows\s*:\s*auto\s+minmax\(280px,\s*1fr\)\s+auto\s*;/s,
+    /\.avatar-preview-panel\s*\{[^}]*grid-template-rows\s*:\s*auto\s+auto\s+minmax\(280px,\s*1fr\)\s+auto\s*;/s,
   );
   assert.match(stage, /position\s*:\s*relative\s*;/);
   assert.match(stage, /min-height\s*:\s*0\s*;/);

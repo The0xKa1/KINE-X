@@ -1,36 +1,36 @@
-import { ScoreBoard } from "./components/gameui/ScoreBoard.js?v=0.1.4";
-import { Timeline } from "./components/gameui/Timeline.js?v=0.1.4";
-import { SeedCarousel } from "./components/gameui/SeedCarousel.js?v=0.1.4";
-import { CoachVideo } from "./components/gameui/CoachVideo.js?v=0.1.4";
-import { ComboBurst } from "./components/gameui/ComboBurst.js?v=0.1.4";
-import { CalibrationOverlay } from "./components/gameui/CalibrationOverlay.js?v=0.1.4";
-import { ResultsScreen } from "./components/gameui/ResultsScreen.js?v=0.1.4";
-import { DnaDrawer } from "./components/gameui/DnaDrawer.js?v=0.1.4";
-import { CameraSettings } from "./components/gameui/CameraSettings.js?v=0.1.4";
-import { CreatePage } from "./components/pages/CreatePage.js?v=0.1.4";
-import { AvatarVaultPage } from "./components/pages/AvatarVaultPage.js?v=0.1.4";
-import { AiCoachPanel } from "./components/gameui/AiCoachPanel.js?v=0.1.4";
-import { SessionStartOverlay } from "./components/gameui/SessionStartOverlay.js?v=0.1.4";
-import { BootSequence } from "./components/gameui/BootSequence.js?v=0.1.4";
-import { AppShell } from "./components/layout/AppShell.js?v=0.1.4";
-import { AudioFx } from "./core/AudioFx.js?v=0.1.4";
-import { CameraOverlay } from "./core/CameraOverlay.js?v=0.1.4";
-import { drawerStack } from "./core/DrawerStack.js?v=0.1.4";
-import { EventBus } from "./core/EventBus.js?v=0.1.4";
-import { MotionFrameBuffer } from "./core/frameBuffer.js?v=0.1.4";
-import { MotionStage } from "./core/MotionStage.js?v=0.1.4";
-import { OkGestureDetector } from "./core/OkGestureDetector.js?v=0.1.4";
-import { LandmarkerController } from "./core/PoseLandmarkerManager.js?v=0.1.4";
-import { RealtimeStream,                          } from "./core/RealtimeStream.js?v=0.1.4";
-import { SessionGate } from "./core/SessionGate.js?v=0.1.4";
-import { CalibrationController } from "./core/scoring/CalibrationController.js?v=0.1.4";
-import { CoachHistory } from "./core/scoring/CoachHistory.js?v=0.1.4";
-import { SessionRecorder } from "./core/scoring/SessionRecorder.js?v=0.1.4";
-import { SessionArchive } from "./core/scoring/SessionArchive.js?v=0.1.4";
-import { ReportPage } from "./components/pages/ReportPage.js?v=0.1.4";
-import { UserPoseSource } from "./core/scoring/UserPoseSource.js?v=0.1.4";
-import { UserProfileStore } from "./core/scoring/UserProfile.js?v=0.1.4";
-import { WebCamManager } from "./core/WebCamManager.js?v=0.1.4";
+import { ScoreBoard } from "./components/gameui/ScoreBoard.js?v=0.1.5";
+import { Timeline } from "./components/gameui/Timeline.js?v=0.1.5";
+import { SeedCarousel } from "./components/gameui/SeedCarousel.js?v=0.1.5";
+import { CoachVideo } from "./components/gameui/CoachVideo.js?v=0.1.5";
+import { ComboBurst } from "./components/gameui/ComboBurst.js?v=0.1.5";
+import { CalibrationOverlay } from "./components/gameui/CalibrationOverlay.js?v=0.1.5";
+import { ResultsScreen } from "./components/gameui/ResultsScreen.js?v=0.1.5";
+import { DnaDrawer } from "./components/gameui/DnaDrawer.js?v=0.1.5";
+import { CameraSettings } from "./components/gameui/CameraSettings.js?v=0.1.5";
+import { CreatePage } from "./components/pages/CreatePage.js?v=0.1.5";
+import { AvatarVaultPage } from "./components/pages/AvatarVaultPage.js?v=0.1.5";
+import { AiCoachPanel } from "./components/gameui/AiCoachPanel.js?v=0.1.5";
+import { SessionStartOverlay } from "./components/gameui/SessionStartOverlay.js?v=0.1.5";
+import { BootSequence } from "./components/gameui/BootSequence.js?v=0.1.5";
+import { AppShell } from "./components/layout/AppShell.js?v=0.1.5";
+import { AudioFx } from "./core/AudioFx.js?v=0.1.5";
+import { CameraOverlay } from "./core/CameraOverlay.js?v=0.1.5";
+import { drawerStack } from "./core/DrawerStack.js?v=0.1.5";
+import { EventBus } from "./core/EventBus.js?v=0.1.5";
+import { MotionFrameBuffer } from "./core/frameBuffer.js?v=0.1.5";
+import { MotionStage } from "./core/MotionStage.js?v=0.1.5";
+import { OkGestureDetector } from "./core/OkGestureDetector.js?v=0.1.5";
+import { LandmarkerController } from "./core/PoseLandmarkerManager.js?v=0.1.5";
+import { RealtimeStream,                          } from "./core/RealtimeStream.js?v=0.1.5";
+import { SessionGate } from "./core/SessionGate.js?v=0.1.5";
+import { CalibrationController } from "./core/scoring/CalibrationController.js?v=0.1.5";
+import { CoachHistory } from "./core/scoring/CoachHistory.js?v=0.1.5";
+import { SessionRecorder } from "./core/scoring/SessionRecorder.js?v=0.1.5";
+import { SessionArchive } from "./core/scoring/SessionArchive.js?v=0.1.5";
+import { ReportPage } from "./components/pages/ReportPage.js?v=0.1.5";
+import { UserPoseSource } from "./core/scoring/UserPoseSource.js?v=0.1.5";
+import { UserProfileStore } from "./core/scoring/UserProfile.js?v=0.1.5";
+import { WebCamManager } from "./core/WebCamManager.js?v=0.1.5";
 import {
   exerciseOrder,
   exercises as builtinExercises,
@@ -38,19 +38,19 @@ import {
   MOTION_METRIC_TEMPLATES,
   pipeline,
 
-} from "./data/exercises.js?v=0.1.4";
-import { GaussianAvatar, GaussianMotion } from "./core/avatar/GaussianAvatar.js?v=0.1.4";
-import { AvatarRegistryClient } from "./core/avatar/AvatarRegistryClient.js?v=0.1.4";
+} from "./data/exercises.js?v=0.1.5";
+import { GaussianAvatar, GaussianMotion } from "./core/avatar/GaussianAvatar.js?v=0.1.5";
+import { AvatarRegistryClient } from "./core/avatar/AvatarRegistryClient.js?v=0.1.5";
 import {
   AvatarBindingController,
   describeAvatarBinding,
 
-} from "./core/avatar/AvatarBindingController.js?v=0.1.4";
-import { Router } from "./core/Router.js?v=0.1.4";
-import { TrainPage } from "./components/pages/TrainPage.js?v=0.1.4";
-import { AvatarSwitcher } from "./components/gameui/AvatarSwitcher.js?v=0.1.4";
-import { LibraryPage } from "./components/pages/LibraryPage.js?v=0.1.4";
-import { useWebSocket } from "./hooks/useWebSocket.js?v=0.1.4";
+} from "./core/avatar/AvatarBindingController.js?v=0.1.5";
+import { Router } from "./core/Router.js?v=0.1.5";
+import { TrainPage } from "./components/pages/TrainPage.js?v=0.1.5";
+import { AvatarSwitcher } from "./components/gameui/AvatarSwitcher.js?v=0.1.5";
+import { LibraryPage } from "./components/pages/LibraryPage.js?v=0.1.5";
+import { useWebSocket } from "./hooks/useWebSocket.js?v=0.1.5";
 
 const exercises                                       = { ...builtinExercises };
 const exerciseOrderList           = [...exerciseOrder];
@@ -86,12 +86,12 @@ function resolveBackendUrl()         {
   if (window.location.port === "5173") return `${protocol}//${hostname}:8765`;
   return window.location.origin.replace(/\/$/, "");
 }
-import { collectDomRefs } from "./bootstrap/dom.js?v=0.1.4";
-import { ConnectionIndicator, renderDnaList, beatsPerMinute } from "./bootstrap/uiHelpers.js?v=0.1.4";
-import { formatCm } from "./core/coordinates.js?v=0.1.4";
-import { buildFrameThumbnails, buildFrameThumbnailsFromMeta, getCoachClipManifest, loadCoachClip } from "./core/import/loadCoachClip.js?v=0.1.4";
-import { renderMeshThumbnails } from "./core/import/renderMeshThumbs.js?v=0.1.4";
-import { loadMeshClip,               } from "./core/import/MeshClip.js?v=0.1.4";
+import { collectDomRefs } from "./bootstrap/dom.js?v=0.1.5";
+import { ConnectionIndicator, renderDnaList, beatsPerMinute } from "./bootstrap/uiHelpers.js?v=0.1.5";
+import { formatCm } from "./core/coordinates.js?v=0.1.5";
+import { buildFrameThumbnails, buildFrameThumbnailsFromMeta, getCoachClipManifest, loadCoachClip } from "./core/import/loadCoachClip.js?v=0.1.5";
+import { renderMeshThumbnails } from "./core/import/renderMeshThumbs.js?v=0.1.5";
+import { loadMeshClip,               } from "./core/import/MeshClip.js?v=0.1.5";
 
 
 const dom = collectDomRefs();

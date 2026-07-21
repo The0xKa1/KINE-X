@@ -542,7 +542,7 @@ body[data-route="avatars"] .workspace {
 }
 
 .avatar-preview-panel {
-  grid-template-rows: auto minmax(280px, 1fr) auto;
+  grid-template-rows: auto auto minmax(280px, 1fr) auto;
   background: var(--ink);
   color: var(--paper);
 }
@@ -554,6 +554,77 @@ body[data-route="avatars"] .workspace {
 
 .avatar-preview-panel .avatar-vault-section-head span { color: var(--paper); opacity: 0.58; }
 .avatar-preview-panel .avatar-vault-section-head > b { color: var(--hot); }
+
+.avatar-preview-posebar {
+  display: grid;
+  grid-template-columns: minmax(120px, 0.7fr) minmax(0, 1.3fr);
+  border-bottom: 2px solid var(--paper);
+  background: var(--ink);
+}
+
+.avatar-preview-posebar > div:first-child {
+  min-width: 0;
+  display: grid;
+  align-content: center;
+  gap: 6px;
+  padding: 10px 12px;
+  border-right: 1px solid rgba(247, 241, 229, 0.4);
+}
+
+.avatar-preview-posebar > div:first-child span {
+  color: var(--hot);
+  font: 800 8px/1 var(--mono);
+  letter-spacing: 0.15em;
+}
+
+.avatar-preview-posebar > div:first-child b {
+  overflow: hidden;
+  font: 700 8px/1.35 var(--mono-cjk);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.avatar-preview-poses {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.avatar-preview-poses button {
+  min-width: 0;
+  min-height: 54px;
+  display: grid;
+  place-content: center;
+  gap: 4px;
+  padding: 7px 4px;
+  border: 0;
+  border-right: 1px solid rgba(247, 241, 229, 0.4);
+  background: var(--ink);
+  color: var(--paper);
+  font: 800 9px/1 var(--mono-cjk);
+}
+
+.avatar-preview-poses button:last-child { border-right: 0; }
+
+.avatar-preview-poses button span {
+  color: inherit;
+  font: 700 7px/1 var(--mono);
+  letter-spacing: 0.08em;
+  opacity: 0.58;
+}
+
+.avatar-preview-poses button:hover:not(:disabled),
+.avatar-preview-poses button[aria-pressed="true"] {
+  background: var(--hot);
+  color: var(--ink);
+}
+
+.avatar-preview-poses button:active:not(:disabled) { transform: translateY(1px); }
+
+.avatar-preview-poses button:disabled {
+  cursor: not-allowed;
+  opacity: 0.3;
+}
 
 .avatar-preview-stage {
   position: relative;

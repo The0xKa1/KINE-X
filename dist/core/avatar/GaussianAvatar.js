@@ -1,4 +1,4 @@
-import { THREE,                    } from "../three-compat.js?v=0.1.4";
+import { THREE,                    } from "../three-compat.js?v=0.1.5";
 import {
   AVATAR_JOINT_COUNT,
   assertReusableIdentity,
@@ -11,7 +11,7 @@ import {
 
 
 
-} from "./AvatarAssets.js?v=0.1.4";
+} from "./AvatarAssets.js?v=0.1.5";
 
 /**
  * GaussianAvatar — frame-deformable 3DGS (3D Gaussian Splatting) digital human.
@@ -268,7 +268,7 @@ export class GaussianAvatar {
                    viewportVec                                    ;
                    fkScratch                  = createSkinningScratch();
 
-          motion                        = null;
+          motion                             = null;
           legacyMotion                         ;
           frameCountValue        ;
   /** Extra vertical shift folded into uTrans; previews use it to ground the rest pose. */
@@ -452,7 +452,7 @@ export class GaussianAvatar {
   }
 
   /** Replace the current animation while retaining the identity's static textures. */
-  setMotion(motion                       )       {
+  setMotion(motion                            )       {
     if (motion) assertReusableIdentity(this.identity);
     this.motion = motion;
     this.legacyMotion = null;

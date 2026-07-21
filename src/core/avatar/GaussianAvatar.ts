@@ -268,7 +268,7 @@ export class GaussianAvatar {
   private readonly viewportVec: InstanceType<typeof THREE.Vector2>;
   private readonly fkScratch: SkinningScratch = createSkinningScratch();
 
-  private motion: GaussianMotion | null = null;
+  private motion: GaussianMotionAsset | null = null;
   private legacyMotion: LegacyMotionData | null;
   private frameCountValue: number;
   /** Extra vertical shift folded into uTrans; previews use it to ground the rest pose. */
@@ -452,7 +452,7 @@ export class GaussianAvatar {
   }
 
   /** Replace the current animation while retaining the identity's static textures. */
-  setMotion(motion: GaussianMotion | null): void {
+  setMotion(motion: GaussianMotionAsset | null): void {
     if (motion) assertReusableIdentity(this.identity);
     this.motion = motion;
     this.legacyMotion = null;

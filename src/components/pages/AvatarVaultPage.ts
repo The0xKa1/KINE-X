@@ -7,6 +7,11 @@ import {
   type AvatarIdentityRecord,
 } from "../../core/avatar/AvatarRegistryClient.js";
 import { GaussianAvatar } from "../../core/avatar/GaussianAvatar.js";
+import {
+  AVATAR_PREVIEW_POSES,
+  createAvatarPreviewPose,
+  type AvatarPreviewPoseId,
+} from "../../core/avatar/AvatarPreviewPoses.js";
 import { THREE } from "../../core/three-compat.js";
 
 interface AvatarVaultPageOptions {
@@ -44,6 +49,7 @@ export class AvatarVaultPage implements Page {
   private yaw = 0;
   private pitch = 0.08;
   private cameraDistance = 4.4;
+  private previewPoseId: AvatarPreviewPoseId = "akimbo";
   private dragging = false;
   private pointerX = 0;
   private pointerY = 0;
@@ -114,6 +120,18 @@ export class AvatarVaultPage implements Page {
               </div>
               <b>01</b>
             </div>
+            <div class="avatar-preview-posebar">
+              <div>
+                <span>PREVIEW POSE</span>
+                <b id="avatarPreviewPoseStatus">选择 READY 身份后可用</b>
+              </div>
+              <div class="avatar-preview-poses" role="group" aria-label="预览姿态">
+                ${AVATAR_PREVIEW_POSES.map((pose) => `
+                  <button type="button" data-preview-pose="${pose.id}" aria-pressed="false" title="${pose.description}" disabled>
+                    <span>${pose.code}</span>${pose.label}
+                  </button>`).join("")}
+              </div>
+            </div>
             <div id="avatarPreviewStage" class="avatar-preview-stage">
               <canvas id="avatarPreviewCanvas" aria-label="可旋转的 3DGS 分身预览"></canvas>
               <div id="avatarPreviewState" class="avatar-preview-state">
@@ -137,6 +155,7 @@ export class AvatarVaultPage implements Page {
     const form = this.requireElement<HTMLFormElement>("#avatarVaultUpload");
     const fileInput = this.requireElement<HTMLInputElement>("#avatarVaultFile");
     const canvas = this.requireElement<HTMLCanvasElement>("#avatarPreviewCanvas");
+    const poseControls = this.requireElement<HTMLElement>(".avatar-preview-poses");
 
     form.addEventListener("submit", (event) => {
       event.preventDefault();
@@ -145,6 +164,17 @@ export class AvatarVaultPage implements Page {
     fileInput.addEventListener("change", () => {
       const label = this.requireElement<HTMLElement>("#avatarVaultFileLabel");
       label.textContent = fileInput.files?.[0]?.name ?? "选择全身照片";
+    });
+    poseControls.addEventListener("click", (event) => {
+      const target = event.target;
+      if (!(target instanceof Element)) return;
+      const button = target.closest<HTMLButtonElement>("[data-preview-pose]");
+      if (!button || button.disabled) return;
+      const poseId = button.dataset.previewPose as AvatarPreviewPoseId;
+      if (!AVATAR_PREVIEW_POSES.some((pose) => pose.id === poseId)) return;
+      this.previewPoseId = poseId;
+      this.applyPreviewPose();
+      this.syncPreviewPoseControls();
     });
     canvas.addEventListener("pointerdown", (event) => {
       if (!this.previewAvatar) return;
@@ -517,6 +547,8 @@ export class AvatarVaultPage implements Page {
       // Identity-only previews have no motion translation to stand on: lift the
       // rest pose so the feet line sits exactly on the grid plane (y = 0).
       avatar.setBaseOffsetY(-avatar.restGroundY);
+      this.applyPreviewPose();
+      this.syncPreviewPoseControls();
       // Arm a one-shot canvas snapshot for cards whose record lacks a preview.
       this.snapshotFramesLeft = !record.previewUrl && !this.cardSnapshots.has(record.avatarId) ? 6 : 0;
       const bufferSize = renderer.getDrawingBufferSize(new THREE.Vector2());
@@ -545,6 +577,28 @@ export class AvatarVaultPage implements Page {
       if (this.snapshotFramesLeft === 0) this.captureCardSnapshot();
     }
     this.previewRaf = requestAnimationFrame(() => this.tickPreview());
+  }
+
+  private applyPreviewPose(): void {
+    if (!this.previewAvatar?.supportsReusableMotion) return;
+    this.previewAvatar.setMotion(createAvatarPreviewPose(this.previewPoseId));
+  }
+
+  private syncPreviewPoseControls(): void {
+    const supportsPose = Boolean(this.previewAvatar?.supportsReusableMotion);
+    this.el.querySelectorAll<HTMLButtonElement>("[data-preview-pose]").forEach((button) => {
+      button.disabled = !supportsPose;
+      button.setAttribute("aria-pressed", String(supportsPose && button.dataset.previewPose === this.previewPoseId));
+    });
+    const status = this.requireElement<HTMLElement>("#avatarPreviewPoseStatus");
+    if (supportsPose) {
+      const pose = AVATAR_PREVIEW_POSES.find((candidate) => candidate.id === this.previewPoseId);
+      status.textContent = pose?.description ?? "实时预览姿态";
+    } else if (this.previewAvatar) {
+      status.textContent = "历史资产仅支持原始姿态";
+    } else {
+      status.textContent = "选择 READY 身份后可用";
+    }
   }
 
   /** Snapshot the freshly rendered frame into the gallery card (same-task capture). */
@@ -618,6 +672,7 @@ export class AvatarVaultPage implements Page {
     this.scene = null;
     this.camera = null;
     this.dragging = false;
+    this.syncPreviewPoseControls();
   }
 
   private renderPreviewMetadata(record: AvatarIdentityRecord): void {
