@@ -140,6 +140,43 @@
   font-variant-numeric: tabular-nums;
 }
 
+.create-api-settings {
+  display: inline-grid;
+  justify-self: start;
+  gap: 4px;
+  width: auto;
+  max-width: 100%;
+  padding: 10px 12px;
+  border: 2px solid var(--ink);
+  background: var(--paper);
+  color: var(--ink);
+  text-align: left;
+  cursor: pointer;
+}
+
+.create-api-settings span,
+.create-api-settings small {
+  font: 700 9px/1.25 var(--mono);
+  letter-spacing: 0.12em;
+  color: var(--muted);
+}
+
+.create-api-settings strong {
+  font: 800 13px/1.2 var(--sans);
+}
+
+.create-api-settings:hover,
+.create-api-settings:focus-visible {
+  background: var(--hot);
+}
+
+.create-api-settings:hover span,
+.create-api-settings:hover small,
+.create-api-settings:focus-visible span,
+.create-api-settings:focus-visible small {
+  color: var(--ink);
+}
+
 /* Class-level display rules beat the UA [hidden] style — restore it here
  * (same pattern as .page[hidden] / .session-idle[hidden]). */
 .create-block .primary-button[hidden],

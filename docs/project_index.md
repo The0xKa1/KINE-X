@@ -77,7 +77,7 @@ KINE//X 的项目结构索引。
 `CalibrationOverlay.ts`：用户标定流程的全屏遮罩与进度（站直采样 / 跳过 / 重做）。
 `ResultsScreen.ts`：结算模态（count-up、印章勋章、四宫格、关节报告表、跳完整报告）；`open()` 时把整场写入 `SessionArchive`；modalA11y 焦点圈禁。
 `DnaDrawer.ts`：右侧 DNA 抽屉（注册进 DrawerStack）。
-`CameraSettings.ts`：摄像头 + MediaPipe + AI API 设置抽屉（设备、分辨率、画面适配、镜像、安全区、模型档位、模态开关、重新校准、AI persona；以及共用 Base URL / API Key、独立 MLLM / 赛后模型）。
+`CameraSettings.ts`：摄像头 + MediaPipe + AI API 设置抽屉（设备、分辨率、画面适配、镜像、安全区、模型档位、模态开关、重新校准、AI persona；以及共用 Base URL / API Key、独立 MLLM / 赛后模型）。`openAiSettings()` 供创作页与赛后面板直接滚动并聚焦 AI 配置区。
 `AiCoachPanel.ts`：流式 AI 教练文本面板（结算模态与报告页各一个实例）。
 
 ## core

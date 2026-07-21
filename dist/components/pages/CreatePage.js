@@ -1,11 +1,11 @@
 
-import { ImportFlow,                                               } from "../../core/import/ImportFlow.js?v=0.1.2";
+import { ImportFlow,                                               } from "../../core/import/ImportFlow.js?v=0.1.3";
 import {
   buildAvatarPickerChoices,
 
-} from "../../core/avatar/AvatarBindingController.js?v=0.1.2";
-import { AvatarRegistryClient } from "../../core/avatar/AvatarRegistryClient.js?v=0.1.2";
-import { $ } from "../../bootstrap/dom.js?v=0.1.2";
+} from "../../core/avatar/AvatarBindingController.js?v=0.1.3";
+import { AvatarRegistryClient } from "../../core/avatar/AvatarRegistryClient.js?v=0.1.3";
+import { $ } from "../../bootstrap/dom.js?v=0.1.3";
 
 
 
@@ -108,8 +108,12 @@ export class CreatePage                 {
             <button id="createSegment" class="secondary-button" type="button">用 MLLM 切片</button>
             <p id="createSegmentSummary" class="segment-summary"></p>
             <div id="createSegmentList" class="segment-list is-empty"></div>
-            <p class="settings-hint">关键帧会由浏览器直接发送到你配置的 OpenAI-compatible MLLM，不经过 KINE//X 服务器。</p>
-            <button id="createApiSettings" class="text-button" type="button">设置 MLLM API →</button>
+            <p class="settings-hint">MLLM 分片和赛后分析都使用你自己的 OpenAI-compatible API，不经过 KINE//X 服务器。</p>
+            <button id="createApiSettings" class="create-api-settings" type="button">
+              <span>MLLM + POST-MATCH</span>
+              <strong>配置 AI API →</strong>
+              <small>服务地址与 Key 共用，两个模型分别填写</small>
+            </button>
           </section>
 
           <section class="create-block">

@@ -136,6 +136,7 @@ export const $$ =                    (selector        )      =>
 
 
 
+
 export function collectDomRefs()          {
   return {
     stageTitle: $("#stageTitle"),
@@ -224,6 +225,7 @@ export function collectDomRefs()          {
     modalityFaceToggle: $("#modalityFaceToggle")                    ,
     recalibrateButton: $("#recalibrateButton")                     ,
     calibrationStatusLabel: $("#calibrationStatusLabel"),
+    aiApiSection: $("#aiApiSettingsSection"),
     llmBaseUrl: $("#llmBaseUrl")                    ,
     llmApiKey: $("#llmApiKey")                    ,
     mllmModel: $("#mllmModel")                    ,

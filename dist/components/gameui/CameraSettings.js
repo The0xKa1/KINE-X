@@ -8,7 +8,8 @@
 
 
 
-import { drawerStack } from "../../core/DrawerStack.js?v=0.1.2";
+import { drawerStack } from "../../core/DrawerStack.js?v=0.1.3";
+
 
 
 
@@ -71,6 +72,7 @@ export class CameraSettings {
           isOpen = false;
           safeZone = false;
           persona               = "biomech";
+          aiHighlightTimer                = null;
 
   constructor(options                       ) {
     this.options = options;
@@ -108,10 +110,28 @@ export class CameraSettings {
     void this.refreshDevices();
   }
 
+  openAiSettings()       {
+    this.open();
+    if (this.aiHighlightTimer !== null) window.clearTimeout(this.aiHighlightTimer);
+    window.requestAnimationFrame(() => {
+      this.options.aiApiSection.scrollIntoView({ block: "start" });
+      this.options.aiApiSection.classList.add("is-targeted");
+      const target =
+        [this.options.llmBaseUrl, this.options.llmApiKey, this.options.mllmModel, this.options.coachModel]
+          .find((input) => !input.value.trim()) ?? this.options.coachModel;
+      target.focus({ preventScroll: true });
+      this.aiHighlightTimer = window.setTimeout(() => {
+        this.options.aiApiSection.classList.remove("is-targeted");
+        this.aiHighlightTimer = null;
+      }, 1600);
+    });
+  }
+
   close()       {
     this.isOpen = false;
     this.options.drawer.classList.remove("is-open");
     drawerStack.close("camera");
+    this.options.aiApiSection.classList.remove("is-targeted");
   }
 
   toggle()       {

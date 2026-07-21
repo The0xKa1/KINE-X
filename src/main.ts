@@ -300,7 +300,7 @@ const aiCoach = new AiCoachPanel({
   root: dom.aiCoachCard,
   textEl: dom.aiCoachText,
   statusEl: dom.aiCoachStatus,
-  onOpenSettings: () => cameraSettings.open(),
+  onOpenSettings: () => cameraSettings.openAiSettings(),
 });
 
 const resultsScreen = new ResultsScreen({
@@ -352,6 +352,7 @@ const cameraSettings = new CameraSettings({
   modalityFaceToggle: dom.modalityFaceToggle,
   recalibrateButton: dom.recalibrateButton,
   calibrationStatusLabel: dom.calibrationStatusLabel,
+  aiApiSection: dom.aiApiSection,
   llmBaseUrl: dom.llmBaseUrl,
   llmApiKey: dom.llmApiKey,
   mllmModel: dom.mllmModel,
@@ -461,7 +462,7 @@ const createPage = new CreatePage({
   el: dom.pageCreate,
   backendUrl: BACKEND_URL,
   getMllmConfig: () => cameraSettings.getMllmConfig(),
-  onOpenSettings: () => cameraSettings.open(),
+  onOpenSettings: () => cameraSettings.openAiSettings(),
   onApply: ({
     id,
     name,
@@ -714,7 +715,7 @@ const reportPage = new ReportPage({
   exercises,
   getLlmConfig: () => cameraSettings.getCoachConfig(),
   getPersona: () => cameraSettings.getPersona(),
-  onOpenSettings: () => cameraSettings.open(),
+  onOpenSettings: () => cameraSettings.openAiSettings(),
 });
 const avatarVaultPage = new AvatarVaultPage({
   el: dom.pageAvatars,

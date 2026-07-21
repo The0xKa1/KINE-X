@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import test from "node:test";
 
 import { streamChat } from "../dist/core/llm/LLMClient.js";
@@ -113,4 +114,23 @@ test("AI clients reject incomplete user configuration before fetching", async (t
     }),
     /Base URL、API Key 和模型/,
   );
+});
+
+test("AI settings entry covers both models and targets the AI section", () => {
+  const createSource = readFileSync(new URL("../src/components/pages/CreatePage.ts", import.meta.url), "utf8");
+  const settingsSource = readFileSync(new URL("../src/components/gameui/CameraSettings.ts", import.meta.url), "utf8");
+  const mainSource = readFileSync(new URL("../src/main.ts", import.meta.url), "utf8");
+  const html = readFileSync(new URL("../index.html", import.meta.url), "utf8");
+  const css = readFileSync(new URL("../src/styles/create.css", import.meta.url), "utf8");
+
+  assert.match(createSource, /MLLM \+ POST-MATCH/);
+  assert.match(createSource, /配置 AI API/);
+  assert.doesNotMatch(createSource, /设置 MLLM API/);
+  assert.match(settingsSource, /openAiSettings\(\)/);
+  assert.match(settingsSource, /aiApiSection\.scrollIntoView/);
+  assert.match(mainSource, /cameraSettings\.openAiSettings\(\)/);
+  assert.match(html, /id="aiApiSettingsSection"/);
+  assert.match(html, /赛后分析模型/);
+  assert.match(css, /\.create-api-settings/);
+  assert.match(css, /width: auto/);
 });

@@ -69,6 +69,23 @@
   background: var(--surface);
 }
 
+.ai-api-settings-section {
+  scroll-margin-top: 8px;
+  transition: background 160ms linear;
+}
+
+.ai-api-settings-section.is-targeted {
+  background: rgba(255, 77, 0, 0.14);
+}
+
+.ai-api-status {
+  margin: 0;
+  padding: 8px 10px;
+  border: 2px solid var(--ink);
+  font: 800 10px/1 var(--mono);
+  letter-spacing: 0.12em;
+}
+
 .drawer-section .section-head {
   display: flex;
   justify-content: space-between;

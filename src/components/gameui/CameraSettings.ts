@@ -33,6 +33,7 @@ interface CameraSettingsOptions {
   modalityFaceToggle: HTMLInputElement;
   recalibrateButton: HTMLButtonElement;
   calibrationStatusLabel: HTMLElement;
+  aiApiSection: HTMLElement;
   llmBaseUrl: HTMLInputElement;
   llmApiKey: HTMLInputElement;
   mllmModel: HTMLInputElement;
@@ -71,6 +72,7 @@ export class CameraSettings {
   private isOpen = false;
   private safeZone = false;
   private persona: CoachPersona = "biomech";
+  private aiHighlightTimer: number | null = null;
 
   constructor(options: CameraSettingsOptions) {
     this.options = options;
@@ -108,10 +110,28 @@ export class CameraSettings {
     void this.refreshDevices();
   }
 
+  openAiSettings(): void {
+    this.open();
+    if (this.aiHighlightTimer !== null) window.clearTimeout(this.aiHighlightTimer);
+    window.requestAnimationFrame(() => {
+      this.options.aiApiSection.scrollIntoView({ block: "start" });
+      this.options.aiApiSection.classList.add("is-targeted");
+      const target =
+        [this.options.llmBaseUrl, this.options.llmApiKey, this.options.mllmModel, this.options.coachModel]
+          .find((input) => !input.value.trim()) ?? this.options.coachModel;
+      target.focus({ preventScroll: true });
+      this.aiHighlightTimer = window.setTimeout(() => {
+        this.options.aiApiSection.classList.remove("is-targeted");
+        this.aiHighlightTimer = null;
+      }, 1600);
+    });
+  }
+
   close(): void {
     this.isOpen = false;
     this.options.drawer.classList.remove("is-open");
     drawerStack.close("camera");
+    this.options.aiApiSection.classList.remove("is-targeted");
   }
 
   toggle(): void {

@@ -94,6 +94,7 @@ export interface DomRefs {
   modalityFaceToggle: HTMLInputElement;
   recalibrateButton: HTMLButtonElement;
   calibrationStatusLabel: HTMLElement;
+  aiApiSection: HTMLElement;
   llmBaseUrl: HTMLInputElement;
   llmApiKey: HTMLInputElement;
   mllmModel: HTMLInputElement;
@@ -224,6 +225,7 @@ export function collectDomRefs(): DomRefs {
     modalityFaceToggle: $("#modalityFaceToggle") as HTMLInputElement,
     recalibrateButton: $("#recalibrateButton") as HTMLButtonElement,
     calibrationStatusLabel: $("#calibrationStatusLabel"),
+    aiApiSection: $("#aiApiSettingsSection"),
     llmBaseUrl: $("#llmBaseUrl") as HTMLInputElement,
     llmApiKey: $("#llmApiKey") as HTMLInputElement,
     mllmModel: $("#mllmModel") as HTMLInputElement,

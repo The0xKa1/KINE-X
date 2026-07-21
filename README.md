@@ -57,7 +57,7 @@ flowchart LR
 | MediaPipe Pose / Hand / Face | 已本地离线运行 |
 | 视频导入为 CoachClip | 已可用：可选 MLLM 分段，上传 SAM3D 后端逐帧重建；训练舱直接回放原视频切片 |
 | 可复用 3DGS 分身 | 已可用：身份（KINEXGI1）× 动作（KINEXGM1）解耦，绑定渐进就绪，训练舱实时组合 |
-| 资产缓存一致性 | 前端 `0.1.2`：入口、CSS 依赖和完整本地业务 ES module 图统一版本；可重烘的身份 / 动作 / 预览 URL 按文件状态自动换版 |
+| 资产缓存一致性 | 前端 `0.1.3`：入口、CSS 依赖和完整本地业务 ES module 图统一版本；可重烘的身份 / 动作 / 预览 URL 按文件状态自动换版 |
 | SAM 3D Body 导入后端 | 已接入，需要本机模型资产与 Python 环境 |
 | 用户标定与实时评分 | 已可用，摄像头开启后参与评分 |
 | Session 结果页与 AI 教练 | 已可用；用户在摄像头设置中填写 Base URL、API Key 与赛后分析模型 |
@@ -91,7 +91,7 @@ http://localhost:5173
 
 ### 2. 配置用户自己的 AI API
 
-打开训练舱右上角的摄像头设置，在 **AI API** 区填写：
+在创作工坊点击紧凑的「配置 AI API」卡片，或打开训练舱右上角的「摄像头与 AI 设置」，页面会直接定位到 **AI API / MLLM + POST-MATCH** 区。MLLM 分片和赛后分析共用前两项连接配置，模型名称分别填写：
 
 - OpenAI-compatible Base URL（例如 `https://api.openai.com/v1`，也可直接填完整的 `/chat/completions` 地址）
 - API Key
