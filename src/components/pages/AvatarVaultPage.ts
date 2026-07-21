@@ -34,6 +34,9 @@ export class AvatarVaultPage implements Page {
   private activePreviewId: string | null = null;
   private previewToken = 0;
   private previewAvatar: GaussianAvatar | null = null;
+  /** Self-healed card thumbnails for identities whose record has no previewUrl. */
+  private readonly cardSnapshots = new Map<string, string>();
+  private snapshotFramesLeft = 0;
   private renderer: InstanceType<typeof THREE.WebGLRenderer> | null = null;
   private scene: InstanceType<typeof THREE.Scene> | null = null;
   private camera: InstanceType<typeof THREE.PerspectiveCamera> | null = null;
@@ -300,9 +303,18 @@ export class AvatarVaultPage implements Page {
     const ready = record.status === "ready" && Boolean(record.identityUrl);
     const failed = record.status === "error" || record.status === "cancelled";
     const progress = clamp(Math.round(record.progress || 0), 0, 100);
-    const preview = record.previewUrl
-      ? `<img src="${escapeAttribute(record.previewUrl)}" alt="${escapeAttribute(record.name)} 的重建预览" loading="lazy" />`
-      : `<div class="avatar-card-placeholder" aria-hidden="true"><i></i><i></i><i></i></div>`;
+    // Cards show the original photo first; the rendered preview/snapshot is
+    // only a fallback for identities without one (e.g. legacy migrations).
+    const photoUrl = record.sourcePhoto && record.identityUrl
+      ? `${record.identityUrl.slice(0, record.identityUrl.lastIndexOf("/") + 1)}${record.sourcePhoto}`
+      : null;
+    const preview = photoUrl
+      ? `<img src="${escapeAttribute(photoUrl)}" alt="${escapeAttribute(record.name)} 的原始照片" loading="lazy" />`
+      : record.previewUrl
+        ? `<img src="${escapeAttribute(record.previewUrl)}" alt="${escapeAttribute(record.name)} 的重建预览" loading="lazy" />`
+        : this.cardSnapshots.has(record.avatarId)
+          ? `<img src="${this.cardSnapshots.get(record.avatarId)!}" alt="${escapeAttribute(record.name)} 的实时渲染快照" loading="lazy" />`
+          : `<div class="avatar-card-placeholder" aria-hidden="true"><b>${escapeHtml(record.name.trim().charAt(0).toUpperCase() || "?")}</b><span>NO PREVIEW · 待快照</span></div>`;
     const statusLabel = record.status === "queued" ? "QUEUED" : record.status.toUpperCase();
     const draft = this.renameDrafts.read(record.avatarId, record.name);
     const rename = this.renamingId === record.avatarId
@@ -502,6 +514,11 @@ export class AvatarVaultPage implements Page {
       }
       this.previewAvatar = avatar;
       scene.add(avatar.object3d);
+      // Identity-only previews have no motion translation to stand on: lift the
+      // rest pose so the feet line sits exactly on the grid plane (y = 0).
+      avatar.setBaseOffsetY(-avatar.restGroundY);
+      // Arm a one-shot canvas snapshot for cards whose record lacks a preview.
+      this.snapshotFramesLeft = !record.previewUrl && !this.cardSnapshots.has(record.avatarId) ? 6 : 0;
       const bufferSize = renderer.getDrawingBufferSize(new THREE.Vector2());
       avatar.setViewport(bufferSize.x, bufferSize.y);
       this.renderPreviewMetadata(record);
@@ -523,7 +540,34 @@ export class AvatarVaultPage implements Page {
     this.resizePreview();
     this.previewAvatar.update(this.camera);
     this.renderer.render(this.scene, this.camera);
+    if (this.snapshotFramesLeft > 0) {
+      this.snapshotFramesLeft -= 1;
+      if (this.snapshotFramesLeft === 0) this.captureCardSnapshot();
+    }
     this.previewRaf = requestAnimationFrame(() => this.tickPreview());
+  }
+
+  /** Snapshot the freshly rendered frame into the gallery card (same-task capture). */
+  private captureCardSnapshot(): void {
+    const avatarId = this.activePreviewId;
+    if (!avatarId || this.cardSnapshots.has(avatarId)) return;
+    const record = this.records.find((candidate) => candidate.avatarId === avatarId);
+    if (!record || record.previewUrl) return;
+    const canvas = this.requireElement<HTMLCanvasElement>("#avatarPreviewCanvas");
+    let dataUrl: string;
+    try {
+      dataUrl = canvas.toDataURL("image/png");
+    } catch {
+      return; // tainted or unreadable canvas: keep the placeholder
+    }
+    this.cardSnapshots.set(avatarId, dataUrl);
+    const image = this.el.querySelector<HTMLElement>(`[data-select-avatar="${avatarId}"] .avatar-card-image`);
+    image?.querySelector(".avatar-card-placeholder")?.replaceWith(
+      Object.assign(document.createElement("img"), {
+        src: dataUrl,
+        alt: `${record.name} 的实时渲染快照`,
+      }),
+    );
   }
 
   private resizePreview(): void {
@@ -561,6 +605,7 @@ export class AvatarVaultPage implements Page {
   private disposePreview(): void {
     this.previewToken += 1;
     this.activePreviewId = null;
+    this.snapshotFramesLeft = 0;
     if (this.previewRaf) cancelAnimationFrame(this.previewRaf);
     this.previewRaf = 0;
     if (this.previewAvatar) {

@@ -271,6 +271,8 @@ export class GaussianAvatar {
   private motion: GaussianMotion | null = null;
   private legacyMotion: LegacyMotionData | null;
   private frameCountValue: number;
+  /** Extra vertical shift folded into uTrans; previews use it to ground the rest pose. */
+  private baseOffsetY = 0;
 
   private frameIndex = -1;
   private sortDirty = true;
@@ -410,6 +412,32 @@ export class GaussianAvatar {
     return this.identity.count;
   }
 
+  /** Lowest opaque gaussian centre Y in the rest pose — the feet line. */
+  get restGroundY(): number {
+    const { centers, opacities, count } = this.identity;
+    let min = Infinity;
+    for (let g = 0; g < count; g++) {
+      if (opacities[g]! < 0.5) continue;
+      const y = centers[g * 3 + 1]!;
+      if (y < min) min = y;
+    }
+    if (min !== Infinity) return min;
+    for (let g = 0; g < count; g++) {
+      const y = centers[g * 3 + 1]!;
+      if (y < min) min = y;
+    }
+    return min === Infinity ? 0 : min;
+  }
+
+  /** Fold a constant vertical shift into every frame's root translation. */
+  setBaseOffsetY(offsetY: number): void {
+    if (!Number.isFinite(offsetY) || offsetY === this.baseOffsetY) return;
+    this.baseOffsetY = offsetY;
+    const current = this.frameIndex;
+    this.frameIndex = -1;
+    this.setFrame(Math.max(current, 0));
+  }
+
   get currentFrameIndex(): number {
     return this.frameIndex;
   }
@@ -465,6 +493,7 @@ export class GaussianAvatar {
       writeIdentityMatrices(this.boneTexels);
       this.transVec.set(0, 0, 0);
     }
+    if (this.baseOffsetY !== 0) this.transVec.y += this.baseOffsetY;
     this.boneTexture.needsUpdate = true;
     this.sortDirty = true;
     if (this.lastCamera) this.sortFor(this.lastCamera);
