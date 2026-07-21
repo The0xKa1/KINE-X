@@ -12,7 +12,10 @@ import numpy as np
 from backend.avatar_assets import (
     axis_angle_to_quaternion,
     pack_motion_jsons,
+    resample_motion_frames,
     split_legacy_asset,
+    unpack_motion_asset,
+    write_motion_asset,
 )
 
 
@@ -263,6 +266,83 @@ class AvatarAssetCodecTests(unittest.TestCase):
             np.testing.assert_allclose(rotations[0], [0, 0, 0, 1])
             np.testing.assert_allclose(rotations[1], [0, 0, np.sqrt(0.5), np.sqrt(0.5)], rtol=1e-6)
             np.testing.assert_allclose(np.frombuffer(payload[JOINTS * 4 * 4 :], dtype="<f4"), [1, 2, 3])
+
+    def test_pack_motion_jsons_resamples_to_coach_frame_count(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            frame_paths = []
+            poses = np.zeros((JOINTS, 3), dtype=float)
+            poses[1] = [0, 0, np.pi / 2]
+            for index, x in enumerate((0.0, 1.0, 2.0, 3.0)):
+                path = root / f"frame-{index:03}.json"
+                path.write_text(json.dumps({"poses": poses.tolist(), "trans": [x, 0, 0]}))
+                frame_paths.append(path)
+            output = root / "motion.bin"
+
+            meta = pack_motion_jsons(
+                frame_paths, output, fps=15, stage_transform={"scale": 1}, target_frames=2
+            )
+
+            self.assertEqual(meta["frames"], 2)
+            (frames, joints), _, payload = _read_split(output, b"KINEXGM1")
+            self.assertEqual((frames, joints), (2, JOINTS))
+            trans = np.frombuffer(payload[2 * JOINTS * 4 * 4 :], dtype="<f4").reshape(2, 3)
+            np.testing.assert_allclose(trans, [[0, 0, 0], [3, 0, 0]], rtol=1e-6)
+
+    def test_resample_motion_frames_slerps_rotations_and_lerps_translations(self) -> None:
+        rotations = np.zeros((2, JOINTS, 4), dtype=np.float32)
+        rotations[:, :, 3] = 1.0
+        half = np.sqrt(0.5)
+        rotations[1, 0] = [0, 0, half, half]  # 90 degrees about z
+        trans = np.array([[0, 0, 0], [2, 4, 6]], dtype=np.float32)
+
+        resampled_rotations, resampled_trans = resample_motion_frames(rotations, trans, 3)
+
+        self.assertEqual(resampled_rotations.shape, (3, JOINTS, 4))
+        np.testing.assert_allclose(resampled_rotations[0, 0], [0, 0, 0, 1], atol=1e-6)
+        np.testing.assert_allclose(
+            resampled_rotations[1, 0],
+            [0, 0, np.sin(np.pi / 8), np.cos(np.pi / 8)],
+            atol=1e-6,
+        )
+        np.testing.assert_allclose(resampled_rotations[2, 0], [0, 0, half, half], atol=1e-6)
+        np.testing.assert_allclose(resampled_trans, [[0, 0, 0], [1, 2, 3], [2, 4, 6]], atol=1e-6)
+
+    def test_resample_motion_frames_aligns_quaternion_hemisphere(self) -> None:
+        rotations = np.zeros((2, JOINTS, 4), dtype=np.float32)
+        rotations[0, :, 3] = 1.0
+        rotations[1, :, 3] = -1.0  # same rotation as identity, opposite hemisphere
+        trans = np.zeros((2, 3), dtype=np.float32)
+
+        resampled_rotations, _ = resample_motion_frames(rotations, trans, 3)
+
+        np.testing.assert_allclose(np.abs(resampled_rotations[:, :, 3]), 1.0, atol=1e-6)
+
+    def test_motion_asset_write_unpack_round_trip(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            output = root / "motion.bin"
+            rotations = np.zeros((4, JOINTS, 4), dtype=np.float32)
+            rotations[:, :, 3] = 1.0
+            trans = np.arange(12, dtype=np.float32).reshape(4, 3)
+            meta = {"fps": 15, "stageTransform": {"scale": 1.0, "t": [0, 1, 2]}}
+
+            written = write_motion_asset(output, meta, rotations, trans)
+            parsed_meta, parsed_rotations, parsed_trans = unpack_motion_asset(output)
+
+            self.assertEqual(written["frames"], 4)
+            self.assertEqual(parsed_meta, written)
+            np.testing.assert_array_equal(parsed_rotations, rotations)
+            np.testing.assert_array_equal(parsed_trans, trans)
+
+            resampled_rotations, resampled_trans = resample_motion_frames(
+                parsed_rotations, parsed_trans, 2
+            )
+            rewritten = write_motion_asset(output, parsed_meta, resampled_rotations, resampled_trans)
+            reparsed_meta, _, reparsed_trans = unpack_motion_asset(output)
+            self.assertEqual(rewritten["frames"], 2)
+            self.assertEqual(reparsed_meta["frames"], 2)
+            np.testing.assert_allclose(reparsed_trans, [trans[0], trans[3]], atol=1e-6)
 
     def test_axis_angle_to_quaternion_returns_identity_for_zero_rotation(self) -> None:
         np.testing.assert_array_equal(

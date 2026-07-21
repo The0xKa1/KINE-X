@@ -23,6 +23,7 @@ pipeline_stub.run_pipeline = lambda **_kwargs: {}
 with mock.patch.dict(sys.modules, {"backend.pipeline": pipeline_stub}):
     from backend import app as app_module
 from backend.avatar_registry import AvatarRegistry
+from backend.avatar_assets import unpack_motion_asset
 
 
 class AvatarBindingApiTests(unittest.TestCase):
@@ -62,6 +63,9 @@ class AvatarBindingApiTests(unittest.TestCase):
                 ),
                 encoding="utf-8",
             )
+            # Deliberately differs from the multipart upload bytes.  The motion
+            # worker must receive this sliced artifact, not the full upload.
+            (job_dir / "segment.mp4").write_bytes(b"cropped-segment-bytes")
             return {
                 "jobId": kwargs["job_id"],
                 "coachClipUrl": "public/coach_clips/jobs/test/coach.json",
@@ -74,6 +78,7 @@ class AvatarBindingApiTests(unittest.TestCase):
                 "fps": 15,
                 "name": "test",
                 "motion": "squat",
+                "sourceVideoUrl": f"public/coach_clips/jobs/{kwargs['job_id']}/segment.mp4",
             }
 
         def persist_source(video_path: Path, job_id: str) -> Path:
@@ -184,10 +189,20 @@ class AvatarBindingApiTests(unittest.TestCase):
             identityUrl=f"avatar-identities/{name.lower()}/identity.bin",
         )
 
-    def _import(self, avatar_id: str | None = None):
+    def _import(
+        self,
+        avatar_id: str | None = None,
+        *,
+        start_sec: float | None = None,
+        end_sec: float | None = None,
+    ):
         data = {"name": "test", "motion": "squat"}
         if avatar_id is not None:
             data["avatarId"] = avatar_id
+        if start_sec is not None:
+            data["startSec"] = str(start_sec)
+        if end_sec is not None:
+            data["endSec"] = str(end_sec)
         return self.client.post(
             "/import/video",
             files={"file": ("motion.mp4", b"video-bytes", "video/mp4")},
@@ -224,7 +239,7 @@ class AvatarBindingApiTests(unittest.TestCase):
     def test_selected_identity_returns_ordinary_result_with_queued_binding_immediately(self) -> None:
         identity = self._ready_identity()
 
-        response = self._import(identity["avatarId"])
+        response = self._import(identity["avatarId"], start_sec=4, end_sec=14)
 
         self.assertEqual(response.status_code, 200)
         result = response.json()
@@ -235,6 +250,13 @@ class AvatarBindingApiTests(unittest.TestCase):
         self.assertTrue(self.motion_started.wait(timeout=2))
         source = self.private_jobs_root / result["jobId"] / ".avatar-source.mp4"
         self.assertTrue(source.is_file())
+        self.assertEqual(source.read_bytes(), b"cropped-segment-bytes")
+        self.assertEqual(
+            self.persist_calls,
+            [(self.jobs_root / result["jobId"] / "segment.mp4", result["jobId"])],
+        )
+        self.assertEqual(self.pipeline_calls[0]["start_sec"], 4)
+        self.assertEqual(self.pipeline_calls[0]["end_sec"], 14)
         self.assertFalse(
             (self.jobs_root / result["jobId"] / ".avatar-source.mp4").exists()
         )
@@ -601,6 +623,112 @@ class AvatarMotionAdapterTests(unittest.TestCase):
             ) * stage_transform["scale"] + np.asarray(stage_transform["t"])
             np.testing.assert_allclose(
                 np.ptp(transformed_roots, axis=0), [1.0, 2.0, 2.0]
+            )
+
+    def test_prepare_motion_resamples_lhm_frames_to_coach_clip_length(self) -> None:
+        avatar_motion = self._module()
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            source = root / "source.mp4"
+            source.write_bytes(b"video")
+            coach_path = root / "coach.json"
+            coach_path.write_text(
+                json.dumps(
+                    {
+                        "frames": [
+                            {"pelvis": {"position": [0, 0, 0]}},
+                            {"pelvis": {"position": [3, 0, 0]}},
+                        ]
+                    }
+                ),
+                encoding="utf-8",
+            )
+            output = root / "motion" / "motion.bin"
+
+            def run_lhm(command, **kwargs):
+                output_root = Path(command[command.index("--output_path") + 1])
+                params = output_root / source.stem / "smplx_params"
+                params.mkdir(parents=True)
+                for index in range(4):
+                    frame = {
+                        "poses": [[0, 0, 0]] * 55,
+                        "trans": [float(index), 0, 0],
+                    }
+                    (params / f"{index:05}.json").write_text(
+                        json.dumps(frame), encoding="utf-8"
+                    )
+                return SimpleNamespace(returncode=0, stdout="ok", stderr="")
+
+            with mock.patch.object(avatar_motion.config, "LHM_PYTHON", root / "python"), \
+                 mock.patch.object(avatar_motion.config, "LHM_MOTION_SCRIPT", root / "video2motion.py"), \
+                 mock.patch.object(avatar_motion.config, "LHM_MOTION_MODEL_PATH", root / "model"), \
+                 mock.patch.object(avatar_motion.config, "LHM_WORKDIR", root), \
+                 mock.patch.object(avatar_motion.subprocess, "run", side_effect=run_lhm):
+                meta = avatar_motion.prepare_motion_asset(
+                    source, coach_path, output, fps=15
+                )
+
+            self.assertEqual(meta["frames"], 2)
+            _, rotations, trans = unpack_motion_asset(output)
+            self.assertEqual(rotations.shape, (2, 55, 4))
+            np.testing.assert_allclose(trans[:, 0], [0.0, 3.0], atol=1e-6)
+
+    def test_prepare_motion_removes_lhm_duplicated_full_video_pass(self) -> None:
+        avatar_motion = self._module()
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            source = root / "source.mp4"
+            source.write_bytes(b"video")
+            coach_path = root / "coach.json"
+            coach_path.write_text(
+                json.dumps(
+                    {
+                        "frames": [
+                            {"pelvis": {"position": [float(index), 0, 0]}}
+                            for index in range(4)
+                        ]
+                    }
+                ),
+                encoding="utf-8",
+            )
+            output = root / "motion" / "motion.bin"
+            progress_notes: list[str] = []
+
+            def run_lhm(command, **kwargs):
+                output_root = Path(command[command.index("--output_path") + 1])
+                params = output_root / source.stem / "smplx_params"
+                params.mkdir(parents=True)
+                # Mirrors the affected upstream load_video(): the complete
+                # sequence is appended twice, not each frame duplicated.
+                for index, translation in enumerate((0.0, 10.0, 0.0, 10.0)):
+                    frame = {
+                        "poses": [[0, 0, 0]] * 55,
+                        "trans": [translation, 0, 0],
+                    }
+                    (params / f"{index:05}.json").write_text(
+                        json.dumps(frame), encoding="utf-8"
+                    )
+                return SimpleNamespace(returncode=0, stdout="ok", stderr="")
+
+            with mock.patch.object(avatar_motion.config, "LHM_PYTHON", root / "python"), \
+                 mock.patch.object(avatar_motion.config, "LHM_MOTION_SCRIPT", root / "video2motion.py"), \
+                 mock.patch.object(avatar_motion.config, "LHM_MOTION_MODEL_PATH", root / "model"), \
+                 mock.patch.object(avatar_motion.config, "LHM_WORKDIR", root), \
+                 mock.patch.object(avatar_motion.subprocess, "run", side_effect=run_lhm):
+                avatar_motion.prepare_motion_asset(
+                    source,
+                    coach_path,
+                    output,
+                    fps=15,
+                    progress=lambda _current, _total, note: progress_notes.append(note),
+                )
+
+            _, _, trans = unpack_motion_asset(output)
+            np.testing.assert_allclose(
+                trans[:, 0], [0.0, 10.0 / 3.0, 20.0 / 3.0, 10.0], atol=1e-6
+            )
+            self.assertTrue(
+                any("removed duplicated full-video pass" in note for note in progress_notes)
             )
 
     def test_prepare_motion_decodes_subprocess_output_independent_of_locale(self) -> None:

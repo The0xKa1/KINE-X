@@ -59,7 +59,12 @@ def prepare_motion_asset(
     fps: float,
     progress: Callable[[int, int, str], None] | None = None,
 ) -> dict:
-    """Run LHM, normalize its split SMPL-X JSON, then atomically pack motion."""
+    """Run LHM, normalize its split SMPL-X JSON, then atomically pack motion.
+
+    ``source_video`` must be the exact temporal segment used to build
+    ``coach_clip``. The extracted sequence is then time-linearly resampled to
+    the CoachClip frame count so every runtime layer shares one progress axis.
+    """
     source_video = Path(source_video).resolve()
     coach_clip = Path(coach_clip).resolve()
     output_path = Path(output_path).resolve()
@@ -99,10 +104,19 @@ def prepare_motion_asset(
         if completed.returncode != 0:
             detail = (completed.stderr or completed.stdout or "unknown error")[-2000:]
             raise RuntimeError(f"LHM video2motion failed: {detail}")
-        frame_paths = sorted(lhm_output.glob("**/smplx_params/*.json"))
-        if not frame_paths:
+        raw_frame_paths = sorted(lhm_output.glob("**/smplx_params/*.json"))
+        if not raw_frame_paths:
             raise RuntimeError("LHM video2motion produced no SMPL-X frame JSON")
-        emit(1, 3, f"LHM extracted {len(frame_paths)} frames")
+        frame_paths = _collapse_duplicated_lhm_pass(raw_frame_paths)
+        if len(frame_paths) != len(raw_frame_paths):
+            emit(
+                1,
+                3,
+                f"LHM extracted {len(raw_frame_paths)} frames; removed duplicated full-video pass "
+                f"({len(frame_paths)} unique frames)",
+            )
+        else:
+            emit(1, 3, f"LHM extracted {len(frame_paths)} frames")
 
         stage_transform = compute_stage_transform(frame_paths, coach_clip)
         normalized_dir = work / "normalized"
@@ -111,12 +125,18 @@ def prepare_motion_asset(
             _normalize_lhm_frame(path, normalized_dir / f"{index:05}.json")
             for index, path in enumerate(frame_paths, start=1)
         ]
-        emit(2, 3, "packing local xyzw quaternions")
+        # LHM's sampling count can differ from the CoachClip even though both
+        # cover the same sliced segment. The stage transform is a constant
+        # spatial offset, so aligning on the raw LHM sampling and resampling at
+        # pack time is equivalent to resampling first.
+        coach_frames = len(_coach_pelvis_positions(coach_clip))
+        emit(2, 3, f"packing local xyzw quaternions ({len(frame_paths)}→{coach_frames} frames)")
         meta = pack_motion_jsons(
             normalized_paths,
             output_path,
             fps=fps,
             stage_transform=stage_transform,
+            target_frames=coach_frames,
         )
         emit(3, 3, "motion asset ready")
         return meta
@@ -163,7 +183,44 @@ def _resample_trajectory(values: np.ndarray, count: int) -> np.ndarray:
     )
 
 
+def _collapse_duplicated_lhm_pass(frame_paths: Iterable[Path]) -> list[Path]:
+    """Remove the exact second pass emitted by affected LHM checkouts.
+
+    Alibaba LHM's ``video2motion.py`` currently opens and appends the input
+    video inside ``for i in range(2)``, producing ``video + video`` rather than
+    one motion sequence.  Detect the defect from the generated SMPL-X values
+    instead of assuming a particular frame count, so normal high-FPS output is
+    left untouched.
+    """
+    paths = [Path(path) for path in frame_paths]
+    if len(paths) < 2 or len(paths) % 2:
+        return paths
+    half = len(paths) // 2
+    for first, second in zip(paths[:half], paths[half:]):
+        first_pose, first_trans = _lhm_frame_values(first)
+        second_pose, second_trans = _lhm_frame_values(second)
+        if not (
+            np.allclose(first_pose, second_pose, rtol=1e-6, atol=1e-7)
+            and np.allclose(first_trans, second_trans, rtol=1e-6, atol=1e-7)
+        ):
+            return paths
+    return paths[:half]
+
+
 def _normalize_lhm_frame(source: Path, target: Path) -> Path:
+    poses, translation = _lhm_frame_values(source)
+    target.write_text(
+        json.dumps(
+            {"poses": poses.tolist(), "trans": translation.tolist()},
+            separators=(",", ":"),
+            allow_nan=False,
+        ),
+        encoding="utf-8",
+    )
+    return target
+
+
+def _lhm_frame_values(source: Path) -> tuple[np.ndarray, np.ndarray]:
     frame = _json_frame(source)
     if "poses" in frame:
         poses = np.asarray(frame["poses"], dtype=np.float64)
@@ -190,15 +247,7 @@ def _normalize_lhm_frame(source: Path, target: Path) -> Path:
     if poses.shape != (55, 3) or not np.isfinite(poses).all():
         raise ValueError(f"{source} must contain 55 finite axis-angle rotations")
     translation = _translation_from_json(source)
-    target.write_text(
-        json.dumps(
-            {"poses": poses.tolist(), "trans": translation.tolist()},
-            separators=(",", ":"),
-            allow_nan=False,
-        ),
-        encoding="utf-8",
-    )
-    return target
+    return poses, translation
 
 
 def _json_frame(path: Path) -> dict:

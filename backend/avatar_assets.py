@@ -88,14 +88,141 @@ def split_legacy_asset(
     return identity_meta, motion_meta
 
 
+def resample_motion_frames(
+    rotations: Any,
+    translations: Any,
+    target_count: int,
+) -> tuple[np.ndarray, np.ndarray]:
+    """Time-linearly resample a quaternion motion to ``target_count`` frames.
+
+    Rotations are (frames, joints, 4) xyzw quaternions interpolated with slerp
+    (hemisphere-aligned, nlerp fallback for nearly identical keys); root
+    translations are (frames, 3) and interpolated linearly.  Source and target
+    sequences share the same normalized time span [0, 1].
+    """
+    quats = np.asarray(rotations, dtype=np.float64)
+    trans = np.asarray(translations, dtype=np.float64)
+    if quats.ndim != 3 or quats.shape[2] != 4 or quats.shape[0] < 1:
+        raise ValueError("rotations must have shape (frames, joints, 4)")
+    if trans.shape != (quats.shape[0], 3):
+        raise ValueError("translations must have shape (frames, 3)")
+    if isinstance(target_count, bool) or not isinstance(target_count, int) or target_count < 1:
+        raise ValueError("target_count must be a positive integer")
+    _require_finite(quats, "rotations")
+    _require_finite(trans, "translations")
+    source_count = quats.shape[0]
+    if source_count == target_count:
+        return (
+            quats.astype(np.float32),
+            trans.astype(np.float32),
+        )
+    if source_count == 1:
+        return (
+            np.repeat(quats.astype(np.float32), target_count, axis=0),
+            np.repeat(trans.astype(np.float32), target_count, axis=0),
+        )
+
+    position = np.linspace(0.0, source_count - 1.0, target_count)
+    lower = np.minimum(position.astype(np.int64), source_count - 2)
+    upper = lower + 1
+    alpha = (position - lower).astype(np.float64)[:, None, None]
+
+    q0 = quats[lower]
+    q1 = quats[upper]
+    dots = np.sum(q0 * q1, axis=-1, keepdims=True)
+    q1 = np.where(dots < 0.0, -q1, q1)
+    dots = np.abs(dots)
+    # Slerp, falling back to normalized lerp when the keys nearly coincide.
+    small = dots > 1.0 - 1e-9
+    safe_dots = np.clip(np.where(small, 0.0, dots), -1.0, 1.0)
+    omega = np.arccos(safe_dots)
+    sin_omega = np.sin(omega)
+    weight0 = np.where(small, 1.0 - alpha, np.sin((1.0 - alpha) * omega) / sin_omega)
+    weight1 = np.where(small, alpha, np.sin(alpha * omega) / sin_omega)
+    blended = weight0 * q0 + weight1 * q1
+    norms = np.linalg.norm(blended, axis=-1, keepdims=True)
+    if not np.all(norms > 1e-12):
+        raise ValueError("quaternion interpolation produced a degenerate result")
+    resampled_rotations = (blended / norms).astype(np.float32)
+    alpha_trans = alpha[:, :, 0]
+    resampled_trans = (
+        (1.0 - alpha_trans) * trans[lower] + alpha_trans * trans[upper]
+    ).astype(np.float32)
+    return resampled_rotations, resampled_trans
+
+
+def write_motion_asset(
+    output_path: str | Path,
+    meta: dict,
+    rotations: Any,
+    translations: Any,
+) -> dict:
+    """Atomically write a KINEXGM1 motion file from xyzw quaternion arrays."""
+    quats = np.asarray(rotations, dtype=np.float32)
+    trans = np.asarray(translations, dtype=np.float32)
+    if quats.ndim != 3 or quats.shape[0] < 1 or quats.shape[1] != JOINT_COUNT or quats.shape[2] != 4:
+        raise ValueError(f"rotations must have shape (frames, {JOINT_COUNT}, 4)")
+    if trans.shape != (quats.shape[0], 3):
+        raise ValueError("translations must have shape (frames, 3)")
+    _validate_quaternions(quats)
+    _require_finite(trans, "translations")
+    if not isinstance(meta, dict):
+        raise ValueError("meta must be a JSON object")
+    merged = dict(meta)
+    merged.update(
+        {
+            "format": MOTION_MAGIC.decode(),
+            "frames": int(quats.shape[0]),
+            "jointCount": JOINT_COUNT,
+        }
+    )
+    payload = quats.astype("<f4", copy=False).tobytes() + trans.astype("<f4", copy=False).tobytes()
+    _write_asset(output_path, MOTION_MAGIC, (int(quats.shape[0]), JOINT_COUNT), merged, payload)
+    return merged
+
+
+def unpack_motion_asset(source: str | Path) -> tuple[dict, np.ndarray, np.ndarray]:
+    """Read a KINEXGM1 motion file into (metadata, xyzw rotations, translations)."""
+    raw = Path(source).read_bytes()
+    if len(raw) < 20:
+        raise ValueError("truncated KINEXGM1 header")
+    if raw[:8] != MOTION_MAGIC:
+        raise ValueError("invalid KINEXGM1 magic")
+    frames, joints, header_length = struct.unpack_from("<3I", raw, 8)
+    if frames < 1:
+        raise ValueError("motion frame count must be at least one")
+    if joints != JOINT_COUNT:
+        raise ValueError(f"joint count must be exactly {JOINT_COUNT}")
+    header_end = 20 + header_length
+    if len(raw) < header_end:
+        raise ValueError("truncated KINEXGM1 metadata")
+    meta = _json_object(raw[20:header_end], "KINEXGM1 metadata")
+    rotation_length = frames * joints * 4 * 4
+    trans_length = frames * 3 * 4
+    expected_length = header_end + rotation_length + trans_length
+    if len(raw) != expected_length:
+        raise ValueError("unexpected KINEXGM1 payload length")
+    rotations = np.frombuffer(raw, dtype="<f4", count=frames * joints * 4, offset=header_end).reshape(frames, joints, 4)
+    trans = np.frombuffer(raw, dtype="<f4", count=frames * 3, offset=header_end + rotation_length).reshape(frames, 3)
+    _require_finite(rotations, "motion local rotations")
+    _require_finite(trans, "motion translations")
+    return meta, rotations.copy(), trans.copy()
+
+
 def pack_motion_jsons(
     paths: Iterable[str | Path],
     output_path: str | Path,
     *,
     fps: float,
     stage_transform: dict,
+    target_frames: int | None = None,
 ) -> dict:
-    """Pack LHM per-frame axis-angle JSON into a reusable KINEXGM1 motion file."""
+    """Pack LHM per-frame axis-angle JSON into a reusable KINEXGM1 motion file.
+
+    When ``target_frames`` is given (the CoachClip frame count), the packed
+    sequence is time-linearly resampled to that length so the asset duration
+    matches the clip it was extracted from.
+    """
     frame_paths = [Path(path) for path in paths]
     if not frame_paths:
         raise ValueError("motion requires at least one frame JSON")
@@ -120,17 +247,20 @@ def pack_motion_jsons(
 
     local_rotations = np.stack(rotations).astype(np.float32, copy=False)
     trans = np.stack(translations).astype(np.float32, copy=False)
+    if target_frames is not None:
+        local_rotations, trans = resample_motion_frames(local_rotations, trans, target_frames)
     _validate_quaternions(local_rotations)
     _require_finite(trans, "translations")
+    frame_count = int(local_rotations.shape[0])
     meta = {
         "format": MOTION_MAGIC.decode(),
-        "frames": len(frame_paths),
+        "frames": frame_count,
         "jointCount": JOINT_COUNT,
         "fps": fps,
         "stageTransform": stage_transform,
     }
     payload = local_rotations.astype("<f4", copy=False).tobytes() + trans.astype("<f4", copy=False).tobytes()
-    _write_asset(output_path, MOTION_MAGIC, (len(frame_paths), JOINT_COUNT), meta, payload)
+    _write_asset(output_path, MOTION_MAGIC, (frame_count, JOINT_COUNT), meta, payload)
     return meta
 
 

@@ -833,6 +833,8 @@ async def import_video(
                     name=result.get("name"),
                     coachClipUrl=result.get("coachClipUrl"),
                     meshClipMetaUrl=result.get("meshClipMetaUrl"),
+                    sourceVideoUrl=result.get("sourceVideoUrl"),
+                    durationSeconds=result.get("durationSeconds"),
                     motionAssetUrl=None,
                     error=None,
                 )
@@ -863,8 +865,14 @@ async def import_video(
                         _AVATAR_REGISTRY.motions_dir / motion["motionId"] / "motion.bin"
                     )
                     coach_path = config.PUBLIC_JOBS_DIR / job_id / "coach.json"
+                    # The coach clip, timeline thumbnails and browser video are
+                    # all derived from this already-sliced segment.  LHM must
+                    # consume the same temporal interval; copying upload_path
+                    # here would silently animate the full original video when
+                    # startSec/endSec selected only a portion of it.
+                    segment_path = config.PUBLIC_JOBS_DIR / job_id / "segment.mp4"
                     try:
-                        source_video = pipeline.persist_source_video(upload_path, job_id)
+                        source_video = pipeline.persist_source_video(segment_path, job_id)
                     except Exception as exc:  # noqa: BLE001
                         message = str(exc) or repr(exc)
                         _AVATAR_REGISTRY.upsert_motion(
