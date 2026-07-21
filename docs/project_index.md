@@ -8,7 +8,7 @@ KINE//X 的项目结构索引。
 
 ## 根目录
 
-`index.html`：浏览器入口，加载 `src/styles.css` 与构建后的 `dist/main.js`；含 boot overlay、五个页面容器（`#page-library` / `#page-train` / `#page-report` / `#page-create` / `#page-avatars`）、两个全局抽屉与两个模态；importmap 把 `@mediapipe/tasks-vision` 映射到 `public/mediapipe/`，把 `three` 映射到 `public/three/`。
+`index.html`：浏览器入口，按 `package.json` 版本加载 `src/styles.css?v=…` 与构建后的 `dist/main.js?v=…`；含 boot overlay、五个页面容器（`#page-library` / `#page-train` / `#page-report` / `#page-create` / `#page-avatars`）、两个全局抽屉与两个模态；importmap 把 `@mediapipe/tasks-vision` 映射到 `public/mediapipe/`，把 `three` 映射到 `public/three/`。
 `package.json`：本地命令入口（build / dev / check / server:install / server）。
 `tsconfig.json`：TypeScript 诊断配置（`noEmit: true`），不负责构建输出。
 `README.md`：使用说明、模块清单、数据契约。
@@ -26,7 +26,7 @@ KINE//X 的项目结构索引。
 
 ## 常用命令
 
-`npm run build`：将 `src/**/*.ts` 类型擦除为 `dist/**/*.js`（Node 内置 `stripTypeScriptTypes`，无打包）。
+`npm run build`：将 `src/**/*.ts` 类型擦除为 `dist/**/*.js`，并为构建产物内相对 `.js` import 追加与 `package.json` 一致的版本 query（Node 内置 `stripTypeScriptTypes`，无打包）。
 `npm run dev`：构建并启动 `5173` 静态服务。
 `npm run check`：构建并跑 `scripts/guardrails.mjs`，是唯一发布门禁。
 `npm run server:install` / `npm run server`：安装并启动 LLM 代理（:8766，需 `.env`）。
@@ -110,7 +110,7 @@ KINE//X 的项目结构索引。
 `AvatarAssets.ts`：`KINEXGI1` / `KINEXGM1` / 历史 `KINEXGS1` 二进制解析与校验；四元数 FK、休息骨架皮肤矩阵和 stage similarity 只应用一次。
 `GaussianAvatar.ts`：高斯分身渲染器；可分别加载身份与 `GaussianMotion`，顶点 shader 做 top-4 LBS，CPU 做深度排序。
 `AvatarRegistryClient.ts`：`/avatars` CRUD 与低频 watch；明确区分服务离线、HTTP 失败和本地重命名草稿。
-`AvatarBindingController.ts`：按 seed 保存绑定快照，轮询 `/avatar-bindings`，对排队/运行/就绪/失败做非阻塞呈现，并能从服务器 motionId 重建 localStorage 丢失的绑定。
+`AvatarBindingController.ts`：按 seed 保存绑定快照，轮询 `/avatar-bindings`，对排队/运行/就绪/失败做非阻塞呈现，并能从服务器 motionId 重建 localStorage 丢失的绑定；启动 discovery 也会刷新已 ready 快照，使重烘后的版本 URL 替换旧浏览器缓存。
 
 ### core/scoring
 
@@ -148,7 +148,7 @@ KINE//X 的项目结构索引。
 
 ## styles
 
-`src/styles.css`：仅含 `@import` 入口（22 个分文件）。
+`src/styles.css`：仅含带统一版本 query 的 `@import` 入口（23 个分文件）。
 `styles/tokens.css`：颜色、字体、`--hairline`、`--slant`、`--mono-cjk` 等变量。
 `styles/base.css`：reset、`app-shell`、`workspace` 网格、全局噪点纹理层。
 `styles/controls.css`：按钮、range、toggle、segmented、status / risk badge（统一 hover/press/disabled）。
@@ -167,6 +167,7 @@ KINE//X 的项目结构索引。
 `styles/boot.css`：开机编排 overlay 与首屏交错入场。
 `styles/pages.css`：页面容器显隐与切页过渡。
 `styles/library.css` / `styles/report.css` / `styles/create.css` / `styles/avatar-vault.css`：页面专用样式；身份库预览舞台使用显式尺寸隔离 canvas 内在尺寸，避免网格高度反馈循环。
+`styles/avatar-switcher.css`：训练舱分身切换按钮、弹层、身份行与状态样式。
 
 ## data mock hooks types
 
@@ -185,14 +186,14 @@ KINE//X 的项目结构索引。
 
 ## scripts
 
-`scripts/build.mjs`：构建脚本，仅做类型擦除，不打包。
-`scripts/guardrails.mjs`：守卫检查（必需 / 禁用字符串 + `node --check`）。
+`scripts/build.mjs`：构建脚本；类型擦除后为相对 JS 模块边统一追加 `package.json` 版本，不打包。
+`scripts/guardrails.mjs`：守卫检查（必需 / 禁用字符串、前端版本一致性 + `node --check`）。
 `scripts/shot.mjs`：CDP 无头截图工具（调试 / 视觉验收用）。
 `scripts/migrate-legacy-avatar.py`：把历史 `KINEXGS1` 只读源拆成可复用身份/动作和 manifest；支持全量 dry-run、原子发布、幂等复跑与显式 `--replace`。
 
 ## backend
 
-`backend/app.py`：FastAPI 路由与组合根；视频导入、身份 CRUD、绑定创建/查询和后台任务状态协调。
+`backend/app.py`：FastAPI 路由与组合根；视频导入、身份 CRUD、绑定创建/查询和后台任务状态协调；API 返回可覆盖资产时按实际文件状态追加版本 query，manifest 保持原始稳定路径。
 `backend/avatar.py`：照片校验、LHM 导出、坐标对齐和身份资产发布。
 `backend/avatar_assets.py`：`KINEXGI1` / `KINEXGM1` codec，历史 combined asset 拆分、旋转/四元数验证与原子写入。
 `backend/avatar_registry.py`：文件系统 manifest 真源；稳定 id、幂等 identity×motion 绑定、软删除和原子 JSON replace。

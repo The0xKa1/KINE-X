@@ -187,6 +187,13 @@ joint quaternions, root translations, and a stage-space similarity transform.
 The browser combines one identity with one motion at runtime. Historical
 `KINEXGS1` combined assets remain readable for built-in compatibility only.
 
+Ready API records add `?v=<mtime_ns-size>` to local `identityUrl`,
+`motionAssetUrl`, `previewUrl`, and legacy `avatarBinUrl` values. This version is
+derived from the current file and changes when an asset is atomically replaced,
+so a stable binding can publish a corrected rebake without serving stale browser
+bytes. Registry manifests remain canonical and query-free; versioning is applied
+only at the HTTP response boundary. Absolute external URLs are left unchanged.
+
 ### Avatar bindings
 
 - `GET /avatar-bindings?avatarId=&motionId=` — list all bindings or filter by
