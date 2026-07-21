@@ -92,7 +92,7 @@ python3 -m unittest backend.test_avatar_assets backend.test_avatar_registry back
 ## 七、下一步
 
 1. ~~部署动作同步修复并重烘两条存量 motion~~（2026-07-21 完成）：`backend/app.py` 固定使用 `segment.mp4`，`backend/avatar_motion.py` 防御 LHM 重复整段输出，两条 motion 已按单遍 240 帧输入重建为 150 帧并通过浏览器同步复验。CoachVideo seekable 守卫此前已修。
-2. `docs/review.md` 打磨清单（P1 余项、答辩叙事）。
+2. 打磨清单（P1 余项、答辩叙事；原 `docs/review.md` 已随 2026-07-21 文档精简移除，内容按需从 git 历史取回）。
 3. 长期：`tsc` 清零入门禁；真实 WS 帧流后端；Google Fonts 本地化。
 4. ~~数字分身vault页美化~~（已修复，2026-07-21）：① 预览人物沉进网格——身份 rest pose 脚底 y<0，`GaussianAvatar` 新增 `restGroundY` + `setBaseOffsetY`（折叠进 `uTrans`，训练舱默认 0 不受影响），vault 预览抬到脚踩网格；② 档案卡一片黑——legacy 身份无 `previewUrl`，预览渲染 6 帧后同帧 `toDataURL` 快照自愈卡片（任何缺 preview 的身份通用），快照已持久化为服务器 `preview.png` 并补写 `record.json`；占位块改为网格底 + 首字母大字。③ 档案卡图片优先显示原始照片（`identityUrl` 目录 + `sourcePhoto` 拼 URL），竖图 `object-position: center 18%` 保头部。
 5. ~~分身切换 UI~~（2026-07-21 完成）：训练舱渲染模式旁新增 `AvatarSwitcher`（`src/components/gameui/AvatarSwitcher.ts`，样式 `src/styles/avatar-switcher.css`）——仅 motion 类种子可见；列出全部 READY 身份及该身份×当前 motion 的绑定状态（使用中/切换/建立绑定/准备中）；无绑定时 `POST /avatar-bindings` 创建（双资产现成即建即 ready），快照经 `assignBindingSnapshot` + `controller.track()` 换绑并热替换舞台分身。注意：`applyBindingSnapshotToSeed` 的 bindingId 守卫要求换绑先改 exercise 再 track；localStorage 记录仍是选择真源，服务器 discovery 在同 motion 多绑定时选 createdAt 最旧者。

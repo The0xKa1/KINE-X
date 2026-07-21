@@ -40,7 +40,7 @@ Forbidden anywhere in source:
 - `Euler` — rotations are quaternions only, end to end. No Euler-angle transport.
 - `useState`, `ref(` — high-frequency frame data must never go through React/Vue reactive state. The project is vanilla TS, so these would also signal an unwanted framework dep.
 
-These rules trace back to `docs/Constraint.md` (in Chinese) — the hard contract for the prototype.
+These rules are the hard contract for the prototype (the original `docs/Constraint.md` was retired in the docs cleanup — this section and the guardrail script are now the source of truth).
 
 ## Architecture
 
@@ -100,8 +100,8 @@ Key boundaries:
 
 ## Docs map
 
-- `docs/Constraint.md` — hard engineering & data-flow contract (Chinese).
-- `docs/goal.md` — product / demo goals.
 - `docs/curren.md` — current factual state of the system.
+- `docs/handoff.md` — reproducible stop point, traps, and next steps.
 - `docs/project_index.md` — module-by-module index and collaboration boundaries.
+- `docs/server-workflow.md` — AutoDL server operations workflow.
 - `README.md` — overview, quickstart, `FRAME_STREAM` data contract.

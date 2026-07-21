@@ -203,17 +203,10 @@ KINE//X 的项目结构索引。
 
 ## docs
 
-`docs/Constraint.md`：工程与数据流硬约束。
-`docs/design.png`：视觉锚点海报（瑞士网格风）。
-`docs/project_index.md`：当前结构索引（本文）。
-`docs/goal.md`：最终目标。
 `docs/curren.md`：当前事实状态。
-`docs/review.md`：复赛评审报告与打磨工作清单（P0/P1/P2 + 答辩叙事）。
-`docs/motion-frame.schema.json`：`FRAME_STREAM` 数据包的 JSON Schema。
-`docs/server-workflow.md`：AutoDL 服务器开发与演示 Cheatsheet。
 `docs/handoff.md`：交接文档（资产地图、环境、断点、坑位备忘）。
-`docs/idea.md`：原始构思与三层架构草稿（历史文档）。
-`docs/demo/`：README 内联的演示 GIF 与完整 mp4。
+`docs/project_index.md`：当前结构索引（本文）。
+`docs/server-workflow.md`：AutoDL 服务器开发与演示 Cheatsheet。
 
 ## 协作边界
 

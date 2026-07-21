@@ -13,40 +13,15 @@
 
 <table>
 <tr>
-<td width="70%" valign="top">
+<td valign="top">
 
 KINE//X 是一个面向运动教学、健身跟练和黑客松现场演示的 Web 原型系统。用户可以导入标准动作视频，系统将其转化为 Action DNA、3D 骨骼轨迹与可播放的虚拟教练；练习者打开摄像头后，浏览器端实时提取身体关键点，与标准动作进行逐帧对齐、评分和风险提示，并在训练结束后生成 AI 教练点评。
 
 把视频里的动作结构化为可计算的运动序列，让用户能旋转观察、慢放拆解、实时比对，并获得关节级反馈。
 
 </td>
-<td width="30%" valign="top">
-  <img src="docs/design.png" alt="KINE//X visual design reference">
-</td>
 </tr>
 </table>
-
-## 演示视频
-
-下面三段是从本地演示录屏抽出的 5–6 秒循环预览（GIF，480p / 12fps），README 中直接内联播放。完整 720p mp4 在每段预览下方的链接里。
-
-### MLLM 动作分片
-
-<img src="docs/demo/01-mllm-segmentation.gif" alt="MLLM 动作分片" width="560">
-
-对上传视频做关键帧采样与多模态理解，输出可选择的动作片段。完整版：[01-mllm-segmentation.mp4](docs/demo/01-mllm-segmentation.mp4)
-
-### 视频上传与 3D 重建
-
-<img src="docs/demo/02-video-to-3d-reconstruction.gif" alt="视频上传与 3D 重建" width="560">
-
-将选中片段送入 SAM 3D Body 导入后端，生成新的 CoachClip / MeshClip 并加入动作种子。完整版：[02-video-to-3d-reconstruction.mp4](docs/demo/02-video-to-3d-reconstruction.mp4)
-
-### 深蹲实时跟练
-
-<img src="docs/demo/03-squat-live-coaching.gif" alt="深蹲实时跟练" width="560">
-
-展示摄像头跟练、倒计时启动、3D 标准动作、实时 SYNC 分数与动作反馈。完整版：[03-squat-live-coaching.mp4](docs/demo/03-squat-live-coaching.mp4)
 
 ## 核心亮点
 
@@ -210,7 +185,7 @@ http://localhost:5173/?backend=http://localhost:8765
 
 ## 运动数据契约
 
-前后端对齐的核心数据包是 `FRAME_STREAM`。所有 3D 坐标单位均为米，坐标系为右手系，旋转统一使用 `[x, y, z, w]` 四元数。机器可校验的 JSON Schema 见 [`docs/motion-frame.schema.json`](docs/motion-frame.schema.json)。
+前后端对齐的核心数据包是 `FRAME_STREAM`。所有 3D 坐标单位均为米，坐标系为右手系，旋转统一使用 `[x, y, z, w]` 四元数。
 
 ```json
 {
