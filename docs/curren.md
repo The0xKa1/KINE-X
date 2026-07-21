@@ -9,7 +9,7 @@
 ## 阶段
 
 复赛产品化打磨阶段，多页面骨架已落地。
-当前前端与静态资产版本为 `0.1.8`（版本真源为 `package.json`）。
+当前前端与静态资产版本为 `0.1.9`（版本真源为 `package.json`）。
 hash 路由五页：动作库 `#/`、训练舱 `#/train/:seedId`、训练报告 `#/report/:sessionId?`、创作工坊 `#/create`、分身身份库 `#/avatars`。
 单 DOM 容器切页，无整页跳转：MediaPipe 资产、WebSocket、摄像头流在页面间存活。
 3D 舞台为真实 Three.js WebGL 渲染（圆柱骨骼 + 球关节 + 可选 SMPL-X mesh clip 回放 + 可选 3DGS 数字分身层）。分身身份与动作已拆分为 `KINEXGI1` / `KINEXGM1`，运行时由 `GaussianAvatar` 组合驱动；历史 `KINEXGS1` 仅作内置兼容。
@@ -114,6 +114,8 @@ EventBus 事件共八类：`score:update` / `pipeline:update` / `seed:update` / 
 报告页 AI 教练复用 `AiCoachPanel` 第二实例，按存档的 `SessionSummary` 重新流式诊断，结果按 session id 内存缓存。
 `AiCoachPanel` + `core/llm/LLMClient.streamChat`：浏览器直接 POST 到用户配置的 OpenAI-compatible `/chat/completions`，解析 SSE 增量并由 `renderMarkdown` 安全渲染为 HTML。
 CameraSettings 抽屉保存共用的 Base URL / API Key，以及可分别指定的 MLLM 模型和赛后分析模型；配置只落在当前浏览器 `localStorage`。创作工坊与赛后面板的「配置 AI API」入口都会调用 `openAiSettings()`，直接滚动到该区并聚焦第一个未填写项。区内「测试两项连接」会并行发送两个极小真实请求：MLLM 验证图片输入 + `response_format: json_object`，COACH 验证 SSE 增量；结果分项显示延迟或 HTTP/CORS/超时原因。诊断 persona（运动生物力学专家 / 八段锦传人）也由该抽屉选择。服务商必须支持浏览器 CORS；未配置时界面保留本地规则总结并引导打开设置。
+
+赛后 AI 分为两套提示词：首轮诊断维持 120 字内、单段、量化误差与可执行动作；报告页追问使用独立的 grounded chat 指令，直接回答问题，明确区分测量事实与推断，不再强制每次以训练动作结尾，并对疼痛/损伤话题给出停止训练和专业评估提醒。追问每次只携带最近 4 个完整问答轮次，历史正文最多 4000 字，单次问题最多 500 字；固定训练摘要和首轮诊断仍作为会话基础上下文。
 
 ## 约束契约
 

@@ -1,6 +1,12 @@
 import type { Page } from "../../core/Router.js";
 import { formatCm } from "../../core/coordinates.js";
-import { buildDiagnosisMessages, buildFallbackText, type CoachPersona } from "../../core/llm/buildPrompt.js";
+import {
+  buildDiagnosisMessages,
+  buildFallbackText,
+  buildFollowupMessages,
+  FOLLOWUP_MAX_QUESTION_CHARS,
+  type CoachPersona,
+} from "../../core/llm/buildPrompt.js";
 import { streamChat, type ChatMessage, type LlmSettings } from "../../core/llm/LLMClient.js";
 import { renderMarkdown } from "../../core/llm/renderMarkdown.js";
 import { AiCoachPanel } from "../gameui/AiCoachPanel.js";
@@ -34,7 +40,6 @@ export class ReportPage implements Page {
   private options: ReportPageOptions;
   private coach: AiCoachPanel | null = null;
   private diagnosisCache = new Map<string, string>();
-  private chatBase: ChatMessage[] | null = null;
   private chatHistory: ChatMessage[] = [];
   private chatBusy = false;
   private chatAbort: AbortController | null = null;
@@ -63,7 +68,6 @@ export class ReportPage implements Page {
     this.coach = null;
     this.chatAbort?.abort();
     this.chatAbort = null;
-    this.chatBase = null;
     this.chatHistory = [];
     this.chatBusy = false;
     this.diagnosisText = "";
@@ -186,7 +190,7 @@ export class ReportPage implements Page {
           <p id="reportAiText" class="results-ai-text"></p>
           <div id="reportChatThread" class="report-chat-thread"></div>
           <div class="report-chat-input">
-            <input id="reportChatInput" type="text" placeholder="追问你的教练：这个关节该怎么练？" autocomplete="off" />
+            <input id="reportChatInput" type="text" maxlength="${FOLLOWUP_MAX_QUESTION_CHARS}" placeholder="追问你的教练：这个关节该怎么练？" autocomplete="off" />
             <button id="reportChatSend" class="secondary-button" type="button">发送</button>
           </div>
         </section>
@@ -217,9 +221,9 @@ export class ReportPage implements Page {
 
   private runDiagnosis(session: ArchivedSession, coach: AiCoachPanel): void {
     const exercise = this.options.exercises[session.exerciseId];
-    if (exercise) {
-      this.chatBase = buildDiagnosisMessages(exercise, session.summary, this.options.getPersona());
-    }
+    const diagnosisMessages = exercise
+      ? buildDiagnosisMessages(exercise, session.summary, this.options.getPersona())
+      : [];
     const cached = this.diagnosisCache.get(session.id);
     if (cached) {
       this.diagnosisText = cached;
@@ -238,7 +242,7 @@ export class ReportPage implements Page {
     }
     void coach
       .renderStreaming(
-        (onDelta, signal) => streamChat(config, this.chatBase ?? [], onDelta, { signal }),
+        (onDelta, signal) => streamChat(config, diagnosisMessages, onDelta, { signal }),
         fallback,
       )
       .then((text) => {
@@ -283,7 +287,8 @@ export class ReportPage implements Page {
     thread.appendChild(botRow);
     thread.scrollTop = thread.scrollHeight;
 
-    if (!this.chatBase) {
+    const exercise = this.options.exercises[session.exerciseId];
+    if (!exercise) {
       botRow.textContent = "教练暂时缺少上下文，先完成一场训练再追问。";
       this.chatBusy = false;
       return;
@@ -295,12 +300,14 @@ export class ReportPage implements Page {
       return;
     }
 
-    const messages: ChatMessage[] = [
-      ...this.chatBase,
-      ...(this.diagnosisText ? [{ role: "assistant", content: this.diagnosisText } as ChatMessage] : []),
-      ...this.chatHistory,
-      { role: "user", content: question },
-    ];
+    const messages = buildFollowupMessages(
+      exercise,
+      session.summary,
+      this.options.getPersona(),
+      this.diagnosisText,
+      this.chatHistory,
+      question,
+    );
 
     let answer = "";
     try {

@@ -7,12 +7,47 @@ import {
   probeCoachConnection,
   probeMllmConnection,
 } from "../dist/core/llm/LlmConnectionProbe.js";
+import {
+  buildDiagnosisMessages,
+  buildFollowupMessages,
+  FOLLOWUP_MAX_HISTORY_CHARS,
+  FOLLOWUP_MAX_QUESTION_CHARS,
+  FOLLOWUP_MAX_ROUNDS,
+  limitFollowupHistory,
+} from "../dist/core/llm/buildPrompt.js";
 import { VideoSegmentationClient } from "../dist/core/mllm/VideoSegmentationClient.js";
 
 const settings = {
   baseUrl: "https://provider.example/v1/",
   apiKey: "test-key",
   model: "vision-model",
+};
+
+const exercise = {
+  id: "squat",
+  name: "单腿深蹲",
+  discipline: "strength",
+  motion: "squat",
+  durationSeconds: 8,
+};
+
+const session = {
+  frames: 180,
+  durationSeconds: 7.9,
+  avgScore: 76.4,
+  worstFrameScore: 48.2,
+  worstPhase: "peak",
+  phaseAvgScores: { intro: 89.2, mid: 77.6, peak: 61.3, outro: 82.1 },
+  joints: [{
+    id: "knee",
+    name: "右膝",
+    avgScore: 64.2,
+    worstScore: 41.8,
+    worstAngleDeltaDeg: 18.6,
+    worstDistanceDeltaCm: 7.4,
+    worstAtProgress: 0.68,
+    riskHits: 3,
+  }],
 };
 
 test("streamChat calls the configured OpenAI-compatible endpoint", async (t) => {
@@ -169,6 +204,55 @@ test("coach connection test rejects an empty or incompatible stream", async (t) 
   );
 });
 
+test("follow-up chat uses a dedicated grounded prompt instead of the diagnosis format", () => {
+  const diagnosis = buildDiagnosisMessages(exercise, session, "biomech");
+  const followup = buildFollowupMessages(
+    exercise,
+    session,
+    "biomech",
+    "右膝在底点偏差 18.6°。",
+    [],
+    "为什么会内扣？",
+  );
+
+  assert.match(diagnosis[0].content, /仅输出诊断正文，120 字以内/);
+  assert.doesNotMatch(followup[0].content, /仅输出诊断正文/);
+  assert.match(followup[0].content, /明确区分可测量事实与生物力学推断/);
+  assert.match(followup[0].content, /不作疾病或损伤诊断/);
+  assert.match(followup[1].content, /"worstAngleDeltaDeg":18\.6/);
+  assert.equal(followup[2].role, "assistant");
+  assert.match(followup[2].content, /首轮诊断/);
+  assert.deepEqual(followup.at(-1), { role: "user", content: "为什么会内扣？" });
+});
+
+test("follow-up history keeps only recent complete rounds within the character budget", () => {
+  const history = [];
+  for (let index = 1; index <= 7; index += 1) {
+    history.push({ role: "user", content: `问题 ${index}` });
+    history.push({ role: "assistant", content: `回答 ${index}` });
+  }
+  const limited = limitFollowupHistory(history);
+  assert.equal(limited.length, FOLLOWUP_MAX_ROUNDS * 2);
+  assert.equal(limited[0].content, "问题 4");
+  assert.equal(limited.at(-1).content, "回答 7");
+
+  const oversized = limitFollowupHistory([
+    { role: "user", content: "问".repeat(FOLLOWUP_MAX_HISTORY_CHARS) },
+    { role: "assistant", content: "答".repeat(FOLLOWUP_MAX_HISTORY_CHARS) },
+  ]);
+  assert.ok(oversized.reduce((sum, message) => sum + message.content.length, 0) <= FOLLOWUP_MAX_HISTORY_CHARS);
+
+  const messages = buildFollowupMessages(
+    exercise,
+    session,
+    "biomech",
+    "",
+    history,
+    "新".repeat(FOLLOWUP_MAX_QUESTION_CHARS + 80),
+  );
+  assert.equal(messages.at(-1).content.length, FOLLOWUP_MAX_QUESTION_CHARS);
+});
+
 test("AI settings entry covers both models and targets the AI section", () => {
   const createSource = readFileSync(new URL("../src/components/pages/CreatePage.ts", import.meta.url), "utf8");
   const settingsSource = readFileSync(new URL("../src/components/gameui/CameraSettings.ts", import.meta.url), "utf8");
@@ -188,6 +272,7 @@ test("AI settings entry covers both models and targets the AI section", () => {
   assert.match(settingsSource, /probeMllmConnection/);
   assert.match(settingsSource, /probeCoachConnection/);
   assert.match(settingsSource, /VERIFIED · MLLM/);
+  assert.match(readFileSync(new URL("../src/components/pages/ReportPage.ts", import.meta.url), "utf8"), /buildFollowupMessages/);
   assert.match(css, /\.create-api-settings/);
   assert.match(css, /width: auto/);
 });

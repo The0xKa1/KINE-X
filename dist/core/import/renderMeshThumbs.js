@@ -1,5 +1,5 @@
-import { THREE } from "../three-compat.js?v=0.1.8";
-import { copyFrameVerticesInto,               } from "./MeshClip.js?v=0.1.8";
+import { THREE } from "../three-compat.js?v=0.1.9";
+import { copyFrameVerticesInto,               } from "./MeshClip.js?v=0.1.9";
 
 /**
  * Renders `count` evenly-spaced poses of a MeshClip into small data-URL

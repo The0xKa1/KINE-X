@@ -136,7 +136,7 @@ KINE//X 的项目结构索引。
 
 `LLMClient.ts`：`streamChat(settings, messages, onDelta)`；按用户配置的 Base URL / API Key / 模型直连 OpenAI-compatible `/chat/completions`，逐行解析 SSE。
 `LlmConnectionProbe.ts`：AI 设置连接探针；MLLM 发送内存生成的小图并要求 JSON，赛后模型复用 `streamChat` 验证 SSE，均只直连用户服务商。
-`buildPrompt.ts`：`SessionSummary` → 系统 + 用户提示词；含本地兜底文案 `buildFallbackText`。
+`buildPrompt.ts`：`SessionSummary` → 首轮诊断提示词与独立追问提示词；`limitFollowupHistory()` 将追问上下文限制为最近 4 轮 / 4000 字，单次问题上限 500 字；含本地兜底文案 `buildFallbackText`。
 `renderMarkdown.ts`：极简安全 markdown → HTML 渲染器。
 
 ### core/mllm
