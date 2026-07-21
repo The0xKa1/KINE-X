@@ -10,6 +10,9 @@ node_modules/
 .worktrees/
 .vscode/
 .idea/
+.kimi-code/
+.playwright-mcp/
+promo/
 *.iml
 
 # Build / debug artifacts (dist/ IS committed — index.html loads ./dist/main.js directly)

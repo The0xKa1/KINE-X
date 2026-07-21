@@ -10,7 +10,8 @@
 | 免密密钥（本机 Mac） | `/Users/zhangjinkai/KINE-X/.deploy-tmp/autodl_ed25519` |
 | GPU | vGPU-32GB（RTX 4080 SUPER 级），¥1.68/时，按秒计费 |
 | 项目目录 | `/root/KINE-X` |
-| 一键启动服务 | `bash /root/start_all.sh`（后端 :8765 单端口服务前端+API；旧 :5173 静态仍起但仅兜底） |
+| 一键启动服务 | `bash /root/start_all.sh`（后端 :8765 单端口服务前端+API；旧 :5173 静态仍起但仅兜底；同时拉起 6006→8765 公网转发） |
+| 公网入口 | `https://u1089650-9741-0c767588.westc.seetacloud.com:8443`（AutoDL 自定义服务，代理到实例 6006；HTTPS，摄像头可用） |
 | 磁盘 | 系统盘 30G（剩 ~25G）+ 数据盘 50G（`/root/autodl-tmp`） |
 
 ## 二、每天的开始（3 步）
@@ -96,7 +97,14 @@ npm run build && rsync -az \
 - [ ] 账户余额 ≥ ¥30（够 18 小时）；演示期间**不要关机**
 - [ ] 备选：本地前端 `npm run dev` 也能跑（本地 5173 + 隧道 18765）
 
-## 七、费用与收工
+## 七、公网演示入口（AutoDL 自定义服务）
+
+- AutoDL 实例无公网 IP，"自定义服务"把公网 URL（`:8443`）代理到实例 **6006 端口**。
+- 实例上 `/root/tcp_forward.py`（asyncio 端口转发，`start_all.sh` 已带起）把 6006 转发到 8765，公网用户直接打开表格里的公网入口即是完整应用（前端+API 同源，HTTPS 摄像头可用）。
+- 注意：静态文件从仓库根挂载，教练片段等资产路径带 `public/` 前缀（如 `/public/coach_clips/xxx.json`）。
+- `/import/video` 是开放上传接口，公网暴露期间谁都能传——演示窗口外记得在 AutoDL 控制台关掉自定义服务。
+
+## 八、费用与收工
 
 - 用完当天：**AutoDL 控制台 → 关机**（停止 GPU 计费，磁盘保留，环境不丢）
 - 实例连续关机 **15 天会被释放**，数据清空——黑客松后要么留几块钱开机一次，要么把 `jobs/` 和代码 rsync 回本地
