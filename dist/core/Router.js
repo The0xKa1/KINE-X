@@ -46,6 +46,8 @@ export class Router {
 
           apply()       {
     const route = this.parse(window.location.hash);
+    // Route-scoped styling hook (e.g. the vault page's hard viewport bound).
+    document.body.dataset.route = route.name;
     if (this.current === route.name) {
       // Same page, possibly new params (e.g. seed switch inside the train bay).
       this.options.pages[route.name].enter?.(route.params);
