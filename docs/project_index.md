@@ -162,7 +162,7 @@ KINE//X 的项目结构索引。
 `styles/c3-surfaces.css` / `styles/c3-workspace.css`：c3 视觉迭代表面 / 工作区覆盖层（含 bay crosshair 角标）。
 `styles/boot.css`：开机编排 overlay 与首屏交错入场。
 `styles/pages.css`：页面容器显隐与切页过渡。
-`styles/library.css` / `styles/report.css` / `styles/create.css` / `styles/avatar-vault.css`：页面专用样式；身份库预览舞台使用显式尺寸隔离 canvas 内在尺寸，避免网格高度反馈循环。
+`styles/library.css` / `styles/report.css` / `styles/create.css` / `styles/avatar-vault.css`：页面专用样式；身份库预览舞台使用显式尺寸隔离 canvas 内在尺寸，并在 Vault 路由释放 workspace 的 Grid 自动最小高度，让档案列表独立滚动而不撑高 document。
 `styles/avatar-switcher.css`：训练舱分身切换按钮、弹层、身份行与状态样式。
 
 ## data mock hooks types

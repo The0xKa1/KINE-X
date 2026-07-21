@@ -5,6 +5,13 @@ body[data-route="avatars"] .app-shell {
   height: 100vh;
 }
 
+/* A grid item defaults to min-height:auto, which lets the vault's min-content
+   height stretch the document past the viewport. Release that floor so the
+   archive list owns vertical scrolling and the global rail stays in place. */
+body[data-route="avatars"] .workspace {
+  min-height: 0;
+}
+
 #page-avatars:not([hidden]) {
   min-height: 0;
   overflow: hidden;

@@ -273,6 +273,17 @@ test("preview canvas cannot feed intrinsic dimensions back into the grid row", a
   assert.match(canvas, /min-height\s*:\s*0\s*;/);
 });
 
+test("desktop vault keeps document height bounded and delegates scrolling to the archive list", async () => {
+  const css = await readFile(new URL("../src/styles/avatar-vault.css", import.meta.url), "utf8");
+  const shell = cssRuleBody(css, 'body[data-route="avatars"] .app-shell');
+  const workspace = cssRuleBody(css, 'body[data-route="avatars"] .workspace');
+  const list = cssRuleBody(css, ".avatar-vault-list");
+
+  assert.match(shell, /height\s*:\s*100vh\s*;/);
+  assert.match(workspace, /min-height\s*:\s*0\s*;/);
+  assert.match(list, /overflow\s*:\s*auto\s*;/);
+});
+
 function cssRuleBody(css, selector) {
   const escaped = selector.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   const match = css.match(new RegExp(`${escaped}\\s*\\{([^}]*)\\}`, "s"));
