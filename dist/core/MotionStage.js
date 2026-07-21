@@ -1,17 +1,17 @@
-import { WORLD_SPACE } from "./coordinates.js?v=0.1.5";
+import { WORLD_SPACE } from "./coordinates.js?v=0.1.6";
 
 
 
-import { ThreeResourceTracker } from "./ThreeResourceTracker.js?v=0.1.5";
-import { THREE,                                           } from "./three-compat.js?v=0.1.5";
-import { bones } from "./motion/skeleton.js?v=0.1.5";
-import { StageInteractions } from "./motion/StageInteractions.js?v=0.1.5";
+import { ThreeResourceTracker } from "./ThreeResourceTracker.js?v=0.1.6";
+import { THREE,                                           } from "./three-compat.js?v=0.1.6";
+import { bones } from "./motion/skeleton.js?v=0.1.6";
+import { StageInteractions } from "./motion/StageInteractions.js?v=0.1.6";
 import {
   buildMeshPrimitive,
   copyFrameVerticesInto,
   sampleFrameIndex,
 
-} from "./import/MeshClip.js?v=0.1.5";
+} from "./import/MeshClip.js?v=0.1.6";
 
 
 

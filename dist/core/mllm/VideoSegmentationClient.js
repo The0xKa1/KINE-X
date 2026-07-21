@@ -4,7 +4,7 @@ import {
   buildLlmHeaders,
   chatCompletionsUrl,
 
-} from "../llm/LLMClient.js?v=0.1.5";
+} from "../llm/LLMClient.js?v=0.1.6";
 
 
 

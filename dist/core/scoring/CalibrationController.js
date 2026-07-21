@@ -1,7 +1,7 @@
 
-import { normalizeMediaPipeWorld } from "./normalize.js?v=0.1.5";
+import { normalizeMediaPipeWorld } from "./normalize.js?v=0.1.6";
 
-import { UserProfileStore,                  } from "./UserProfile.js?v=0.1.5";
+import { UserProfileStore,                  } from "./UserProfile.js?v=0.1.6";
 
 const REQUIRED_FRAMES = 30; // ~1s at 30Hz
 const STABILITY_THRESHOLD = 0.05; // meters peak-to-peak Y deviation allowed during sampling

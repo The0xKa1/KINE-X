@@ -4,7 +4,7 @@
 
 
 
-import { LandmarkSmoother } from "./scoring/LandmarkSmoother.js?v=0.1.5";
+import { LandmarkSmoother } from "./scoring/LandmarkSmoother.js?v=0.1.6";
 
 
 

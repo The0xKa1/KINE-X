@@ -9,7 +9,7 @@
 ## 阶段
 
 复赛产品化打磨阶段，多页面骨架已落地。
-当前前端与静态资产版本为 `0.1.5`（版本真源为 `package.json`）。
+当前前端与静态资产版本为 `0.1.6`（版本真源为 `package.json`）。
 hash 路由五页：动作库 `#/`、训练舱 `#/train/:seedId`、训练报告 `#/report/:sessionId?`、创作工坊 `#/create`、分身身份库 `#/avatars`。
 单 DOM 容器切页，无整页跳转：MediaPipe 资产、WebSocket、摄像头流在页面间存活。
 3D 舞台为真实 Three.js WebGL 渲染（圆柱骨骼 + 球关节 + 可选 SMPL-X mesh clip 回放 + 可选 3DGS 数字分身层）。分身身份与动作已拆分为 `KINEXGI1` / `KINEXGM1`，运行时由 `GaussianAvatar` 组合驱动；历史 `KINEXGS1` 仅作内置兼容。

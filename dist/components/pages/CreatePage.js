@@ -1,11 +1,11 @@
 
-import { ImportFlow,                                               } from "../../core/import/ImportFlow.js?v=0.1.5";
+import { ImportFlow,                                               } from "../../core/import/ImportFlow.js?v=0.1.6";
 import {
   buildAvatarPickerChoices,
 
-} from "../../core/avatar/AvatarBindingController.js?v=0.1.5";
-import { AvatarRegistryClient } from "../../core/avatar/AvatarRegistryClient.js?v=0.1.5";
-import { $ } from "../../bootstrap/dom.js?v=0.1.5";
+} from "../../core/avatar/AvatarBindingController.js?v=0.1.6";
+import { AvatarRegistryClient } from "../../core/avatar/AvatarRegistryClient.js?v=0.1.6";
+import { $ } from "../../bootstrap/dom.js?v=0.1.6";
 
 
 

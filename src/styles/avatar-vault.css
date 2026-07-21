@@ -35,32 +35,32 @@ body[data-route="avatars"] .workspace {
 
 .avatar-vault-head > div {
   min-width: 0;
-  padding: clamp(22px, 3vw, 44px);
+  padding: clamp(18px, 2vw, 28px);
   border-right: 2px solid var(--ink);
 }
 
 .avatar-vault-head .eyebrow {
   display: block;
-  margin-bottom: 18px;
+  margin-bottom: 10px;
   color: var(--hot);
   font: 800 10px/1 var(--mono);
   letter-spacing: 0.18em;
 }
 
 .avatar-vault-head h2 {
-  max-width: 12ch;
+  max-width: none;
   margin: 0;
-  font: 400 clamp(32px, 4vw, 58px)/0.94 var(--display);
+  font: 400 clamp(32px, 3vw, 46px)/0.94 var(--display);
   letter-spacing: -0.055em;
   text-transform: uppercase;
 }
 
 .avatar-vault-head p {
   max-width: 52ch;
-  margin: 18px 0 0;
+  margin: 10px 0 0;
   color: var(--muted);
   font-size: 13px;
-  line-height: 1.7;
+  line-height: 1.5;
 }
 
 .avatar-upload {
@@ -68,7 +68,7 @@ body[data-route="avatars"] .workspace {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   gap: 8px;
-  padding: 22px;
+  padding: 18px;
   background: var(--bg);
 }
 
@@ -158,11 +158,11 @@ body[data-route="avatars"] .workspace {
 }
 
 .avatar-vault-section-head {
-  min-height: 72px;
+  min-height: 62px;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 14px 18px;
+  padding: 10px 16px;
   border-bottom: 2px solid var(--ink);
   background: var(--paper);
 }
@@ -567,7 +567,7 @@ body[data-route="avatars"] .workspace {
   display: grid;
   align-content: center;
   gap: 6px;
-  padding: 10px 12px;
+  padding: 8px 10px;
   border-right: 1px solid rgba(247, 241, 229, 0.4);
 }
 
@@ -592,7 +592,7 @@ body[data-route="avatars"] .workspace {
 
 .avatar-preview-poses button {
   min-width: 0;
-  min-height: 54px;
+  min-height: 48px;
   display: grid;
   place-content: center;
   gap: 4px;
@@ -708,6 +708,8 @@ body[data-route="avatars"] .workspace {
 }
 
 .avatar-preview-meta {
+  gap: 5px 12px;
+  padding: 8px 10px;
   border-top: 2px solid var(--paper);
   background: var(--ink);
 }

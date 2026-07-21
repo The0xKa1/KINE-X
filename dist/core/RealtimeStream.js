@@ -1,9 +1,9 @@
 
-import { meters } from "./coordinates.js?v=0.1.5";
+import { meters } from "./coordinates.js?v=0.1.6";
 
-import { JOINT_NAMES, sampleClip } from "./import/CoachClip.js?v=0.1.5";
+import { JOINT_NAMES, sampleClip } from "./import/CoachClip.js?v=0.1.6";
 
-import { applyLiveScore, resetScoreStreak,                    } from "./scoring/PoseScorer.js?v=0.1.5";
+import { applyLiveScore, resetScoreStreak,                    } from "./scoring/PoseScorer.js?v=0.1.6";
 
 
 
