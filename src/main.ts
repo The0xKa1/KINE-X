@@ -5,7 +5,6 @@ import { CoachVideo } from "./components/gameui/CoachVideo.js";
 import { ComboBurst } from "./components/gameui/ComboBurst.js";
 import { CalibrationOverlay } from "./components/gameui/CalibrationOverlay.js";
 import { ResultsScreen } from "./components/gameui/ResultsScreen.js";
-import { DnaExport } from "./components/gameui/DnaExport.js";
 import { DnaDrawer } from "./components/gameui/DnaDrawer.js";
 import { CameraSettings } from "./components/gameui/CameraSettings.js";
 import { CreatePage } from "./components/pages/CreatePage.js";
@@ -297,20 +296,6 @@ const comboBurst = new ComboBurst({
 });
 
 
-const dnaExport = new DnaExport({
-  root: dom.dnaExport,
-  closeButton: dom.exportClose,
-  bar: dom.exportBar,
-  label: dom.exportLabel,
-  head: dom.exportHead,
-  sub: dom.exportSub,
-  result: dom.exportResult,
-  video: dom.exportVideo,
-  download: dom.exportDownload,
-  stageCanvas: dom.motionCanvas,
-  getSeedLabel: () => state.exerciseId,
-});
-
 const aiCoach = new AiCoachPanel({
   root: dom.aiCoachCard,
   textEl: dom.aiCoachText,
@@ -331,14 +316,13 @@ const resultsScreen = new ResultsScreen({
   jointsEl: dom.resultsJoints,
   medalEl: dom.medalName,
   titleEl: dom.resultsTitle,
-  exportButton: dom.exportButton,
-  onExport: () => dnaExport.open(),
   onClose: () => sessionGate.reset("system"),
   getStats: () => comboBurst.getStats(),
   exercises,
   sessionRecorder,
   sessionArchive,
   aiCoach,
+  getLlmConfig: () => cameraSettings.getCoachConfig(),
   getPersona: () => cameraSettings.getPersona(),
 });
 
@@ -368,6 +352,12 @@ const cameraSettings = new CameraSettings({
   modalityFaceToggle: dom.modalityFaceToggle,
   recalibrateButton: dom.recalibrateButton,
   calibrationStatusLabel: dom.calibrationStatusLabel,
+  llmBaseUrl: dom.llmBaseUrl,
+  llmApiKey: dom.llmApiKey,
+  mllmModel: dom.mllmModel,
+  coachModel: dom.coachModel,
+  llmClearButton: dom.llmClear,
+  llmStatusLabel: dom.llmStatus,
   personaSelect: dom.personaSelect,
   callbacks: {
     onSafeZoneChange: (visible) => cameraOverlay.setSafeZoneVisible(visible),
@@ -470,6 +460,8 @@ const avatarSwitcher = new AvatarSwitcher({
 const createPage = new CreatePage({
   el: dom.pageCreate,
   backendUrl: BACKEND_URL,
+  getMllmConfig: () => cameraSettings.getMllmConfig(),
+  onOpenSettings: () => cameraSettings.open(),
   onApply: ({
     id,
     name,
@@ -720,7 +712,9 @@ const reportPage = new ReportPage({
   el: dom.pageReport,
   archive: sessionArchive,
   exercises,
+  getLlmConfig: () => cameraSettings.getCoachConfig(),
   getPersona: () => cameraSettings.getPersona(),
+  onOpenSettings: () => cameraSettings.open(),
 });
 const avatarVaultPage = new AvatarVaultPage({
   el: dom.pageAvatars,

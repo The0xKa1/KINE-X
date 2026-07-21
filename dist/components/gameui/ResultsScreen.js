@@ -1,13 +1,12 @@
-import { formatCm } from "../../core/coordinates.js?v=0.1.1";
+import { formatCm } from "../../core/coordinates.js?v=0.1.2";
 
-import { modalA11y,                      } from "../../core/modalA11y.js?v=0.1.1";
-import { prefersReducedMotion } from "../../core/motionPrefs.js?v=0.1.1";
+import { modalA11y,                      } from "../../core/modalA11y.js?v=0.1.2";
+import { prefersReducedMotion } from "../../core/motionPrefs.js?v=0.1.2";
 
 
 
-import { buildDiagnosisMessages, buildFallbackText,                   } from "../../core/llm/buildPrompt.js?v=0.1.1";
-import { streamChat } from "../../core/llm/LLMClient.js?v=0.1.1";
-
+import { buildDiagnosisMessages, buildFallbackText,                   } from "../../core/llm/buildPrompt.js?v=0.1.2";
+import { streamChat,                  } from "../../core/llm/LLMClient.js?v=0.1.2";
 
 
 
@@ -58,7 +57,6 @@ export class ResultsScreen {
     });
     this.options.bus.on("score:update", (payload) => this.handle(payload));
     this.options.closeButton.addEventListener("click", () => this.close());
-    this.options.exportButton.addEventListener("click", () => this.options.onExport());
     this.options.root.addEventListener("click", (event) => {
       if (event.target === this.options.root) this.close();
     });
@@ -194,10 +192,15 @@ export class ResultsScreen {
       this.options.aiCoach.renderStatic(this.lastDiagnosis.text, "cached");
       return;
     }
+    const config = this.options.getLlmConfig();
+    if (!config) {
+      this.options.aiCoach.renderSetupRequired(fallback);
+      return;
+    }
     const messages = buildDiagnosisMessages(exercise, summary, this.options.getPersona());
     void this.options.aiCoach
       .renderStreaming(
-        (onDelta, signal) => streamChat(messages, onDelta, { signal }),
+        (onDelta, signal) => streamChat(config, messages, onDelta, { signal }),
         fallback,
       )
       .then((text) => {

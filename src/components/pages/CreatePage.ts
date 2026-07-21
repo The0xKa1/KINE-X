@@ -6,10 +6,13 @@ import {
 } from "../../core/avatar/AvatarBindingController.js";
 import { AvatarRegistryClient } from "../../core/avatar/AvatarRegistryClient.js";
 import { $ } from "../../bootstrap/dom.js";
+import type { LlmSettings } from "../../core/llm/LLMClient.js";
 
 interface CreatePageOptions {
   el: HTMLElement;
   backendUrl: string;
+  getMllmConfig(): LlmSettings | null;
+  onOpenSettings(): void;
   onApply(payload: ImportApplyPayload): void;
 }
 
@@ -105,7 +108,8 @@ export class CreatePage implements Page {
             <button id="createSegment" class="secondary-button" type="button">用 MLLM 切片</button>
             <p id="createSegmentSummary" class="segment-summary"></p>
             <div id="createSegmentList" class="segment-list is-empty"></div>
-            <p class="settings-hint">不选段时整段导入。选中某段后，后端只对该时间区间抽帧/推理。</p>
+            <p class="settings-hint">关键帧会由浏览器直接发送到你配置的 OpenAI-compatible MLLM，不经过 KINE//X 服务器。</p>
+            <button id="createApiSettings" class="text-button" type="button">设置 MLLM API →</button>
           </section>
 
           <section class="create-block">
@@ -131,6 +135,10 @@ export class CreatePage implements Page {
       "click",
       () => void this.refreshAvatarPicker(),
     );
+    ($("#createApiSettings") as HTMLButtonElement).addEventListener(
+      "click",
+      () => this.options.onOpenSettings(),
+    );
   }
 
   private initFlow(): void {
@@ -148,6 +156,7 @@ export class CreatePage implements Page {
       statusLabel: $("#createStatus"),
       preview: $("#createPreview") as HTMLVideoElement,
       backendUrl: this.options.backendUrl,
+      getMllmConfig: () => this.options.getMllmConfig(),
       getSelectedAvatarId: () => this.selectedAvatarId,
       onApply: (payload) => this.options.onApply(payload),
       onStateChange: (state) => this.syncSteps(state),

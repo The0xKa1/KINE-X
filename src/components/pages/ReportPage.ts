@@ -1,7 +1,7 @@
 import type { Page } from "../../core/Router.js";
 import { formatCm } from "../../core/coordinates.js";
 import { buildDiagnosisMessages, buildFallbackText, type CoachPersona } from "../../core/llm/buildPrompt.js";
-import { streamChat, type ChatMessage } from "../../core/llm/LLMClient.js";
+import { streamChat, type ChatMessage, type LlmSettings } from "../../core/llm/LLMClient.js";
 import { renderMarkdown } from "../../core/llm/renderMarkdown.js";
 import { AiCoachPanel } from "../gameui/AiCoachPanel.js";
 import type { ArchivedSession, SessionArchive } from "../../core/scoring/SessionArchive.js";
@@ -12,7 +12,9 @@ interface ReportPageOptions {
   el: HTMLElement;
   archive: SessionArchive;
   exercises: Record<string, ExerciseConfig>;
+  getLlmConfig: () => LlmSettings | null;
   getPersona: () => CoachPersona;
+  onOpenSettings: () => void;
 }
 
 const PHASES: Array<{ key: SessionPhase; label: string }> = [
@@ -135,7 +137,10 @@ export class ReportPage implements Page {
             <span class="eyebrow">03 · REPORT / SESSION ${session.id}</span>
             <h2>${session.exerciseName} · 训练报告</h2>
           </div>
-          <span class="report-date">${dateLabel}</span>
+          <div class="report-head-actions">
+            <span class="report-date">${dateLabel}</span>
+            <button type="button" class="report-delete-session" data-delete-report>删除本次记录</button>
+          </div>
         </header>
 
         <section class="report-grid">
@@ -191,9 +196,22 @@ export class ReportPage implements Page {
     const textEl = this.el.querySelector<HTMLElement>("#reportAiText");
     const statusEl = this.el.querySelector<HTMLElement>("#reportAiStatus");
     if (textEl && statusEl) {
-      this.coach = new AiCoachPanel({ root: this.el, textEl, statusEl });
+      this.coach = new AiCoachPanel({
+        root: this.el,
+        textEl,
+        statusEl,
+        onOpenSettings: this.options.onOpenSettings,
+      });
       this.runDiagnosis(session, this.coach);
     }
+    this.el.querySelector<HTMLButtonElement>("[data-delete-report]")?.addEventListener("click", () => {
+      const confirmed = window.confirm(`确定删除「${session.exerciseName}」这次训练记录吗？此操作无法撤销。`);
+      if (!confirmed || !this.options.archive.remove(session.id)) return;
+      this.diagnosisCache.delete(session.id);
+      const next = this.options.archive.latest();
+      window.history.replaceState(null, "", next ? `#/report/${next.id}` : "#/report");
+      this.render(next);
+    });
     this.bindChat(session);
   }
 
@@ -213,9 +231,14 @@ export class ReportPage implements Page {
       return;
     }
     const fallback = buildFallbackText(exercise, session.summary);
+    const config = this.options.getLlmConfig();
+    if (!config) {
+      coach.renderSetupRequired(fallback);
+      return;
+    }
     void coach
       .renderStreaming(
-        (onDelta, signal) => streamChat(this.chatBase ?? [], onDelta, { signal }),
+        (onDelta, signal) => streamChat(config, this.chatBase ?? [], onDelta, { signal }),
         fallback,
       )
       .then((text) => {
@@ -265,6 +288,12 @@ export class ReportPage implements Page {
       this.chatBusy = false;
       return;
     }
+    const config = this.options.getLlmConfig();
+    if (!config) {
+      botRow.textContent = "请先在摄像头设置中填写赛后教练 API。";
+      this.chatBusy = false;
+      return;
+    }
 
     const messages: ChatMessage[] = [
       ...this.chatBase,
@@ -276,6 +305,7 @@ export class ReportPage implements Page {
     let answer = "";
     try {
       answer = await streamChat(
+        config,
         messages,
         (delta) => {
           answer += delta;
@@ -286,7 +316,7 @@ export class ReportPage implements Page {
       );
     } catch {
       if (!controller.signal.aborted) {
-        botRow.textContent = "教练暂时不可用（LLM 代理未连接）。";
+        botRow.textContent = "教练暂时不可用，请检查 API 配置、模型权限与浏览器跨域设置。";
       }
     }
     if (answer) {

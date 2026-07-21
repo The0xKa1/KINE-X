@@ -74,17 +74,6 @@ export interface DomRefs {
   medalName: HTMLElement;
   resultsTitle: HTMLElement;
   resultsReportLink: HTMLButtonElement;
-  exportButton: HTMLElement;
-
-  dnaExport: HTMLElement;
-  exportClose: HTMLElement;
-  exportBar: HTMLElement;
-  exportLabel: HTMLElement;
-  exportHead: HTMLElement;
-  exportSub: HTMLElement;
-  exportResult: HTMLElement;
-  exportVideo: HTMLVideoElement;
-  exportDownload: HTMLAnchorElement;
 
   dnaDrawer: HTMLElement;
   drawerBackdrop: HTMLElement;
@@ -105,6 +94,12 @@ export interface DomRefs {
   modalityFaceToggle: HTMLInputElement;
   recalibrateButton: HTMLButtonElement;
   calibrationStatusLabel: HTMLElement;
+  llmBaseUrl: HTMLInputElement;
+  llmApiKey: HTMLInputElement;
+  mllmModel: HTMLInputElement;
+  coachModel: HTMLInputElement;
+  llmClear: HTMLButtonElement;
+  llmStatus: HTMLElement;
   personaSelect: HTMLSelectElement;
   aiCoachCard: HTMLElement;
   aiCoachText: HTMLElement;
@@ -209,17 +204,6 @@ export function collectDomRefs(): DomRefs {
     medalName: $("#medalName"),
     resultsTitle: $("#resultsTitle"),
     resultsReportLink: $("#resultsReportLink") as HTMLButtonElement,
-    exportButton: $("#exportButton"),
-
-    dnaExport: $("#dnaExport"),
-    exportClose: $("#exportClose"),
-    exportBar: $("#exportBar"),
-    exportLabel: $("#exportLabel"),
-    exportHead: $("#exportHead"),
-    exportSub: $("#exportSub"),
-    exportResult: $("#exportResult"),
-    exportVideo: $("#exportVideo") as HTMLVideoElement,
-    exportDownload: $("#exportDownload") as HTMLAnchorElement,
 
     dnaDrawer: $("#dnaDrawer"),
     drawerBackdrop: $("#drawerBackdrop"),
@@ -240,6 +224,12 @@ export function collectDomRefs(): DomRefs {
     modalityFaceToggle: $("#modalityFaceToggle") as HTMLInputElement,
     recalibrateButton: $("#recalibrateButton") as HTMLButtonElement,
     calibrationStatusLabel: $("#calibrationStatusLabel"),
+    llmBaseUrl: $("#llmBaseUrl") as HTMLInputElement,
+    llmApiKey: $("#llmApiKey") as HTMLInputElement,
+    mllmModel: $("#mllmModel") as HTMLInputElement,
+    coachModel: $("#coachModel") as HTMLInputElement,
+    llmClear: $("#llmClear") as HTMLButtonElement,
+    llmStatus: $("#llmStatus"),
     personaSelect: $("#personaSelect") as HTMLSelectElement,
     aiCoachCard: $("#aiCoachCard"),
     aiCoachText: $("#aiCoachText"),

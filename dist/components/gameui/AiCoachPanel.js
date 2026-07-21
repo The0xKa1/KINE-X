@@ -5,7 +5,7 @@
 
 
 
-import { renderMarkdown } from "../../core/llm/renderMarkdown.js?v=0.1.1";
+import { renderMarkdown } from "../../core/llm/renderMarkdown.js?v=0.1.2";
 
 
 
@@ -39,6 +39,21 @@ export class AiCoachPanel {
     this.options.textEl.classList.remove("is-error");
     this.clearStatus();
     this.setStatus(statusLabel);
+  }
+
+  renderSetupRequired(text        )       {
+    this.renderStatic(text, "");
+    this.clearStatus();
+    const prefix = document.createElement("span");
+    prefix.textContent = "API 未配置 · ";
+    this.options.statusEl.appendChild(prefix);
+    if (!this.options.onOpenSettings) return;
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "results-ai-action";
+    button.textContent = "去设置 →";
+    button.addEventListener("click", () => this.options.onOpenSettings?.());
+    this.options.statusEl.appendChild(button);
   }
 
   async renderStreaming(runner              , fallbackText        )                  {

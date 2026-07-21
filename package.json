@@ -1,14 +1,14 @@
 {
   "name": "kine-x-frontend-prototype",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "private": true,
   "type": "module",
   "scripts": {
     "build": "node --no-warnings=ExperimentalWarning scripts/build.mjs",
     "test:avatar": "npm run build && node --test scripts/avatar-*.test.mjs",
+    "test:ai": "npm run build && node --test scripts/ai-api.test.mjs",
+    "test:session": "npm run build && node --test scripts/session-archive.test.mjs",
     "dev": "npm run build && python3 -m http.server 5173",
-    "check": "npm run build && node scripts/guardrails.mjs",
-    "server:install": "python3 -m venv server/.venv && server/.venv/bin/pip install -r server/requirements.txt",
-    "server": "bash -c 'set -a; source .env; set +a; server/.venv/bin/uvicorn server.main:app --host 0.0.0.0 --port 8766 --reload'"
+    "check": "npm run build && node scripts/guardrails.mjs"
   }
 }

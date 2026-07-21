@@ -7,6 +7,7 @@ import {
   sampleFramesAtInterval,
   type MllmVideoSegment,
 } from "../mllm/VideoSegmentationClient.js";
+import type { LlmSettings } from "../llm/LLMClient.js";
 import type { CoachClip, SeedMotion } from "../../types/motion.js";
 import { appendSelectedAvatar } from "../avatar/AvatarBindingController.js";
 
@@ -85,6 +86,7 @@ export interface ImportFlowOptions {
   statusLabel: HTMLElement;
   preview: HTMLVideoElement;
   backendUrl: string;
+  getMllmConfig(): LlmSettings | null;
   getSelectedAvatarId?(): string | null;
   onApply(payload: ImportApplyPayload): void;
   onStateChange?(state: ImportFlowState): void;
@@ -192,7 +194,11 @@ export class ImportFlow {
       this.setStatus(`已采样 ${frames.length} 帧，调用 MLLM 分段…`);
       this.setProgress(0.45);
 
-      const result = await this.segmentClient.segmentVideo({
+      const config = this.options.getMllmConfig();
+      if (!config) {
+        throw new Error("请先在摄像头设置中填写 MLLM API");
+      }
+      const result = await this.segmentClient.segmentVideo(config, {
         fileName: this.file.name,
         durationSeconds: meta.durationSeconds,
         frames,

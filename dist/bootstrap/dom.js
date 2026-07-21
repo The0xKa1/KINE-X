@@ -136,11 +136,6 @@ export const $$ =                    (selector        )      =>
 
 
 
-
-
-
-
-
 export function collectDomRefs()          {
   return {
     stageTitle: $("#stageTitle"),
@@ -209,17 +204,6 @@ export function collectDomRefs()          {
     medalName: $("#medalName"),
     resultsTitle: $("#resultsTitle"),
     resultsReportLink: $("#resultsReportLink")                     ,
-    exportButton: $("#exportButton"),
-
-    dnaExport: $("#dnaExport"),
-    exportClose: $("#exportClose"),
-    exportBar: $("#exportBar"),
-    exportLabel: $("#exportLabel"),
-    exportHead: $("#exportHead"),
-    exportSub: $("#exportSub"),
-    exportResult: $("#exportResult"),
-    exportVideo: $("#exportVideo")                    ,
-    exportDownload: $("#exportDownload")                     ,
 
     dnaDrawer: $("#dnaDrawer"),
     drawerBackdrop: $("#drawerBackdrop"),
@@ -240,6 +224,12 @@ export function collectDomRefs()          {
     modalityFaceToggle: $("#modalityFaceToggle")                    ,
     recalibrateButton: $("#recalibrateButton")                     ,
     calibrationStatusLabel: $("#calibrationStatusLabel"),
+    llmBaseUrl: $("#llmBaseUrl")                    ,
+    llmApiKey: $("#llmApiKey")                    ,
+    mllmModel: $("#mllmModel")                    ,
+    coachModel: $("#coachModel")                    ,
+    llmClear: $("#llmClear")                     ,
+    llmStatus: $("#llmStatus"),
     personaSelect: $("#personaSelect")                     ,
     aiCoachCard: $("#aiCoachCard"),
     aiCoachText: $("#aiCoachText"),

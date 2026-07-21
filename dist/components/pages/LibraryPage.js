@@ -58,17 +58,20 @@ export class LibraryPage                 {
       })
       .join("");
 
-    const history = this.options.archive.list().slice(0, 6);
+    const history = this.options.archive.list();
     const historyRows = history
       .map((session) => {
         const date = new Date(session.finishedAt);
         const label = `${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")} ${String(date.getHours()).padStart(2, "0")}:${String(date.getMinutes()).padStart(2, "0")}`;
         return `
-          <button type="button" class="library-history-row" data-session="${session.id}">
-            <span>${session.exerciseName}</span>
-            <b>${session.score}</b>
-            <span>${label}</span>
-          </button>
+          <div class="library-history-row">
+            <button type="button" class="library-history-open" data-session="${session.id}" aria-label="查看这次训练报告">
+              <span>${session.exerciseName}</span>
+              <b>${session.score}</b>
+              <span>${label}</span>
+            </button>
+            <button type="button" class="library-history-delete" data-delete-session="${session.id}" aria-label="删除这次训练记录">删除</button>
+          </div>
         `;
       })
       .join("");
@@ -109,6 +112,19 @@ export class LibraryPage                 {
     this.el.querySelectorAll             ("[data-session]").forEach((row) => {
       row.addEventListener("click", () => {
         window.location.hash = `#/report/${row.dataset.session ?? ""}`;
+      });
+    });
+    this.el.querySelectorAll                   ("[data-delete-session]").forEach((button) => {
+      button.addEventListener("click", () => {
+        const sessionId = button.dataset.deleteSession ?? "";
+        const session = this.options.archive.get(sessionId);
+        if (!session) {
+          this.render();
+          return;
+        }
+        const confirmed = window.confirm(`确定删除「${session.exerciseName}」这次训练记录吗？此操作无法撤销。`);
+        if (!confirmed) return;
+        if (this.options.archive.remove(sessionId)) this.render();
       });
     });
   }

@@ -1,11 +1,14 @@
 
-import { ImportFlow,                                               } from "../../core/import/ImportFlow.js?v=0.1.1";
+import { ImportFlow,                                               } from "../../core/import/ImportFlow.js?v=0.1.2";
 import {
   buildAvatarPickerChoices,
 
-} from "../../core/avatar/AvatarBindingController.js?v=0.1.1";
-import { AvatarRegistryClient } from "../../core/avatar/AvatarRegistryClient.js?v=0.1.1";
-import { $ } from "../../bootstrap/dom.js?v=0.1.1";
+} from "../../core/avatar/AvatarBindingController.js?v=0.1.2";
+import { AvatarRegistryClient } from "../../core/avatar/AvatarRegistryClient.js?v=0.1.2";
+import { $ } from "../../bootstrap/dom.js?v=0.1.2";
+
+
+
 
 
 
@@ -105,7 +108,8 @@ export class CreatePage                 {
             <button id="createSegment" class="secondary-button" type="button">用 MLLM 切片</button>
             <p id="createSegmentSummary" class="segment-summary"></p>
             <div id="createSegmentList" class="segment-list is-empty"></div>
-            <p class="settings-hint">不选段时整段导入。选中某段后，后端只对该时间区间抽帧/推理。</p>
+            <p class="settings-hint">关键帧会由浏览器直接发送到你配置的 OpenAI-compatible MLLM，不经过 KINE//X 服务器。</p>
+            <button id="createApiSettings" class="text-button" type="button">设置 MLLM API →</button>
           </section>
 
           <section class="create-block">
@@ -131,6 +135,10 @@ export class CreatePage                 {
       "click",
       () => void this.refreshAvatarPicker(),
     );
+    ($("#createApiSettings")                     ).addEventListener(
+      "click",
+      () => this.options.onOpenSettings(),
+    );
   }
 
           initFlow()       {
@@ -148,6 +156,7 @@ export class CreatePage                 {
       statusLabel: $("#createStatus"),
       preview: $("#createPreview")                    ,
       backendUrl: this.options.backendUrl,
+      getMllmConfig: () => this.options.getMllmConfig(),
       getSelectedAvatarId: () => this.selectedAvatarId,
       onApply: (payload) => this.options.onApply(payload),
       onStateChange: (state) => this.syncSteps(state),

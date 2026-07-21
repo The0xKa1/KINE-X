@@ -5,9 +5,9 @@ import {
   AvatarRegistryOfflineError,
   AvatarRenameDraftStore,
 
-} from "../../core/avatar/AvatarRegistryClient.js?v=0.1.1";
-import { GaussianAvatar } from "../../core/avatar/GaussianAvatar.js?v=0.1.1";
-import { THREE } from "../../core/three-compat.js?v=0.1.1";
+} from "../../core/avatar/AvatarRegistryClient.js?v=0.1.2";
+import { GaussianAvatar } from "../../core/avatar/GaussianAvatar.js?v=0.1.2";
+import { THREE } from "../../core/three-compat.js?v=0.1.2";
 
 
 

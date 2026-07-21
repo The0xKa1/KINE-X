@@ -88,8 +88,10 @@
 .pipeline-step.is-busy { background: var(--hot); }
 .pipeline-step.is-busy i { background: var(--ink); }
 .drawer-backdrop { background: rgba(17, 17, 17, .72); }
-.settings-field select { height: 42px; border: 2px solid var(--ink); background: var(--paper); font-weight: 700; }
-.settings-field select:focus { background: var(--hot); }
+.settings-field select,
+.settings-field input { height: 42px; border: 2px solid var(--ink); background: var(--paper); font-weight: 700; }
+.settings-field select:focus,
+.settings-field input:focus { background: var(--hot); }
 .settings-toggle input { accent-color: var(--hot); }
 .import-drop { padding: 24px 16px; border: 3px dashed var(--ink); background: var(--paper); }
 .import-drop.is-drag { background: var(--hot); border-color: var(--ink); }
@@ -196,17 +198,6 @@
 .results-cta { padding: 18px 22px; background: var(--paper); }
 .results-cta .cta-text { color: var(--ink); font-weight: 700; }
 .results-cta button { border: 3px solid var(--ink); background: var(--hot); color: var(--ink); font-family: var(--display); }
-
-.dna-export { background: rgba(17, 17, 17, .84); }
-.dna-export-card { width: min(520px, 92vw); padding: 0 0 22px; gap: 16px; border: 5px solid var(--ink); background: var(--paper); }
-.dna-export-card h3 { padding: 22px 22px 0; font-family: var(--display); font-size: 32px; line-height: .9; text-transform: uppercase; }
-.dna-export-card p { padding: 0 22px; color: var(--ink); }
-.dna-progress { margin: 0 22px; height: 10px; border: 2px solid var(--ink); background: var(--paper); }
-.dna-progress i { background: var(--hot); }
-.dna-progress-label { color: var(--ink); font-family: var(--display); font-size: 18px; }
-.dna-qr-code { border: 4px solid var(--ink); background: var(--paper); }
-.dna-qr-code i { background: var(--ink); }
-.dna-export-card .secondary-button { border: 3px solid var(--ink); background: var(--hot); }
 
 @media (max-width: 760px) {
   .session-overlay { width: 100%; border-left: 0; border-top: 5px solid var(--ink); }

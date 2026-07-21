@@ -52,6 +52,19 @@ export class SessionArchive {
     }
   }
 
+  /** Remove one finished session. Returns false when it was absent or storage failed. */
+  remove(id: string): boolean {
+    const sessions = this.list();
+    const next = sessions.filter((session) => session.id !== id);
+    if (next.length === sessions.length) return false;
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
   /** Sessions played for one exercise, newest first. */
   forExercise(exerciseId: string): ArchivedSession[] {
     return this.list().filter((s) => s.exerciseId === exerciseId);

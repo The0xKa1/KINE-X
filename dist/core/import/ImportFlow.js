@@ -1,17 +1,19 @@
-import { buildFrameThumbnailsFromMeta, loadCoachClip } from "./loadCoachClip.js?v=0.1.1";
-import { loadMeshClip,               } from "./MeshClip.js?v=0.1.1";
-import { VideoSeeker } from "./VideoSeeker.js?v=0.1.1";
-import { SegmentResourceStore,                      } from "../mllm/SegmentResourceStore.js?v=0.1.1";
+import { buildFrameThumbnailsFromMeta, loadCoachClip } from "./loadCoachClip.js?v=0.1.2";
+import { loadMeshClip,               } from "./MeshClip.js?v=0.1.2";
+import { VideoSeeker } from "./VideoSeeker.js?v=0.1.2";
+import { SegmentResourceStore,                      } from "../mllm/SegmentResourceStore.js?v=0.1.2";
 import {
   VideoSegmentationClient,
   sampleFramesAtInterval,
 
-} from "../mllm/VideoSegmentationClient.js?v=0.1.1";
+} from "../mllm/VideoSegmentationClient.js?v=0.1.2";
 
-import { appendSelectedAvatar } from "../avatar/AvatarBindingController.js?v=0.1.1";
+
+import { appendSelectedAvatar } from "../avatar/AvatarBindingController.js?v=0.1.2";
 
 const SEGMENT_SAMPLE_INTERVAL_SEC = 1.5;
 const SEGMENT_THUMB_MAX_WIDTH = 160;
+
 
 
 
@@ -192,7 +194,11 @@ export class ImportFlow {
       this.setStatus(`已采样 ${frames.length} 帧，调用 MLLM 分段…`);
       this.setProgress(0.45);
 
-      const result = await this.segmentClient.segmentVideo({
+      const config = this.options.getMllmConfig();
+      if (!config) {
+        throw new Error("请先在摄像头设置中填写 MLLM API");
+      }
+      const result = await this.segmentClient.segmentVideo(config, {
         fileName: this.file.name,
         durationSeconds: meta.durationSeconds,
         frames,

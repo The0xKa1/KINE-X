@@ -1,5 +1,10 @@
-import { API_BASE_URL } from "../../config.js";
 import type { VideoSeeker } from "../import/VideoSeeker.js";
+import {
+  assertLlmSettings,
+  buildLlmHeaders,
+  chatCompletionsUrl,
+  type LlmSettings,
+} from "../llm/LLMClient.js";
 
 export type MllmSegmentMetadata = Record<string, string>;
 
@@ -81,40 +86,73 @@ function createFrameCapture(
 }
 
 export class VideoSegmentationClient {
-  async segmentVideo(request: VideoSegmentationRequest): Promise<MllmVideoSegmentationResult> {
+  async segmentVideo(
+    settings: LlmSettings,
+    request: VideoSegmentationRequest,
+  ): Promise<MllmVideoSegmentationResult> {
     if (!request.frames.length) {
       throw new Error("没有采样到关键帧,无法分割");
     }
+    assertLlmSettings(settings);
     const init: RequestInit = {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        fileName: request.fileName ?? "",
-        durationSeconds: request.durationSeconds,
-        frames: request.frames,
-      }),
+      headers: buildLlmHeaders(settings),
+      body: JSON.stringify(buildSegmentationPayload(settings, request)),
     };
     if (request.signal) {
       init.signal = request.signal;
     }
-    const response = await fetch(`${API_BASE_URL}/api/segment`, init);
+    const response = await fetch(chatCompletionsUrl(settings.baseUrl), init);
 
     if (!response.ok) {
       const detail = await response.text().catch(() => "");
-      throw new Error(`后端分割失败 HTTP ${response.status} · ${compact(detail)}`);
+      throw new Error(`MLLM 请求失败 HTTP ${response.status} · ${compact(detail)}`);
     }
 
-    let json: { content?: string };
+    let json: { choices?: Array<{ message?: { content?: string } }> };
     try {
-      json = (await response.json()) as { content?: string };
+      json = (await response.json()) as { choices?: Array<{ message?: { content?: string } }> };
     } catch {
-      throw new Error("后端响应不是合法 JSON");
+      throw new Error("MLLM 响应不是合法 JSON");
     }
 
-    const content = json.content;
-    if (!content) throw new Error("后端响应缺少 content 字段");
+    const content = json.choices?.[0]?.message?.content;
+    if (!content) throw new Error("MLLM 响应缺少 choices[0].message.content");
     return normalizeSegmentationContent(content, request.durationSeconds);
   }
+}
+
+const SEGMENT_SYSTEM_PROMPT =
+  "你是 KINE//X 的运动视频分析引擎。只输出 JSON，不要输出 Markdown。" +
+  "用户会按时间顺序给你若干张关键帧，每张都标有时间戳（秒）。" +
+  "请根据动作变化切分完整动作单元，并给出元数据。";
+
+function buildSegmentationPayload(settings: LlmSettings, request: VideoSegmentationRequest): object {
+  const duration = request.durationSeconds.toFixed(2);
+  const intro =
+    "请输出 JSON：" +
+    '{"summary":"...","globalTags":["..."],"segments":' +
+    '[{"id":"seg-1","name":"...","actionLabel":"...","startSec":0,"endSec":2.4,' +
+    '"confidence":0.82,"metadata":{"难度":"中等","核心受力部位":"核心/下肢",' +
+    '"节奏感":"强"},"notes":"..."}]}。' +
+    `视频文件：${request.fileName || "(无名)"}，总时长：${duration} 秒。` +
+    `共 ${request.frames.length} 张关键帧；segments 必须按时间升序且 startSec/endSec 在 [0, ${duration}] 内。`;
+  const content: Array<Record<string, unknown>> = [{ type: "text", text: intro }];
+  request.frames.forEach((frame, index) => {
+    content.push({ type: "text", text: `第 ${index + 1} 张，时间 ${frame.timestampSec.toFixed(2)}s：` });
+    content.push({ type: "image_url", image_url: { url: frame.dataUrl } });
+  });
+  return {
+    model: settings.model,
+    stream: false,
+    response_format: { type: "json_object" },
+    temperature: 0.2,
+    max_tokens: 1200,
+    messages: [
+      { role: "system", content: SEGMENT_SYSTEM_PROMPT },
+      { role: "user", content },
+    ],
+  };
 }
 
 export function normalizeSegmentationContent(content: string, durationSeconds: number): MllmVideoSegmentationResult {

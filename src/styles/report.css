@@ -44,6 +44,27 @@
   font-variant-numeric: tabular-nums;
 }
 
+.report-head-actions {
+  display: grid;
+  justify-items: end;
+  gap: 10px;
+}
+
+.report-delete-session {
+  padding: 8px 12px;
+  border: 2px solid var(--ink);
+  background: var(--paper);
+  color: var(--ink);
+  font: 700 10px/1 var(--mono);
+  letter-spacing: 0.1em;
+  cursor: pointer;
+}
+
+.report-delete-session:hover,
+.report-delete-session:focus-visible {
+  background: var(--hot);
+}
+
 .report-grid {
   display: grid;
   grid-template-columns: minmax(260px, 1fr) minmax(0, 1.4fr);

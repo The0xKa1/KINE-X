@@ -6,7 +6,7 @@ import type { ExerciseConfig, ScoreUpdate } from "../../types/motion.js";
 import type { SessionRecorder } from "../../core/scoring/SessionRecorder.js";
 import type { AiCoachPanel } from "./AiCoachPanel.js";
 import { buildDiagnosisMessages, buildFallbackText, type CoachPersona } from "../../core/llm/buildPrompt.js";
-import { streamChat } from "../../core/llm/LLMClient.js";
+import { streamChat, type LlmSettings } from "../../core/llm/LLMClient.js";
 import type { SessionArchive } from "../../core/scoring/SessionArchive.js";
 
 interface ResultsScreenOptions {
@@ -22,14 +22,13 @@ interface ResultsScreenOptions {
   jointsEl: HTMLElement;
   medalEl: HTMLElement;
   titleEl: HTMLElement;
-  exportButton: HTMLElement;
-  onExport(): void;
   onClose?(): void;
   getStats(): { bestCombo: number; perfectFrames: number };
   exercises: Record<string, ExerciseConfig>;
   sessionRecorder: SessionRecorder;
   sessionArchive: SessionArchive;
   aiCoach: AiCoachPanel;
+  getLlmConfig(): LlmSettings | null;
   getPersona(): CoachPersona;
 }
 
@@ -58,7 +57,6 @@ export class ResultsScreen {
     });
     this.options.bus.on("score:update", (payload) => this.handle(payload));
     this.options.closeButton.addEventListener("click", () => this.close());
-    this.options.exportButton.addEventListener("click", () => this.options.onExport());
     this.options.root.addEventListener("click", (event) => {
       if (event.target === this.options.root) this.close();
     });
@@ -194,10 +192,15 @@ export class ResultsScreen {
       this.options.aiCoach.renderStatic(this.lastDiagnosis.text, "cached");
       return;
     }
+    const config = this.options.getLlmConfig();
+    if (!config) {
+      this.options.aiCoach.renderSetupRequired(fallback);
+      return;
+    }
     const messages = buildDiagnosisMessages(exercise, summary, this.options.getPersona());
     void this.options.aiCoach
       .renderStreaming(
-        (onDelta, signal) => streamChat(messages, onDelta, { signal }),
+        (onDelta, signal) => streamChat(config, messages, onDelta, { signal }),
         fallback,
       )
       .then((text) => {

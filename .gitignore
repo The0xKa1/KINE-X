@@ -43,3 +43,4 @@ Thumbs.db
 # Editor / system
 .history/
 .cache/
+.codegraph/

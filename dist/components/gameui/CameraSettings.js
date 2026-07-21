@@ -7,7 +7,14 @@
 
 
 
-import { drawerStack } from "../../core/DrawerStack.js?v=0.1.1";
+
+import { drawerStack } from "../../core/DrawerStack.js?v=0.1.2";
+
+
+
+
+
+
 
 
 
@@ -37,6 +44,13 @@ import { drawerStack } from "../../core/DrawerStack.js?v=0.1.1";
 
 
 const STORAGE_KEY = "kinex.cameraSettings.v1";
+
+
+
+
+
+
+
 
 
 
@@ -77,6 +91,14 @@ export class CameraSettings {
 
   getPersona()               {
     return this.persona;
+  }
+
+  getMllmConfig()                     {
+    return this.readLlmConfig(this.options.mllmModel);
+  }
+
+  getCoachConfig()                     {
+    return this.readLlmConfig(this.options.coachModel);
   }
 
   open()       {
@@ -156,6 +178,16 @@ export class CameraSettings {
       this.options.calibration.start();
     });
 
+    const persistLlm = () => {
+      this.persist();
+      this.refreshLlmStatus();
+    };
+    this.options.llmBaseUrl.addEventListener("change", persistLlm);
+    this.options.llmApiKey.addEventListener("change", persistLlm);
+    this.options.mllmModel.addEventListener("change", persistLlm);
+    this.options.coachModel.addEventListener("change", persistLlm);
+    this.options.llmClearButton.addEventListener("click", () => this.clearLlmSettings());
+
     this.options.personaSelect.addEventListener("change", () => {
       const value = this.options.personaSelect.value;
       if (value === "biomech" || value === "baduanjin") {
@@ -216,6 +248,7 @@ export class CameraSettings {
     this.options.modalityHandToggle.checked = this.options.landmarker.isEnabled("hand");
     this.options.modalityFaceToggle.checked = this.options.landmarker.isEnabled("face");
     this.options.personaSelect.value = this.persona;
+    this.refreshLlmStatus();
   }
 
           refreshCalibrationLabel()       {
@@ -247,6 +280,12 @@ export class CameraSettings {
         face: this.options.landmarker.isEnabled("face"),
       },
       persona: this.persona,
+      llm: {
+        baseUrl: this.options.llmBaseUrl.value.trim(),
+        apiKey: this.options.llmApiKey.value.trim(),
+        mllmModel: this.options.mllmModel.value.trim(),
+        coachModel: this.options.coachModel.value.trim(),
+      },
     };
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
@@ -283,8 +322,46 @@ export class CameraSettings {
       if (parsed.persona === "biomech" || parsed.persona === "baduanjin") {
         this.persona = parsed.persona;
       }
+      if (parsed.llm) {
+        this.options.llmBaseUrl.value = parsed.llm.baseUrl ?? "";
+        this.options.llmApiKey.value = parsed.llm.apiKey ?? "";
+        const legacyModel = parsed.llm.model ?? "";
+        this.options.mllmModel.value = parsed.llm.mllmModel ?? legacyModel;
+        this.options.coachModel.value = parsed.llm.coachModel ?? legacyModel;
+      }
     } catch {
       // ignore corrupted state
     }
+  }
+
+          readLlmConfig(modelInput                  )                     {
+    const baseUrl = this.options.llmBaseUrl.value.trim();
+    const apiKey = this.options.llmApiKey.value.trim();
+    const model = modelInput.value.trim();
+    if (!baseUrl || !apiKey || !model) return null;
+    return { baseUrl, apiKey, model };
+  }
+
+          refreshLlmStatus()       {
+    const mllmReady = Boolean(this.getMllmConfig());
+    const coachReady = Boolean(this.getCoachConfig());
+    this.options.llmStatusLabel.textContent =
+      mllmReady && coachReady ? "MLLM / COACH READY" : mllmReady ? "MLLM READY" : coachReady ? "COACH READY" : "NOT CONFIGURED";
+  }
+
+          clearLlmSettings()       {
+    this.options.llmBaseUrl.value = "";
+    this.options.llmApiKey.value = "";
+    this.options.mllmModel.value = "";
+    this.options.coachModel.value = "";
+    this.persist();
+    this.refreshLlmStatus();
+    const original = this.options.llmClearButton.textContent;
+    this.options.llmClearButton.textContent = "已清除本机 API 配置 ✓";
+    this.options.llmClearButton.disabled = true;
+    window.setTimeout(() => {
+      this.options.llmClearButton.textContent = original;
+      this.options.llmClearButton.disabled = false;
+    }, 1400);
   }
 }

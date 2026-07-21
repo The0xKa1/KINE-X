@@ -41,6 +41,21 @@ export class AiCoachPanel {
     this.setStatus(statusLabel);
   }
 
+  renderSetupRequired(text: string): void {
+    this.renderStatic(text, "");
+    this.clearStatus();
+    const prefix = document.createElement("span");
+    prefix.textContent = "API 未配置 · ";
+    this.options.statusEl.appendChild(prefix);
+    if (!this.options.onOpenSettings) return;
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "results-ai-action";
+    button.textContent = "去设置 →";
+    button.addEventListener("click", () => this.options.onOpenSettings?.());
+    this.options.statusEl.appendChild(button);
+  }
+
   async renderStreaming(runner: StreamRunner, fallbackText: string): Promise<string> {
     this.cancel();
     this.rawText = "";

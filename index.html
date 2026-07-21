@@ -12,7 +12,7 @@
       href="https://fonts.googleapis.com/css2?family=Archivo+Black&family=JetBrains+Mono:wght@400;500;600;700&family=Noto+Sans+SC:wght@400;500;700;900&display=swap"
     />
 
-    <link rel="stylesheet" href="./src/styles.css?v=0.1.1" />
+    <link rel="stylesheet" href="./src/styles.css?v=0.1.2" />
 
     <script type="importmap">
       {
@@ -26,7 +26,7 @@
   <body class="boot-pending">
     <div id="bootOverlay" class="boot-overlay" aria-label="系统启动中">
       <div class="boot-frame">
-        <p class="boot-eyebrow">REAL-TIME MOTION COACHING SYSTEM · v0.1.1</p>
+        <p class="boot-eyebrow">REAL-TIME MOTION COACHING SYSTEM · v0.1.2</p>
         <h1 class="boot-brand">KINE<b>//</b>X</h1>
         <ul class="boot-checks">
           <li data-check="clip"><span>COACH CLIP</span><i class="boot-dots"></i><b>WAIT</b></li>
@@ -68,7 +68,7 @@
       <main class="workspace">
         <header class="topbar">
           <div class="title-block">
-          <p>real time motion coaching system · v0.1.1</p>
+          <p>real time motion coaching system · v0.1.2</p>
             <h1>KINE<b>//</b>X</h1>
           </div>
 
@@ -374,9 +374,25 @@
         </section>
         <section class="drawer-section">
           <div class="section-head">
-            <h3>AI COACH</h3>
-            <span>post-match diagnosis</span>
+            <h3>AI API</h3>
+            <span id="llmStatus">NOT CONFIGURED</span>
           </div>
+          <label class="settings-field">
+            <span>OpenAI-compatible Base URL</span>
+            <input id="llmBaseUrl" type="url" inputmode="url" autocomplete="url" placeholder="https://api.openai.com/v1" />
+          </label>
+          <label class="settings-field">
+            <span>API Key</span>
+            <input id="llmApiKey" type="password" autocomplete="off" placeholder="sk-…" />
+          </label>
+          <label class="settings-field">
+            <span>MLLM 视频切片模型</span>
+            <input id="mllmModel" type="text" autocomplete="off" placeholder="gpt-4.1-mini" />
+          </label>
+          <label class="settings-field">
+            <span>赛后分析模型</span>
+            <input id="coachModel" type="text" autocomplete="off" placeholder="gpt-4.1-mini" />
+          </label>
           <label class="settings-field">
             <span>诊断 persona</span>
             <select id="personaSelect">
@@ -384,7 +400,8 @@
               <option value="baduanjin">八段锦传人</option>
             </select>
           </label>
-          <p class="settings-hint">LLM 凭据由本地 server 进程托管 (<code>server/.env</code>)，浏览器不再保存 API Key。</p>
+          <button id="llmClear" type="button" class="secondary-button">清除本机 API 配置</button>
+          <p class="settings-hint">配置只保存在本机 localStorage。请求由浏览器直接发送给你的服务商，因此服务商必须允许浏览器跨域访问；建议使用限额、可随时撤销的 Key。</p>
         </section>
       </div>
     </aside>
@@ -485,31 +502,12 @@
         </section>
 
         <div class="results-cta">
-          <span class="cta-text">一键生成你的 3D 动作分身 DNA 二创短视频，发回抖音装个杯。</span>
+          <span class="cta-text">训练数据已保存在本机，可继续查看完整关节报告与 AI 教练分析。</span>
           <button id="resultsReportLink" class="secondary-button" type="button">查看完整报告 →</button>
-          <button id="exportButton" class="primary-button" type="button">
-            <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M12 3v12M7 10l5 5 5-5M5 19h14" /></svg>
-            生成 DNA 二创视频
-          </button>
         </div>
       </div>
     </div>
 
-    <!-- Export modal -->
-    <div id="dnaExport" class="dna-export" role="dialog" aria-modal="true" aria-hidden="true">
-      <div class="dna-export-card">
-        <h3 id="exportHead">正在录制你的 3D 动作…</h3>
-        <p id="exportSub">录制舞台 4 秒 · webm 直出</p>
-        <div class="dna-progress"><i id="exportBar"></i></div>
-        <div class="dna-progress-label" id="exportLabel">0%</div>
-        <div id="exportResult" class="dna-export-result" style="display: none;">
-          <video id="exportVideo" class="dna-export-video" muted loop autoplay playsinline></video>
-          <a id="exportDownload" class="primary-button" download>下载 webm 视频</a>
-        </div>
-        <button id="exportClose" class="secondary-button" type="button">关闭</button>
-      </div>
-    </div>
-
-    <script type="module" src="./dist/main.js?v=0.1.1"></script>
+    <script type="module" src="./dist/main.js?v=0.1.2"></script>
   </body>
 </html>
