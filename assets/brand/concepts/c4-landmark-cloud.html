@@ -1,0 +1,59 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+  @font-face { font-family: "JetBrains Mono"; src: url("../../../public/fonts/jetbrains-mono.woff2") format("woff2"); }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { background: #f7f1e5; }
+  .board {
+    position: relative; width: 1200px; height: 1200px; overflow: hidden;
+    display: flex; align-items: center; justify-content: center;
+  }
+
+  /* ===== C4 · LANDMARK CLOUD: an X rebuilt from pose-keypoint dots, one sweep still hot ===== */
+  canvas { display: block; }
+  .tag {
+    position: absolute; bottom: 84px; left: 50%; transform: translateX(-50%);
+    font-family: "JetBrains Mono", monospace; font-size: 22px;
+    letter-spacing: 10px; color: #111;
+  }
+  .tag b { color: #ff4d00; font-weight: 400; }
+</style>
+</head>
+<body>
+<div class="board">
+  <canvas id="c" width="1200" height="1200"></canvas>
+  <div class="tag">// 55 KEYPOINTS <b>SWEEP·x=0.62</b></div>
+</div>
+<script>
+  const c = document.getElementById("c").getContext("2d");
+  // 1. rasterize a big X offscreen
+  const off = document.createElement("canvas");
+  off.width = off.height = 1200;
+  const oc = off.getContext("2d");
+  oc.font = "980px 'Archivo Black', sans-serif";
+  oc.textAlign = "center"; oc.textBaseline = "middle";
+  oc.fillStyle = "#000";
+  oc.fillText("X", 600, 570);
+
+  // 2. sample it into a dot grid (halftone), with a hot vertical sweep band
+  const data = oc.getImageData(0, 0, 1200, 1200).data;
+  const step = 30, maxR = 13;
+  const sweepX = 0.62 * 1200, sweepW = 90;
+  for (let y = step / 2; y < 1200; y += step) {
+    for (let x = step / 2; x < 1200; x += step) {
+      const a = data[((y | 0) * 1200 + (x | 0)) * 4 + 3];
+      if (a < 40) continue;
+      const r = maxR * (a / 255);
+      const d = Math.abs(x - sweepX);
+      const hot = d < sweepW / 2;
+      c.beginPath();
+      c.arc(x, y, r, 0, 7);
+      c.fillStyle = hot ? "#ff4d00" : "#111111";
+      c.fill();
+    }
+  }
+</script>
+</body>
+</html>

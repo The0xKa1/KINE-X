@@ -1,0 +1,43 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { background: #f7f1e5; }
+  .board {
+    position: relative; width: 1200px; height: 1200px; overflow: hidden;
+    display: flex; align-items: center; justify-content: center;
+  }
+
+  /* ===== Concept B: WOVEN — "//" multiplied until it becomes an X ===== */
+  .xwrap { position: relative; width: 900px; height: 900px; }
+  .slash { position: absolute; left: 50%; top: 50%; width: 34px; height: 860px;
+           margin: -430px 0 0 -17px; }
+  .ink { background: #111111; }
+  .hot { background: #ff4d00; }
+  .set-a .slash { transform: rotate(31deg) translateX(var(--o)); }
+  .set-b .slash { transform: rotate(-31deg) translateX(var(--o)); }
+  .set-b { mix-blend-mode: multiply; position: absolute; inset: 0; }
+  .set-a { position: absolute; inset: 0; }
+</style>
+</head>
+<body>
+<div class="board">
+  <div class="xwrap">
+    <div class="set-a">
+      <div class="slash ink" style="--o:-132px"></div>
+      <div class="slash ink" style="--o:-44px"></div>
+      <div class="slash ink" style="--o:44px"></div>
+      <div class="slash ink" style="--o:132px"></div>
+    </div>
+    <div class="set-b">
+      <div class="slash hot" style="--o:-132px"></div>
+      <div class="slash hot" style="--o:-44px"></div>
+      <div class="slash hot" style="--o:44px"></div>
+      <div class="slash hot" style="--o:132px"></div>
+    </div>
+  </div>
+</div>
+</body>
+</html>

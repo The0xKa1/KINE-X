@@ -13,7 +13,7 @@ body { background: var(--bg); }
   background: var(--ink);
   color: var(--paper);
 }
-.brand-mark { width: 50px; height: 50px; border: 3px solid var(--paper); background: var(--hot); color: var(--ink); font-family: var(--display); font-size: 15px; transform: rotate(-4deg); }
+.brand-mark { width: 50px; height: 50px; border: 3px solid var(--paper); background: var(--paper); transform: rotate(-4deg); }
 .rail-nav { width: 100%; gap: 0; border-top: 2px solid rgba(247,241,229,.5); }
 .rail-item { position: relative; width: 100%; height: 52px; border: 0; border-bottom: 2px solid rgba(247,241,229,.5); color: var(--paper); }
 .rail-item::after { content: attr(data-label); position: absolute; right: -4px; bottom: 3px; writing-mode: vertical-rl; font: 700 7px/1 var(--mono); letter-spacing: .08em; opacity: .55; }

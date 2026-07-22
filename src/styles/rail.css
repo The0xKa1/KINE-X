@@ -18,11 +18,14 @@
   place-items: center;
   border: var(--hairline);
   color: var(--ink);
-  background: var(--surface);
-  font-family: var(--sans);
-  font-weight: 800;
-  font-size: 13px;
-  letter-spacing: -0.04em;
+  background: var(--paper);
+}
+
+.brand-mark img {
+  width: 72%;
+  height: 72%;
+  object-fit: contain;
+  display: block;
 }
 
 .rail-nav {

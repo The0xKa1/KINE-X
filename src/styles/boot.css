@@ -41,8 +41,65 @@
   color: var(--ink);
 }
 
+.boot-logo {
+  position: absolute;
+  top: 32px;
+  right: 36px;
+  display: block;
+  width: 92px;
+  height: auto;
+}
+
+/* Signal-slice logo: power-on flicker, then irregular glitch drift --------- */
+.boot-logo-sig .sig-band {
+  animation:
+    sigPowerOn 0.72s steps(1, end) var(--pd, 0s) both,
+    sigGlitch var(--gd, 4.4s) steps(1, end) calc(1.2s + var(--gp, 0s)) infinite;
+}
+
+.boot-logo-sig .sig-band.hot {
+  animation:
+    sigPowerOn 0.72s steps(1, end) var(--pd, 0s) both,
+    sigHotGlitch var(--gd, 2.9s) steps(1, end) calc(1.2s + var(--gp, 0s)) infinite;
+}
+
+.boot-logo-sig .sig-b0 { --pd: 0s;    --gd: 5.2s; --gp: 0s; }
+.boot-logo-sig .sig-b1 { --pd: 0.09s; --gd: 3.8s; --gp: 0.9s; }
+.boot-logo-sig .sig-b2 { --pd: 0.05s; --gd: 2.9s; --gp: 0.4s; }
+.boot-logo-sig .sig-b3 { --pd: 0.14s; --gd: 4.6s; --gp: 1.7s; }
+.boot-logo-sig .sig-b4 { --pd: 0.11s; --gd: 6.1s; --gp: 2.3s; }
+
+/* CRT-style power-on: the slice flashes a few times before staying lit */
+@keyframes sigPowerOn {
+  0% { opacity: 0; }
+  10% { opacity: 1; }
+  16% { opacity: 0.15; }
+  24% { opacity: 1; }
+  32% { opacity: 0; }
+  40%, 100% { opacity: 1; }
+}
+
+/* ink slices: mostly stable, a brief sideways jump once per cycle */
+@keyframes sigGlitch {
+  0%, 82%, 100% { transform: translateX(0); opacity: 1; }
+  84% { transform: translateX(-6px); opacity: 0.85; }
+  86% { transform: translateX(5px); opacity: 0.55; }
+  88% { transform: translateX(-2px); opacity: 1; }
+  90% { transform: translateX(0); }
+}
+
+/* the hot slice is the live one: flickers harder, jumps wider */
+@keyframes sigHotGlitch {
+  0%, 70%, 100% { transform: translateX(0); opacity: 1; }
+  72% { opacity: 0.25; }
+  74% { opacity: 1; }
+  80% { transform: translateX(8px); opacity: 0.6; }
+  82% { transform: translateX(-5px); }
+  84% { transform: translateX(0); opacity: 1; }
+}
+
 .boot-brand {
-  margin: 0;
+  margin: 96px 0 0;
   font-family: var(--display);
   font-size: clamp(64px, 12vw, 168px);
   font-weight: 400;
@@ -163,6 +220,7 @@ body.boot-done .workspace > *:nth-child(4) { animation-delay: 270ms; }
 @media (prefers-reduced-motion: reduce) {
   .boot-overlay.is-exiting { transition: none; }
   .boot-checks li.is-ok { animation: none; }
+  .boot-logo-sig .sig-band { animation: none; }
   body.boot-done .rail,
   body.boot-done .workspace > * { animation: none; }
 }

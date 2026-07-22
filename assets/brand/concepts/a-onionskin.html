@@ -1,0 +1,70 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+  @font-face { font-family: "Archivo Black"; src: url("../../../public/fonts/archivo-black.woff2") format("woff2"); }
+  @font-face { font-family: "JetBrains Mono"; src: url("../../../public/fonts/jetbrains-mono.woff2") format("woff2"); }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { background: #f7f1e5; }
+  .board {
+    position: relative; width: 1200px; height: 1200px; overflow: hidden;
+    display: flex; align-items: center; justify-content: center;
+  }
+
+  /* ===== Concept A: ONION-SKIN — the X exists between two motion frames ===== */
+  .xwrap { position: relative; width: 900px; height: 900px; }
+  .ghost { position: absolute; inset: 0; }
+  .bar { position: absolute; left: 50%; top: 50%; width: 92px; height: 780px;
+         margin: -390px 0 0 -46px; }
+  .r1 { transform: rotate(33deg); }
+  .r2 { transform: rotate(-33deg); }
+
+  /* frame n-2, n-1 : trailing echoes, lower-left, fading */
+  .g2 { transform: translate(-88px, 88px); opacity: .16; }
+  .g1 { transform: translate(-44px, 44px); opacity: .38; }
+  .ghost .bar { background: #ff4d00; }
+
+  /* frame n : the present, ink */
+  .now .bar { background: #111111; }
+
+  /* joint nodes on the present frame */
+  .joint { position: absolute; width: 58px; height: 58px; border-radius: 50%;
+           background: #111111; transform: translate(-50%, -50%); }
+  .hub { position: absolute; left: 50%; top: 50%; transform: translate(-50%,-50%); }
+  .hub .core { width: 92px; height: 92px; border-radius: 50%; background: #ff4d00;
+               position: relative; z-index: 3; }
+  .hub .ring { position: absolute; left: 50%; top: 50%; border-radius: 50%;
+               border: 10px solid #ff4d00; transform: translate(-50%,-50%); }
+  .hub .ring.a { width: 176px; height: 176px; opacity: .55; }
+  .hub .ring.b { width: 260px; height: 260px; opacity: .22; }
+
+  .mono { font-family: "JetBrains Mono", monospace; color: #111;
+          letter-spacing: 8px; font-size: 26px; }
+</style>
+</head>
+<body>
+<div class="board">
+  <div class="xwrap" id="xwrap">
+    <div class="ghost g2"><div class="bar r1"></div><div class="bar r2"></div></div>
+    <div class="ghost g1"><div class="bar r1"></div><div class="bar r2"></div></div>
+    <div class="now"><div class="bar r1"></div><div class="bar r2"></div></div>
+    <div class="hub">
+      <div class="ring b"></div><div class="ring a"></div><div class="core"></div>
+    </div>
+  </div>
+</div>
+<script>
+  // place the four tip joints of the present-frame X (computed from the bar geometry)
+  const wrap = document.getElementById("xwrap");
+  const C = 450, L = 390, deg = 33 * Math.PI / 180;
+  const dx = Math.sin(deg) * L, dy = Math.cos(deg) * L;
+  [[C - dx, C - dy], [C + dx, C + dy], [C + dx, C - dy], [C - dx, C + dy]].forEach(([x, y]) => {
+    const j = document.createElement("div");
+    j.className = "joint";
+    j.style.left = x + "px"; j.style.top = y + "px";
+    wrap.appendChild(j);
+  });
+</script>
+</body>
+</html>

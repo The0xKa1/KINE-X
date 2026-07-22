@@ -43,6 +43,12 @@ Forbidden anywhere in source:
 
 These rules are the hard contract for the prototype (the original `docs/Constraint.md` was retired in the docs cleanup — this section and the guardrail script are now the source of truth).
 
+## Brand assets
+
+- The product mark is the "signal slice" X (concept C): the Archivo Black `X` glyph cut into five horizontally displaced bands, middle band hot orange. `scripts/generate-signal-logo.py` extracts the glyph from `public/fonts/archivo-black.woff2` and writes SVG masters to `assets/brand/` plus served copies and rasterized favicons (`favicon-32.png`, `apple-touch-icon.png`, `icon-192/512.png`) to `public/brand/`. Re-run the script after any design change; never hand-edit the generated SVGs.
+- Exploratory logo concepts (HTML+CSS boards rendered via headless Chrome) live in `assets/brand/concepts/` — the chosen direction is `c-signal.html`.
+- Frontend usage: browser favicon links and the rail logo (`index.html`), styled in `src/styles/rail.css`, `c3-workspace.css` (`.brand-mark`). The boot screen uses an **inlined animated copy** of the mark (five `.sig-band` slices, flicker/glitch keyframes in `src/styles/boot.css`) — if the mark is ever regenerated, mirror the band geometry into `index.html`.
+
 ## Architecture
 
 Vanilla TypeScript SPA. No framework, no bundler, zero `package.json` dependencies. Rendering is **real Three.js** (WebGL): `src/core/three-compat.ts` is a facade that re-exports the THREE pieces the app uses as a single `THREE` object; `MotionStage` renders a cylinder-bone / sphere-joint skeleton plus an optional SMPL-X `MeshClip` (10 475 vertices, baked by the import backend) on the same canvas. Avatars are **decoupled from motions**: a 3DGS identity (`KINEXGI1` — static gaussians + 55-joint rest skeleton + LBS weights, built once from a photo) combines with any motion (`KINEXGM1` — per-frame local quaternions + root translation, packed once per imported video) through an idempotent server-side binding. `src/core/avatar/GaussianAvatar.ts` loads identity and motion independently, runs 55-joint FK per displayed frame, and renders with per-gaussian LBS in the vertex shader + CPU depth sort. The avatar is a stage display mode (`MotionMode "avatar"`), unlocked per seed only when its binding is ready; legacy combined `KINEXGS1` bins stay readable for the built-in demo. Mode visibility: avatar mode = splats only, coach/stress = envelope, mesh = wireframe + rig.

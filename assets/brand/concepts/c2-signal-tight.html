@@ -1,0 +1,53 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+  @font-face { font-family: "Archivo Black"; src: url("../../../public/fonts/archivo-black.woff2") format("woff2"); }
+  @font-face { font-family: "JetBrains Mono"; src: url("../../../public/fonts/jetbrains-mono.woff2") format("woff2"); }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { background: #f7f1e5; }
+  .board {
+    position: relative; width: 1200px; height: 1200px; overflow: hidden;
+    display: flex; align-items: center; justify-content: center;
+  }
+
+  /* ===== C2 · SIGNAL, refined: tighter slices, keeps the X readable ===== */
+  .xwrap { position: relative; width: 900px; height: 900px; }
+  .band {
+    position: absolute; left: 50%; top: 44%;
+    transform: translate(-50%, -50%) translateX(var(--dx));
+    font-family: "Archivo Black", sans-serif;
+    font-size: 980px; line-height: 1; color: #111111;
+    clip-path: inset(var(--t) 0 var(--b) 0);
+  }
+  .band.hot { color: #ff4d00; }
+  .scan {
+    position: absolute; inset: 0; pointer-events: none;
+    background: repeating-linear-gradient(0deg,
+      transparent 0 11px, rgba(17,17,17,.05) 11px 13px);
+  }
+  .tag {
+    position: absolute; bottom: 100px; left: 50%; transform: translateX(-50%);
+    font-family: "JetBrains Mono", monospace; font-size: 22px;
+    letter-spacing: 10px; color: #111;
+  }
+  .tag b { color: #ff4d00; font-weight: 400; }
+</style>
+</head>
+<body>
+<div class="board">
+  <div class="xwrap">
+    <div class="band"      style="--t:0%;     --b:85.7%;  --dx:0px">X</div>
+    <div class="band"      style="--t:14.3%;  --b:71.4%;  --dx:-12px">X</div>
+    <div class="band"      style="--t:28.6%;  --b:57.1%;  --dx:8px">X</div>
+    <div class="band hot"  style="--t:42.9%;  --b:42.9%;  --dx:-16px">X</div>
+    <div class="band"      style="--t:57.2%;  --b:28.6%;  --dx:10px">X</div>
+    <div class="band"      style="--t:71.5%;  --b:14.3%;  --dx:-7px">X</div>
+    <div class="band"      style="--t:85.8%;  --b:0%;     --dx:4px">X</div>
+    <div class="scan"></div>
+    <div class="tag">// MOTION <b>SIGNAL·LOCKED</b></div>
+  </div>
+</div>
+</body>
+</html>

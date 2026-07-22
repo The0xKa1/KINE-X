@@ -1,0 +1,53 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+  @font-face { font-family: "Archivo Black"; src: url("../../../public/fonts/archivo-black.woff2") format("woff2"); }
+  @font-face { font-family: "JetBrains Mono"; src: url("../../../public/fonts/jetbrains-mono.woff2") format("woff2"); }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { background: #f7f1e5; }
+  .board {
+    position: relative; width: 1200px; height: 1200px; overflow: hidden;
+    display: flex; align-items: center; justify-content: center;
+  }
+
+  /* ===== C3 · DOUBLE-EXPOSURE: the same X, two frames apart — chromatic split ===== */
+  .xwrap { position: relative; width: 900px; height: 900px; }
+  .x {
+    position: absolute; left: 50%; top: 44%;
+    font-family: "Archivo Black", sans-serif;
+    font-size: 980px; line-height: 1;
+  }
+  .x.past { color: #ff4d00; transform: translate(-50%, -50%) translate(-46px, 34px); }
+  .x.now  { color: #111111; transform: translate(-50%, -50%); mix-blend-mode: multiply; }
+  .scan {
+    position: absolute; inset: 0; pointer-events: none;
+    background: repeating-linear-gradient(0deg,
+      transparent 0 11px, rgba(17,17,17,.05) 11px 13px);
+  }
+  .reg { position: absolute; font-family: "JetBrains Mono", monospace;
+         font-size: 20px; letter-spacing: 6px; color: #111; }
+  .reg.tl { top: 90px; left: 110px; }
+  .reg.br { bottom: 90px; right: 110px; color: #ff4d00; }
+  .corner { position: absolute; width: 46px; height: 46px; border: 6px solid #111; }
+  .corner.tl { top: 70px; left: 70px; border-right: 0; border-bottom: 0; }
+  .corner.tr { top: 70px; right: 70px; border-left: 0; border-bottom: 0; }
+  .corner.bl { bottom: 70px; left: 70px; border-right: 0; border-top: 0; }
+  .corner.brr { bottom: 70px; right: 70px; border-left: 0; border-top: 0; }
+</style>
+</head>
+<body>
+<div class="board">
+  <div class="xwrap">
+    <div class="x past">X</div>
+    <div class="x now">X</div>
+    <div class="scan"></div>
+    <div class="corner tl"></div><div class="corner tr"></div>
+    <div class="corner bl"></div><div class="corner brr"></div>
+    <div class="reg tl">FRAME n-1 // HOT</div>
+    <div class="reg br">FRAME n&nbsp;&nbsp;&nbsp;// INK</div>
+  </div>
+</div>
+</body>
+</html>

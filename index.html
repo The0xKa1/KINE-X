@@ -4,6 +4,9 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>kine//x · real time motion coaching system</title>
+    <link rel="icon" type="image/svg+xml" href="./public/brand/kinex-mark-tile.svg" />
+    <link rel="icon" type="image/png" sizes="32x32" href="./public/brand/favicon-32.png" />
+    <link rel="apple-touch-icon" href="./public/brand/apple-touch-icon.png" />
 
     <link
       rel="preload"
@@ -28,6 +31,21 @@
     <div id="bootOverlay" class="boot-overlay" aria-label="系统启动中">
       <div class="boot-frame">
         <p class="boot-eyebrow">REAL-TIME MOTION COACHING SYSTEM · v0.1.13</p>
+        <!-- inlined copy of public/brand/kinex-mark.svg so the slices can flicker -->
+        <svg class="boot-logo boot-logo-sig" viewBox="0 0 938 716" aria-hidden="true">
+          <defs>
+            <clipPath id="sigB0"><rect x="0" y="0" width="938" height="143.7"/></clipPath>
+            <clipPath id="sigB1"><rect x="0" y="143.2" width="938" height="143.7"/></clipPath>
+            <clipPath id="sigB2"><rect x="0" y="286.4" width="938" height="143.7"/></clipPath>
+            <clipPath id="sigB3"><rect x="0" y="429.6" width="938" height="143.7"/></clipPath>
+            <clipPath id="sigB4"><rect x="0" y="572.8" width="938" height="143.7"/></clipPath>
+          </defs>
+          <g class="sig-band sig-b0" clip-path="url(#sigB0)"><path d="M778 0H510L383 214H379L252 0H4L250 364L28 688H295L399 512H403L508 688H755L532 363Z" fill="#111111" transform="translate(80 716) scale(1 -1)"/></g>
+          <g class="sig-band sig-b1" clip-path="url(#sigB1)"><path d="M778 0H510L383 214H379L252 0H4L250 364L28 688H295L399 512H403L508 688H755L532 363Z" fill="#111111" transform="translate(45 716) scale(1 -1)"/></g>
+          <g class="sig-band sig-b2 hot" clip-path="url(#sigB2)"><path d="M778 0H510L383 214H379L252 0H4L250 364L28 688H295L399 512H403L508 688H755L532 363Z" fill="#ff4d00" transform="translate(107 716) scale(1 -1)"/></g>
+          <g class="sig-band sig-b3" clip-path="url(#sigB3)"><path d="M778 0H510L383 214H379L252 0H4L250 364L28 688H295L399 512H403L508 688H755L532 363Z" fill="#111111" transform="translate(62 716) scale(1 -1)"/></g>
+          <g class="sig-band sig-b4" clip-path="url(#sigB4)"><path d="M778 0H510L383 214H379L252 0H4L250 364L28 688H295L399 512H403L508 688H755L532 363Z" fill="#111111" transform="translate(90 716) scale(1 -1)"/></g>
+        </svg>
         <h1 class="boot-brand">KINE<b>//</b>X</h1>
         <ul class="boot-checks">
           <li data-check="clip"><span>COACH CLIP</span><i class="boot-dots"></i><b>WAIT</b></li>
@@ -44,7 +62,7 @@
 
     <div class="app-shell">
       <aside class="rail" aria-label="Primary">
-        <div class="brand-mark">kx</div>
+        <div class="brand-mark"><img src="./public/brand/kinex-mark.svg" alt="KINE//X" /></div>
 
         <nav class="rail-nav" aria-label="页面导航">
           <button class="rail-item is-active" type="button" data-route="library" data-label="LIB" title="动作库">
