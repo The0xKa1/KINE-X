@@ -4,7 +4,7 @@ import {
   chatCompletionsUrl,
   streamChat,
 
-} from "./LLMClient.js?v=0.1.11";
+} from "./LLMClient.js?v=0.1.12";
 
 
 

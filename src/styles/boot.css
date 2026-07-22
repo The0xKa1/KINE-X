@@ -102,12 +102,42 @@
   100% { opacity: 1; }
 }
 
-.boot-hint {
+.boot-footer {
   margin: 18px 0 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+}
+
+.boot-footer p {
+  margin: 0;
+}
+
+.boot-wait-note {
+  font: 700 11px/1.4 var(--sans);
+  letter-spacing: 0.08em;
+  color: var(--ink);
+}
+
+.boot-hint {
+  flex: none;
   font: 700 9px/1 var(--mono);
   letter-spacing: 0.22em;
   text-align: right;
   color: var(--muted);
+}
+
+@media (max-width: 560px) {
+  .boot-footer {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .boot-hint {
+    align-self: flex-end;
+  }
 }
 
 /* First-paint: workspace stays hidden until boot finishes, then staggers in. */

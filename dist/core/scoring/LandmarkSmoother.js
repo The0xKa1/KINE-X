@@ -1,5 +1,5 @@
 
-import { OneEuroFilter, DEFAULT_ONE_EURO_PARAMS,                    } from "./OneEuroFilter.js?v=0.1.11";
+import { OneEuroFilter, DEFAULT_ONE_EURO_PARAMS,                    } from "./OneEuroFilter.js?v=0.1.12";
 
 export class LandmarkSmoother {
           filters                 ;

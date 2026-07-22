@@ -7,13 +7,13 @@
 
     <link
       rel="preload"
-      href="./public/fonts/archivo-black.woff2?v=0.1.11"
+      href="./public/fonts/archivo-black.woff2?v=0.1.12"
       as="font"
       type="font/woff2"
       crossorigin
     />
 
-    <link rel="stylesheet" href="./src/styles.css?v=0.1.11" />
+    <link rel="stylesheet" href="./src/styles.css?v=0.1.12" />
 
     <script type="importmap">
       {
@@ -27,7 +27,7 @@
   <body class="boot-pending">
     <div id="bootOverlay" class="boot-overlay" aria-label="系统启动中">
       <div class="boot-frame">
-        <p class="boot-eyebrow">REAL-TIME MOTION COACHING SYSTEM · v0.1.11</p>
+        <p class="boot-eyebrow">REAL-TIME MOTION COACHING SYSTEM · v0.1.12</p>
         <h1 class="boot-brand">KINE<b>//</b>X</h1>
         <ul class="boot-checks">
           <li data-check="clip"><span>COACH CLIP</span><i class="boot-dots"></i><b>WAIT</b></li>
@@ -35,7 +35,10 @@
           <li data-check="mediapipe"><span>MEDIAPIPE RUNTIME</span><i class="boot-dots"></i><b>WAIT</b></li>
           <li data-check="stream"><span>FRAME STREAM</span><i class="boot-dots"></i><b>WAIT</b></li>
         </ul>
-        <p class="boot-hint">CLICK ANYWHERE TO SKIP ///</p>
+        <div class="boot-footer">
+          <p class="boot-wait-note">初次加载耗时较长，请耐心等待</p>
+          <p class="boot-hint">CLICK ANYWHERE TO SKIP ///</p>
+        </div>
       </div>
     </div>
 
@@ -69,7 +72,7 @@
       <main class="workspace">
         <header class="topbar">
           <div class="title-block">
-          <p>real time motion coaching system · v0.1.11</p>
+          <p>real time motion coaching system · v0.1.12</p>
             <h1>KINE<b>//</b>X</h1>
           </div>
 
@@ -515,6 +518,6 @@
       </div>
     </div>
 
-    <script type="module" src="./dist/main.js?v=0.1.11"></script>
+    <script type="module" src="./dist/main.js?v=0.1.12"></script>
   </body>
 </html>

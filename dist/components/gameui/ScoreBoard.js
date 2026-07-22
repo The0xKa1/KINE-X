@@ -1,4 +1,4 @@
-import { formatCm, formatDeg } from "../../core/coordinates.js?v=0.1.11";
+import { formatCm, formatDeg } from "../../core/coordinates.js?v=0.1.12";
 
 
 
