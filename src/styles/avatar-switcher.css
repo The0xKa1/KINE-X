@@ -3,6 +3,11 @@
   align-self: center;
 }
 
+.avatar-switcher-actions {
+  display: flex;
+  align-items: stretch;
+}
+
 .avatar-switcher-toggle {
   min-height: 34px;
   display: flex;
@@ -16,6 +21,45 @@
   font: 800 10px/1 var(--mono-cjk);
   letter-spacing: 0.08em;
   text-transform: uppercase;
+}
+
+.avatar-video-export {
+  min-height: 34px;
+  margin-left: -2px;
+  padding: 0 11px;
+  border: 2px solid var(--ink);
+  background: var(--ink);
+  color: var(--paper);
+  cursor: pointer;
+  font: 800 9px/1 var(--mono-cjk);
+  letter-spacing: 0.08em;
+  white-space: nowrap;
+}
+
+.avatar-video-export:not(:disabled):hover,
+.avatar-video-export.is-ready {
+  background: var(--hot);
+  color: var(--ink);
+}
+
+.avatar-video-export:not(:disabled):active {
+  transform: translateY(1px);
+}
+
+.avatar-video-export:disabled {
+  background: var(--paper);
+  color: var(--muted);
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.avatar-video-export-live {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
 }
 
 .avatar-switcher-toggle b {
@@ -66,8 +110,17 @@
   white-space: nowrap;
 }
 
+.avatar-switcher-list {
+  --avatar-switcher-row-height: 46px;
+  max-height: calc(var(--avatar-switcher-row-height) * 3);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+}
+
 .avatar-switcher-row {
   width: 100%;
+  min-height: var(--avatar-switcher-row-height);
   display: flex;
   align-items: center;
   justify-content: space-between;

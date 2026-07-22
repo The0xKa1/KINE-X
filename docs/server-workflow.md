@@ -84,11 +84,36 @@ npm run build && rsync -az \
   root@connect.westc.seetacloud.com:/root/KINE-X/
 ```
 
-不要对仓库根或 `public/coach_clips/` 使用 `--delete`：服务器身份、动作、绑定与 jobs 是运行时真源，不一定存在于本地 checkout。需要同步 `public/` 的固定资产时使用显式子目录清单，并排除 `jobs/`、`avatar-identities/`、`motions/`、`avatar-bindings/`。
+不要对仓库根或 `public/coach_clips/` 使用 `--delete`：服务器身份、动作、绑定、独立成片与 jobs 是运行时真源，不一定存在于本地 checkout。需要同步 `public/` 的固定资产时使用显式子目录清单，并排除 `jobs/`、`avatar-identities/`、`motions/`、`avatar-bindings/`、`avatar-video-exports/`。
+
+## 六、独立导出分身视频
+
+服务器一次性补齐 EGL 环境（RTX 4080 实测）：
+
+```bash
+apt-get install -y --no-install-recommends libegl1 ffmpeg
+/root/miniconda3/bin/python -m pip install pyrender==0.1.45
+/root/miniconda3/bin/python -m pip install --upgrade PyOpenGL==3.1.10
+```
+
+启动后端时保留 `PYOPENGL_PLATFORM=egl`。创建导出并轮询：
+
+```bash
+curl --noproxy '*' -sS -X POST http://127.0.0.1:8765/avatar-video-exports \
+  -H 'content-type: application/json' \
+  -d '{"avatarId":"av-...","motionId":"motion-...","width":1920,"height":1080,"background":"#0e0f13"}'
+
+curl --noproxy '*' -sS http://127.0.0.1:8765/avatar-video-exports/export-...
+```
+
+只有 `status=ready` 后才会出现 `videoUrl`。记录和 MP4 落在
+`public/coach_clips/avatar-video-exports/<exportId>/`，由 :8765 同源静态挂载
+提供 Range 下载。服务会拒绝 llvmpipe/softpipe；成功记录含实际
+`glVendor / glRenderer / glVersion`，验收时必须确认是 NVIDIA GPU。
 
 （在服务器上直接开发则不需要这步；两边都改时先核对差异，不默认覆盖任一侧。）
 
-## 六、演示当天检查清单（7.21 早上）
+## 七、演示当天检查清单（7.21 早上）
 
 - [ ] 实例已开机，`bash /root/start_all.sh` 两个服务都 200/ok
 - [ ] 本地隧道已挂，`curl -s http://localhost:18765/healthz` 返回 cuda
@@ -97,14 +122,14 @@ npm run build && rsync -az \
 - [ ] 账户余额 ≥ ¥30（够 18 小时）；演示期间**不要关机**
 - [ ] 备选：本地前端 `npm run dev` 也能跑（本地 5173 + 隧道 18765）
 
-## 七、公网演示入口（AutoDL 自定义服务）
+## 八、公网演示入口（AutoDL 自定义服务）
 
 - AutoDL 实例无公网 IP，"自定义服务"把公网 URL（`:8443`）代理到实例 **6006 端口**。
 - 实例上 `/root/tcp_forward.py`（asyncio 端口转发，`start_all.sh` 已带起）把 6006 转发到 8765，公网用户直接打开表格里的公网入口即是完整应用（前端+API 同源，HTTPS 摄像头可用）。
 - 注意：静态文件从仓库根挂载，教练片段等资产路径带 `public/` 前缀（如 `/public/coach_clips/xxx.json`）。
 - `/import/video` 是开放上传接口，公网暴露期间谁都能传——演示窗口外记得在 AutoDL 控制台关掉自定义服务。
 
-## 八、费用与收工
+## 九、费用与收工
 
 - 用完当天：**AutoDL 控制台 → 关机**（停止 GPU 计费，磁盘保留，环境不丢）
 - 实例连续关机 **15 天会被释放**，数据清空——黑客松后要么留几块钱开机一次，要么把 `jobs/` 和代码 rsync 回本地

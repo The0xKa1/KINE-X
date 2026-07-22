@@ -24,6 +24,10 @@ yarn-error.log*
 
 # Backend job outputs (per-upload artifacts; can be regenerated)
 public/coach_clips/jobs/
+public/coach_clips/avatar-identities/
+public/coach_clips/motions/
+public/coach_clips/avatar-bindings/
+public/coach_clips/avatar-video-exports/
 
 # LLM proxy backend venv (created by `npm run server:install`)
 server/.venv/

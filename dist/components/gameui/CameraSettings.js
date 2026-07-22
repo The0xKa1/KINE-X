@@ -12,8 +12,8 @@ import {
   probeCoachConnection,
   probeMllmConnection,
 
-} from "../../core/llm/LlmConnectionProbe.js?v=0.1.12";
-import { drawerStack } from "../../core/DrawerStack.js?v=0.1.12";
+} from "../../core/llm/LlmConnectionProbe.js?v=0.1.13";
+import { drawerStack } from "../../core/DrawerStack.js?v=0.1.13";
 
 
 

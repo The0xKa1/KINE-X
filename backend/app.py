@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import json
 import logging
 import shutil
@@ -20,7 +21,7 @@ from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
-from . import avatar, avatar_motion, config, pipeline
+from . import avatar, avatar_motion, avatar_video, config, pipeline
 from .avatar_registry import AvatarRegistry
 
 logger = logging.getLogger("kinex.backend")
@@ -45,8 +46,17 @@ _SCHEDULED_AVATAR_IDENTITIES: set[str] = set()
 _SCHEDULED_AVATAR_IDENTITIES_LOCK = threading.Lock()
 _SCHEDULED_AVATAR_MOTIONS: set[str] = set()
 _SCHEDULED_AVATAR_MOTIONS_LOCK = threading.Lock()
+_AVATAR_VIDEO_EXPORT_LOCK = threading.Lock()
+_SCHEDULED_AVATAR_VIDEO_EXPORTS: set[str] = set()
+_SCHEDULED_AVATAR_VIDEO_EXPORTS_LOCK = threading.Lock()
 _AVATAR_REGISTRY = AvatarRegistry(config.AVATAR_REGISTRY_ROOT)
-_VERSIONED_ASSET_FIELDS = ("identityUrl", "motionAssetUrl", "previewUrl", "avatarBinUrl")
+_VERSIONED_ASSET_FIELDS = (
+    "identityUrl",
+    "motionAssetUrl",
+    "previewUrl",
+    "avatarBinUrl",
+    "videoUrl",
+)
 
 
 class AvatarRenameRequest(BaseModel):
@@ -57,6 +67,14 @@ class AvatarBindingRequest(BaseModel):
     avatarId: str
     motionId: Optional[str] = None
     jobId: Optional[str] = None
+
+
+class AvatarVideoExportRequest(BaseModel):
+    avatarId: str
+    motionId: str
+    width: int = 1920
+    height: int = 1080
+    background: str = "#0e0f13"
 
 
 @asynccontextmanager
@@ -94,6 +112,11 @@ async def lifespan(app: FastAPI):
     )
     if recovered_identities:
         logger.info("recovered %d unfinished avatar identity job(s)", recovered_identities)
+    recovered_video_exports = _recover_avatar_video_exports(
+        lambda function, *args: loop.run_in_executor(None, function, *args)
+    )
+    if recovered_video_exports:
+        logger.info("recovered %d unfinished avatar video export(s)", recovered_video_exports)
     yield
     app.state.estimator = None
 
@@ -609,6 +632,197 @@ def _recover_motion_bindings(submit) -> int:
     return recovered
 
 
+def _ready_avatar_video_assets(avatar_id: str, motion_id: str) -> tuple[dict, dict, Path, Path]:
+    identity = _require_active_identity(avatar_id)
+    if identity.get("status") != "ready":
+        raise ValueError(f"identity '{avatar_id}' is not ready")
+    motion = _motion_record(motion_id)
+    if motion.get("status") != "ready":
+        raise ValueError(f"motion '{motion_id}' is not ready")
+    identity_path = _AVATAR_REGISTRY.identities_dir / avatar_id / "identity.bin"
+    motion_path = _AVATAR_REGISTRY.motions_dir / motion_id / "motion.bin"
+    if not identity_path.is_file():
+        raise FileNotFoundError(f"identity '{avatar_id}' has no identity.bin")
+    if not motion_path.is_file():
+        raise FileNotFoundError(f"motion '{motion_id}' has no motion.bin")
+    return identity, motion, identity_path, motion_path
+
+
+def _avatar_video_request_key(
+    avatar_id: str,
+    motion_id: str,
+    identity_path: Path,
+    motion_path: Path,
+    *,
+    width: int,
+    height: int,
+    background: str,
+) -> tuple[str, str]:
+    identity_stat = identity_path.stat()
+    motion_stat = motion_path.stat()
+    source_signature = hashlib.sha256(
+        (
+            f"{identity_stat.st_mtime_ns}:{identity_stat.st_size}:"
+            f"{motion_stat.st_mtime_ns}:{motion_stat.st_size}"
+        ).encode("ascii")
+    ).hexdigest()
+    request_payload = json.dumps(
+        {
+            "avatarId": avatar_id,
+            "motionId": motion_id,
+            "sourceSignature": source_signature,
+            "width": width,
+            "height": height,
+            "background": background.lower(),
+            "renderer": "ewa-gl-v1",
+        },
+        separators=(",", ":"),
+        sort_keys=True,
+    )
+    return hashlib.sha256(request_payload.encode("utf-8")).hexdigest(), source_signature
+
+
+def _run_avatar_video_export(
+    export_id: str,
+    identity_path: Path,
+    motion_path: Path,
+    output_path: Path,
+) -> None:
+    record = _AVATAR_REGISTRY.update_video_export(
+        export_id,
+        expected_statuses={"queued"},
+        status="running",
+        progress=0,
+        progressNote="waiting for GPU renderer",
+        startedAt=time.time(),
+        error=None,
+    )
+    if record.get("status") != "running":
+        return
+
+    last_percent = -1
+
+    def progress(current: int, total: int, note: str) -> None:
+        nonlocal last_percent
+        percent = max(0, min(99, round(current * 100 / total))) if total else 0
+        if percent < last_percent + 2 and percent != 99:
+            return
+        last_percent = percent
+        _AVATAR_REGISTRY.update_video_export(
+            export_id,
+            expected_statuses={"running"},
+            progress=percent,
+            progressNote=note,
+        )
+
+    try:
+        with _AVATAR_VIDEO_EXPORT_LOCK:
+            current = _AVATAR_REGISTRY.get_video_export(export_id)
+            if current.get("status") != "running":
+                return
+            metadata = avatar_video.render_avatar_video(
+                identity_path,
+                motion_path,
+                output_path,
+                width=int(current["width"]),
+                height=int(current["height"]),
+                background=str(current["background"]),
+                max_frames=config.AVATAR_VIDEO_MAX_FRAMES,
+                progress=progress,
+            )
+        finished_at = time.time()
+        published = _AVATAR_REGISTRY.update_video_export(
+            export_id,
+            expected_statuses={"running"},
+            status="ready",
+            progress=100,
+            progressNote="ready",
+            videoUrl=_asset_url(output_path),
+            error=None,
+            finishedAt=finished_at,
+            **metadata,
+        )
+        if published.get("status") != "ready":
+            output_path.unlink(missing_ok=True)
+            return
+        logger.info("[%s] avatar video ready: %s", export_id, published["videoUrl"])
+    except Exception as exc:  # noqa: BLE001
+        output_path.unlink(missing_ok=True)
+        message = str(exc) or repr(exc)
+        _AVATAR_REGISTRY.update_video_export(
+            export_id,
+            expected_statuses={"queued", "running"},
+            status="error",
+            error=message,
+            progressNote="render failed",
+            finishedAt=time.time(),
+        )
+        logger.exception("[%s] avatar video export failed", export_id)
+
+
+def _submit_avatar_video_export(
+    submit,
+    export_id: str,
+    identity_path: Path,
+    motion_path: Path,
+    output_path: Path,
+) -> bool:
+    with _SCHEDULED_AVATAR_VIDEO_EXPORTS_LOCK:
+        if export_id in _SCHEDULED_AVATAR_VIDEO_EXPORTS:
+            return False
+        _SCHEDULED_AVATAR_VIDEO_EXPORTS.add(export_id)
+
+    def run() -> None:
+        try:
+            _run_avatar_video_export(export_id, identity_path, motion_path, output_path)
+        finally:
+            with _SCHEDULED_AVATAR_VIDEO_EXPORTS_LOCK:
+                _SCHEDULED_AVATAR_VIDEO_EXPORTS.discard(export_id)
+
+    try:
+        submit(run)
+    except Exception:
+        with _SCHEDULED_AVATAR_VIDEO_EXPORTS_LOCK:
+            _SCHEDULED_AVATAR_VIDEO_EXPORTS.discard(export_id)
+        raise
+    return True
+
+
+def _recover_avatar_video_exports(submit) -> int:
+    recovered = 0
+    for record in _AVATAR_REGISTRY.list_video_exports():
+        if record.get("status") not in {"queued", "running"}:
+            continue
+        export_id = record.get("exportId")
+        avatar_id = record.get("avatarId")
+        motion_id = record.get("motionId")
+        if not all(isinstance(value, str) for value in (export_id, avatar_id, motion_id)):
+            continue
+        try:
+            _, _, identity_path, motion_path = _ready_avatar_video_assets(avatar_id, motion_id)
+            _AVATAR_REGISTRY.update_video_export(
+                export_id,
+                status="queued",
+                progress=0,
+                progressNote="recovered after restart",
+                error=None,
+                finishedAt=None,
+            )
+            output_path = _AVATAR_REGISTRY._video_export_path(export_id).parent / "avatar.mp4"
+            if _submit_avatar_video_export(
+                submit, export_id, identity_path, motion_path, output_path
+            ):
+                recovered += 1
+        except Exception as exc:  # noqa: BLE001
+            _AVATAR_REGISTRY.update_video_export(
+                export_id,
+                status="error",
+                error=str(exc) or repr(exc),
+                finishedAt=time.time(),
+            )
+    return recovered
+
+
 def _resolve_identity_source(record: dict) -> Path | None:
     """Resolve a persisted source photo without allowing escape from its identity."""
     avatar_id = record.get("avatarId")
@@ -1003,6 +1217,99 @@ async def create_avatar_binding(request: AvatarBindingRequest) -> dict:
         raise HTTPException(status_code=status, detail={"error": str(exc)}) from exc
     except Exception as exc:  # noqa: BLE001
         logger.exception("failed to create avatar binding")
+        raise HTTPException(status_code=500, detail={"error": str(exc)}) from exc
+
+
+@app.get("/avatar-video-exports")
+def list_avatar_video_exports(
+    avatarId: Optional[str] = None,
+    motionId: Optional[str] = None,
+) -> list[dict]:
+    try:
+        records = _AVATAR_REGISTRY.list_video_exports(
+            avatar_id=avatarId, motion_id=motionId
+        )
+        return [_with_asset_versions(record) for record in records]
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail={"error": str(exc)}) from exc
+
+
+@app.get("/avatar-video-exports/{export_id}")
+def get_avatar_video_export(export_id: str) -> dict:
+    try:
+        return _with_asset_versions(_AVATAR_REGISTRY.get_video_export(export_id))
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail={"error": str(exc)}) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail={"error": str(exc)}) from exc
+
+
+@app.post("/avatar-video-exports", status_code=202)
+async def create_avatar_video_export(request: AvatarVideoExportRequest) -> dict:
+    avatar_id = request.avatarId.strip()
+    motion_id = request.motionId.strip()
+    try:
+        avatar_video.validate_dimensions(request.width, request.height)
+        avatar_video.parse_background(request.background)
+        _, _, identity_path, motion_path = _ready_avatar_video_assets(
+            avatar_id, motion_id
+        )
+        request_key, source_signature = _avatar_video_request_key(
+            avatar_id,
+            motion_id,
+            identity_path,
+            motion_path,
+            width=request.width,
+            height=request.height,
+            background=request.background,
+        )
+        record = _AVATAR_REGISTRY.create_video_export(
+            avatar_id,
+            motion_id,
+            request_key,
+            width=request.width,
+            height=request.height,
+            background=request.background.lower(),
+            sourceSignature=source_signature,
+            renderer="ewa-gl-v1",
+            videoUrl=None,
+            error=None,
+        )
+        export_id = record["exportId"]
+        output_path = _AVATAR_REGISTRY._video_export_path(export_id).parent / "avatar.mp4"
+        if record.get("status") == "ready" and output_path.is_file():
+            return _with_asset_versions(record)
+        if record.get("status") in {"ready", "error"}:
+            record = _AVATAR_REGISTRY.update_video_export(
+                export_id,
+                status="queued",
+                progress=0,
+                progressNote="queued",
+                videoUrl=None,
+                error=None,
+                finishedAt=None,
+            )
+        loop = asyncio.get_running_loop()
+        _submit_avatar_video_export(
+            lambda function: loop.run_in_executor(None, function),
+            export_id,
+            identity_path,
+            motion_path,
+            output_path,
+        )
+        return _with_asset_versions(record)
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=404, detail={"error": str(exc)}) from exc
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail={"error": str(exc)}) from exc
+    except ValueError as exc:
+        status = 409 if any(
+            marker in str(exc).lower()
+            for marker in ("not ready", "deleted", "cancelled")
+        ) else 400
+        raise HTTPException(status_code=status, detail={"error": str(exc)}) from exc
+    except Exception as exc:  # noqa: BLE001
+        logger.exception("failed to create avatar video export")
         raise HTTPException(status_code=500, detail={"error": str(exc)}) from exc
 
 

@@ -54,11 +54,13 @@ asset root lives elsewhere.
 | `AVATAR_IDENTITIES_DIR` | `<registry>/avatar-identities` |
 | `AVATAR_MOTIONS_DIR` | `<registry>/motions` |
 | `AVATAR_BINDINGS_DIR` | `<registry>/avatar-bindings` |
+| `AVATAR_VIDEO_EXPORTS_DIR` | `<registry>/avatar-video-exports`; durable export manifests and MP4 files |
 | `AVATAR_PRIVATE_JOBS_DIR` | `~/.local/share/kinex/avatar-jobs`; uploaded source videos stay outside the static web root |
 | `AVATAR_MAX_PHOTO_BYTES` | `10485760` |
 | `AVATAR_EXPORT_TIMEOUT_SEC` | `1200` |
 | `AVATAR_ALIGN_TIMEOUT_SEC` | `180` |
 | `LHM_MOTION_TIMEOUT_SEC` | `1800` |
+| `AVATAR_VIDEO_MAX_FRAMES` | `1800`; rejects unexpectedly long render jobs |
 | `AVATAR_EXPORT_STUB` | set to `1` only for explicit smoke tests |
 | `AVATAR_STUB_BIN` / `AVATAR_STUB_NPZ` | baked legacy bin and rig-debug pair used in stub mode |
 
@@ -73,6 +75,11 @@ Install the Python deps **once** inside the conda env that already has
 
 (`requirements.txt` only lists `fastapi / uvicorn[standard] / python-multipart`
 — everything else is inherited from the conda env.)
+
+Avatar MP4 export additionally needs a headless GPU OpenGL runtime. On Ubuntu
+22.04 the verified setup is `libegl1 + ffmpeg`, with `pyrender` installed and
+PyOpenGL upgraded to `3.1.10` for Python 3.12 compatibility. Launch the backend
+with `PYOPENGL_PLATFORM=egl`; a software renderer such as llvmpipe is rejected.
 
 ## Launch
 
@@ -220,8 +227,43 @@ public/coach_clips/
   avatar-identities/<avatarId>/{record.json,identity.bin,preview.png}
   motions/<motionId>/{record.json,motion.bin}
   avatar-bindings/<bindingId>.json
+  avatar-video-exports/<exportId>/{record.json,avatar.mp4}
 ~/.local/share/kinex/avatar-jobs/<jobId>/.avatar-source.<ext>
 ```
+
+### Avatar video exports
+
+This is an independent business API: it renders any ready reusable identity
+with any ready reusable motion and does not require opening the training UI.
+
+- `POST /avatar-video-exports` — enqueue an EGL/OpenGL EWA Gaussian-splat MP4.
+- `GET /avatar-video-exports/{exportId}` — poll `queued → running → ready|error`.
+- `GET /avatar-video-exports?avatarId=&motionId=` — list/filter durable exports.
+
+Request:
+
+```json
+{
+  "avatarId": "av-...",
+  "motionId": "motion-...",
+  "width": 1920,
+  "height": 1080,
+  "background": "#0e0f13"
+}
+```
+
+The default is 1080p. Width and height must be even and between 256 and 3840;
+the total area is capped at 4K and the motion is capped by
+`AVATAR_VIDEO_MAX_FRAMES`. The motion's own FPS is preserved. A ready response
+contains a Range-capable `videoUrl` plus frame count, FPS, duration, size, and
+the actual GL vendor/renderer/version used.
+
+Requests are idempotent over `(avatarId, motionId, source file versions,
+resolution, background, renderer version)`. Repeating an exact request reuses
+the same export; replacing either binary creates a fresh export. GPU work is
+serialized in-process, manifests are atomically persisted, interrupted
+queued/running jobs resume after backend restart, and the MP4 is atomically
+published only after ffmpeg succeeds.
 
 The private source-video root must never be placed under `public/`; the static
 frontend server exposes everything below the repository root.

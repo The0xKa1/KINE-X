@@ -152,6 +152,50 @@ class AvatarRegistryTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "deleted"):
             self.registry.create_binding(identity["avatarId"], motion["motionId"])
 
+    def test_video_export_is_idempotent_per_exact_request_key(self) -> None:
+        identity = self.registry.create_identity("Ada", status="ready")
+        motion = self.registry.upsert_motion(status="ready")
+
+        first = self.registry.create_video_export(
+            identity["avatarId"], motion["motionId"], "request-a", width=1920
+        )
+        repeated = self.registry.create_video_export(
+            identity["avatarId"], motion["motionId"], "request-a", width=1280
+        )
+        distinct = self.registry.create_video_export(
+            identity["avatarId"], motion["motionId"], "request-b", width=1280
+        )
+
+        self.assertEqual(repeated["exportId"], first["exportId"])
+        self.assertEqual(repeated["width"], 1920)
+        self.assertNotEqual(distinct["exportId"], first["exportId"])
+        self.assertEqual(len(self.registry.list_video_exports()), 2)
+
+    def test_video_export_claim_is_atomic_and_identity_delete_cancels_unfinished_only(self) -> None:
+        identity = self.registry.create_identity("Ada", status="ready")
+        motion = self.registry.upsert_motion(status="ready")
+        running = self.registry.create_video_export(
+            identity["avatarId"], motion["motionId"], "running"
+        )
+        ready = self.registry.create_video_export(
+            identity["avatarId"], motion["motionId"], "ready"
+        )
+        claimed = self.registry.update_video_export(
+            running["exportId"], expected_statuses={"queued"}, status="running"
+        )
+        duplicate = self.registry.update_video_export(
+            running["exportId"], expected_statuses={"queued"}, status="running", progress=50
+        )
+        self.registry.update_video_export(ready["exportId"], status="ready", videoUrl="avatar.mp4")
+
+        self.registry.soft_delete_identity(identity["avatarId"])
+        exports = {record["requestKey"]: record for record in self.registry.list_video_exports()}
+
+        self.assertEqual(claimed["status"], "running")
+        self.assertEqual(duplicate["progress"], 0)
+        self.assertEqual(exports["running"]["status"], "cancelled")
+        self.assertEqual(exports["ready"]["status"], "ready")
+
     def test_all_manifest_ids_reject_bad_prefixes_and_path_traversal_in_paths_and_mutations(self) -> None:
         identity = self.registry.create_identity("Ada")
         motion = self.registry.upsert_motion(name="Squat")

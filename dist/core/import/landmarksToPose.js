@@ -1,5 +1,5 @@
 
-import { normalizeMediaPipeWorld } from "../scoring/normalize.js?v=0.1.12";
+import { normalizeMediaPipeWorld } from "../scoring/normalize.js?v=0.1.13";
 
 
 

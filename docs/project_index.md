@@ -107,7 +107,7 @@ KINE//X 的项目结构索引。
 `AvatarAssets.ts`：`KINEXGI1` / `KINEXGM1` / 历史 `KINEXGS1` 二进制解析与校验；四元数 FK、休息骨架皮肤矩阵和 stage similarity 只应用一次。
 `GaussianAvatar.ts`：高斯分身渲染器；可分别加载身份与 `GaussianMotion`，顶点 shader 做 top-4 LBS，CPU 做深度排序。
 `AvatarRegistryClient.ts`：`/avatars` CRUD 与低频 watch；明确区分服务离线、HTTP 失败和本地重命名草稿。
-`AvatarBindingController.ts`：按 seed 保存绑定快照，轮询 `/avatar-bindings`，对排队/运行/就绪/失败做非阻塞呈现，并能从服务器 motionId 重建 localStorage 丢失的绑定；启动 discovery 也会刷新已 ready 快照，使重烘后的版本 URL 替换旧浏览器缓存。`AvatarSwitcher.ts` 对已有 motion 发送 `motionId`，对未预选分身的已完成导入发送 `jobId`，让后端延迟创建动作资产。
+`AvatarBindingController.ts`：按 seed 保存绑定快照，轮询 `/avatar-bindings`，对排队/运行/就绪/失败做非阻塞呈现，并能从服务器 motionId 重建 localStorage 丢失的绑定；启动 discovery 也会刷新已 ready 快照，使重烘后的版本 URL 替换旧浏览器缓存。`AvatarSwitcher.ts` 对已有 motion 发送 `motionId`，对未预选分身的已完成导入发送 `jobId`，让后端延迟创建动作资产；同组导出按钮用 `AvatarVideoExportClient.ts` 创建/轮询独立成片并下载 ready MP4。
 
 ### core/scoring
 
@@ -164,7 +164,7 @@ KINE//X 的项目结构索引。
 `styles/boot.css`：开机编排 overlay 与首屏交错入场。
 `styles/pages.css`：页面容器显隐与切页过渡。
 `styles/library.css` / `styles/report.css` / `styles/create.css` / `styles/avatar-vault.css`：页面专用样式；身份库预览舞台使用显式尺寸隔离 canvas 内在尺寸，并在 Vault 路由释放 workspace 的 Grid 自动最小高度，让档案列表独立滚动而不撑高 document。
-`styles/avatar-switcher.css`：训练舱分身切换按钮、弹层、身份行与状态样式。
+`styles/avatar-switcher.css`：训练舱分身切换/视频导出按钮、弹层、三行可滚动身份名单与状态样式。
 
 ## data mock hooks types
 
@@ -179,7 +179,7 @@ KINE//X 的项目结构索引。
 
 `public/mediapipe/`：`tasks-vision` SDK + WASM + 5 个 `.task` 模型，版本固定 0.10.14；升级时整体替换并改 `PoseLandmarkerManager.ts` 与 `index.html` 的引用。
 `public/three/`：`three.module.min.js`（r160，unpkg 官方 min build）；升级时整体替换。
-`public/coach_clips/`：内置 clip / mesh、导入产物 `jobs/`、身份 `avatar-identities/`、动作 `motions/`、绑定 manifest `avatar-bindings/`。`single_leg_squat_frames` 为死符号链接，缩略图由 `healTimelineThumbnails` 自愈。
+`public/coach_clips/`：内置 clip / mesh、导入产物 `jobs/`、身份 `avatar-identities/`、动作 `motions/`、绑定 manifest `avatar-bindings/`，以及独立成片 `avatar-video-exports/<exportId>/{record.json,avatar.mp4}`。`single_leg_squat_frames` 为死符号链接，缩略图由 `healTimelineThumbnails` 自愈。
 
 ## scripts
 
@@ -190,13 +190,14 @@ KINE//X 的项目结构索引。
 
 ## backend
 
-`backend/app.py`：FastAPI 路由与组合根；视频导入、身份 CRUD、绑定创建/查询和后台任务状态协调；`POST /avatar-bindings` 可从既有 `motionId` 或已完成视频 `jobId` 幂等建绑，并保证同一动作只有一个进程内 worker；API 返回可覆盖资产时按实际文件状态追加版本 query，manifest 保持原始稳定路径。
+`backend/app.py`：FastAPI 路由与组合根；视频导入、身份 CRUD、绑定与独立分身成片的创建/查询、后台任务状态协调；`POST /avatar-bindings` 可从既有 `motionId` 或已完成视频 `jobId` 幂等建绑；`POST /avatar-video-exports` 按身份、动作文件版本和渲染参数幂等排队并串行使用 GPU；API 返回可覆盖资产时按实际文件状态追加版本 query，manifest 保持原始稳定路径。
 `backend/avatar.py`：照片校验、LHM 导出、坐标对齐和身份资产发布。
 `backend/avatar_assets.py`：`KINEXGI1` / `KINEXGM1` codec，历史 combined asset 拆分、旋转/四元数验证与原子写入。
 `backend/avatar_registry.py`：文件系统 manifest 真源；稳定 id、幂等 identity×motion 绑定、软删除和原子 JSON replace。
+`backend/avatar_video.py`：服务器 EGL/OpenGL 离屏成片；解析 `KINEXGI1 × KINEXGM1`，执行 55 关节 FK、top-4 LBS、CPU 深度排序与 EWA Gaussian splatting，并通过 ffmpeg 原子发布 H.264 MP4；拒绝 llvmpipe 等软件渲染器。
 `backend/avatar_motion.py`：视频 → LHM SMPL-X 局部旋转，基于 CoachClip root 轨迹拟合 stage similarity，打包独立动作。
 `backend/config.py`：SAM / LHM / 注册表 / 私有源视频路径与超时环境变量。
-`backend/test_avatar_{api,assets,binding,registry}.py`：分身服务的回归门禁。
+`backend/test_avatar_{api,assets,binding,registry,video}.py`：分身服务的回归门禁。
 
 ## docs
 
@@ -214,7 +215,7 @@ UI 视觉调整：进入 `src/styles/` 对应分文件（boot/pages/library/repo
 摄像头 / MediaPipe：`src/core/WebCamManager.ts`、`src/core/CameraOverlay.ts`、`src/core/PoseLandmarkerManager.ts`。
 评分逻辑：`src/core/scoring/`；新指标补到 `jointAngles.ts` / `PoseScorer.ts`。
 视频导入：`src/components/pages/CreatePage.ts`、`src/core/import/ImportFlow.ts` 与 `backend/`；MLLM 分片进入 `src/core/mllm/` 并直连用户 API。
-分身身份/动作/绑定：`src/components/pages/AvatarVaultPage.ts`、`src/core/avatar/`、`backend/avatar*.py` 与 `public/coach_clips/{avatar-identities,motions,avatar-bindings}`；私有上传视频不得进 `public/`。
+分身身份/动作/绑定/成片：`src/components/pages/AvatarVaultPage.ts`、`src/core/avatar/`、`backend/avatar*.py` 与 `public/coach_clips/{avatar-identities,motions,avatar-bindings,avatar-video-exports}`；私有上传视频不得进 `public/`。
 LLM 集成：`src/core/llm/`、`src/components/gameui/AiCoachPanel.ts` 与 `CameraSettings.ts`；Base URL / API Key / 两类模型名保存在当前浏览器 localStorage。
 后端联调：`src/hooks/useWebSocket.ts` 与 `src/core/RealtimeStream.ts`。
 动作数据修改：`src/data/`。

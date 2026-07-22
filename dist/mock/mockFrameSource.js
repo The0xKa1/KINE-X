@@ -1,5 +1,5 @@
-import { clamp, lerp, meters } from "../core/coordinates.js?v=0.1.12";
-import { quaternionFromAxisAmount } from "../core/three-compat.js?v=0.1.12";
+import { clamp, lerp, meters } from "../core/coordinates.js?v=0.1.13";
+import { quaternionFromAxisAmount } from "../core/three-compat.js?v=0.1.13";
 
 
 

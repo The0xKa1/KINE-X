@@ -6,12 +6,19 @@ import type {
   AvatarBindingSnapshot,
   AvatarBindingStatus,
 } from "../../core/avatar/AvatarBindingController.js";
+import {
+  AvatarVideoExportClient,
+  buildAvatarVideoExportRequest,
+  resolveAvatarVideoUrl,
+  type AvatarVideoExportRecord,
+} from "../../core/avatar/AvatarVideoExportClient.js";
 
 export interface AvatarSwitcherContext {
   seedId: string;
   motionId?: string | undefined;
   jobId?: string | undefined;
   avatarId?: string | undefined;
+  bindingStatus?: AvatarBindingStatus | undefined;
 }
 
 export interface AvatarBindingCreateRequest {
@@ -67,6 +74,7 @@ export class AvatarSwitcher {
   private readonly el: HTMLElement;
   private readonly backendUrl: string;
   private readonly client: AvatarRegistryClient;
+  private readonly exportClient: AvatarVideoExportClient;
   private readonly onSwitch: (snapshot: AvatarBindingSnapshot) => void;
   private readonly onError: (message: string) => void;
   private context: AvatarSwitcherContext | null = null;
@@ -77,11 +85,16 @@ export class AvatarSwitcher {
   private bindings: ServerBindingRecord[] = [];
   private loadError = "";
   private generation = 0;
+  private exportRecord: AvatarVideoExportRecord | null = null;
+  private exportSubmitting = false;
+  private exportPollTimer = 0;
+  private exportGeneration = 0;
 
   constructor(options: AvatarSwitcherOptions) {
     this.el = options.el;
     this.backendUrl = options.backendUrl.replace(/\/$/, "");
     this.client = new AvatarRegistryClient(this.backendUrl);
+    this.exportClient = new AvatarVideoExportClient(this.backendUrl);
     this.onSwitch = options.onSwitch;
     this.onError = options.onError ?? ((message) => console.warn("[avatar-switcher]", message));
     this.el.addEventListener("click", (event) => this.handleClick(event));
@@ -97,6 +110,9 @@ export class AvatarSwitcher {
 
   /** Point the switcher at a reusable motion or an imported source job. */
   setContext(context: AvatarSwitcherContext | null): void {
+    const previousPair = this.exportPair(this.context);
+    const nextPair = this.exportPair(context);
+    if (previousPair !== nextPair) this.resetExport();
     this.context = context;
     if (!context) this.setOpen(false);
     this.render();
@@ -161,9 +177,103 @@ export class AvatarSwitcher {
       void this.refresh();
       return;
     }
+    if (target.closest("[data-avatar-export]")) {
+      void this.handleExport();
+      return;
+    }
     const row = target.closest<HTMLElement>("[data-switcher-avatar]");
     const avatarId = row?.dataset.switcherAvatar;
     if (avatarId && !this.busyAvatarId) void this.pick(avatarId);
+  }
+
+  private async handleExport(): Promise<void> {
+    const context = this.context;
+    if (!context?.avatarId || !context.motionId || context.bindingStatus !== "ready") return;
+    if (this.exportRecord?.status === "ready" && this.exportRecord.videoUrl) {
+      this.downloadExport(this.exportRecord.videoUrl);
+      return;
+    }
+    if (this.exportSubmitting || this.exportRecord?.status === "queued" || this.exportRecord?.status === "running") {
+      return;
+    }
+    const generation = ++this.exportGeneration;
+    this.exportSubmitting = true;
+    this.render();
+    try {
+      const record = await this.exportClient.create(
+        buildAvatarVideoExportRequest(context.avatarId, context.motionId),
+      );
+      if (generation !== this.exportGeneration) return;
+      this.exportRecord = record;
+      this.exportSubmitting = false;
+      this.render();
+      if (record.status === "queued" || record.status === "running") {
+        this.scheduleExportPoll(generation);
+      }
+      if (record.status === "error" || record.status === "cancelled") {
+        this.onError(`视频导出失败：${record.error ?? "渲染任务未完成"}`);
+      }
+    } catch (error) {
+      if (generation !== this.exportGeneration) return;
+      this.exportSubmitting = false;
+      this.exportRecord = null;
+      const message = error instanceof Error ? error.message : "创建分身视频失败";
+      this.onError(`视频导出失败：${message}`);
+      this.render();
+    }
+  }
+
+  private scheduleExportPoll(generation: number): void {
+    window.clearTimeout(this.exportPollTimer);
+    this.exportPollTimer = window.setTimeout(() => void this.pollExport(generation), 1500);
+  }
+
+  private async pollExport(generation: number): Promise<void> {
+    const exportId = this.exportRecord?.exportId;
+    if (!exportId || generation !== this.exportGeneration) return;
+    try {
+      const record = await this.exportClient.get(exportId);
+      if (generation !== this.exportGeneration) return;
+      this.exportRecord = record;
+      this.render();
+      if (record.status === "queued" || record.status === "running") {
+        this.scheduleExportPoll(generation);
+      } else if (record.status === "error" || record.status === "cancelled") {
+        this.onError(`视频导出失败：${record.error ?? "渲染任务未完成"}`);
+      }
+    } catch (error) {
+      if (generation !== this.exportGeneration) return;
+      const message = error instanceof Error ? error.message : "读取导出进度失败";
+      this.exportRecord = {
+        ...this.exportRecord!,
+        status: "error",
+        error: message,
+      };
+      this.onError(`视频导出失败：${message}`);
+      this.render();
+    }
+  }
+
+  private downloadExport(videoUrl: string): void {
+    const anchor = document.createElement("a");
+    anchor.href = resolveAvatarVideoUrl(this.backendUrl, videoUrl);
+    anchor.download = "kinex-avatar.mp4";
+    anchor.rel = "noopener";
+    document.body.append(anchor);
+    anchor.click();
+    anchor.remove();
+  }
+
+  private resetExport(): void {
+    this.exportGeneration += 1;
+    window.clearTimeout(this.exportPollTimer);
+    this.exportPollTimer = 0;
+    this.exportSubmitting = false;
+    this.exportRecord = null;
+  }
+
+  private exportPair(context: AvatarSwitcherContext | null): string {
+    return context?.avatarId && context.motionId ? `${context.avatarId}\n${context.motionId}` : "";
   }
 
   private async pick(avatarId: string): Promise<void> {
@@ -257,15 +367,64 @@ export class AvatarSwitcher {
     this.el.hidden = false;
     const rows = this.renderRows(context);
     const hasMotion = Boolean(context.motionId);
+    const exportPresentation = this.describeExport(context);
     this.el.innerHTML = `
-      <button type="button" class="avatar-switcher-toggle" data-switcher-toggle aria-expanded="${this.open}" aria-label="${hasMotion ? "切换分身" : "应用分身"}">
-        <span>${hasMotion ? "⇄ 分身" : "+ 应用分身"}</span><b>▾</b>
-      </button>
+      <div class="avatar-switcher-actions">
+        <button type="button" class="avatar-switcher-toggle" data-switcher-toggle aria-expanded="${this.open}" aria-label="${hasMotion ? "切换分身" : "应用分身"}">
+          <span>${hasMotion ? "⇄ 分身" : "+ 应用分身"}</span><b>▾</b>
+        </button>
+        <button type="button" class="avatar-video-export${exportPresentation.ready ? " is-ready" : ""}" data-avatar-export ${exportPresentation.disabled ? "disabled" : ""} title="${escapeAttribute(exportPresentation.title)}" aria-label="${escapeAttribute(exportPresentation.title)}">
+          ${escapeHtml(exportPresentation.label)}
+        </button>
+        <span class="avatar-video-export-live" aria-live="polite">${escapeHtml(exportPresentation.live)}</span>
+      </div>
       <div class="avatar-switcher-popover" role="menu" ${this.open ? "" : "hidden"}>
         <div class="avatar-switcher-head"><span>${hasMotion ? "IDENTITY × MOTION" : "VIDEO → AVATAR"}</span><b>${escapeHtml(context.motionId ?? context.jobId ?? "")}</b></div>
         ${rows}
       </div>
     `;
+  }
+
+  private describeExport(context: AvatarSwitcherContext): {
+    label: string;
+    title: string;
+    live: string;
+    disabled: boolean;
+    ready: boolean;
+  } {
+    const canExport = Boolean(
+      context.avatarId && context.motionId && context.bindingStatus === "ready",
+    );
+    if (!canExport) {
+      return {
+        label: "↓ 视频",
+        title: "当前分身动作就绪后可导出视频",
+        live: "分身视频暂不可导出",
+        disabled: true,
+        ready: false,
+      };
+    }
+    if (this.exportSubmitting) {
+      return { label: "提交中…", title: "正在创建分身视频任务", live: "正在提交导出任务", disabled: true, ready: false };
+    }
+    const record = this.exportRecord;
+    if (!record) {
+      return { label: "↓ 视频", title: "导出当前分身的完整动作视频", live: "可导出分身视频", disabled: false, ready: false };
+    }
+    if (record.status === "ready" && record.videoUrl) {
+      return { label: "↓ 下载", title: "分身视频已就绪，点击下载", live: "分身视频已生成", disabled: false, ready: true };
+    }
+    if (record.status === "error" || record.status === "cancelled") {
+      return { label: "↻ 重试", title: record.error ?? "导出失败，点击重试", live: "分身视频导出失败", disabled: false, ready: false };
+    }
+    const progress = Math.max(0, Math.min(100, Math.round(record.progress)));
+    return {
+      label: record.status === "queued" && progress === 0 ? "排队中…" : `${progress}%`,
+      title: record.progressNote ?? "GPU 正在渲染分身视频",
+      live: `分身视频导出进度 ${progress}%`,
+      disabled: true,
+      ready: false,
+    };
   }
 
   private renderRows(context: AvatarSwitcherContext): string {
@@ -279,7 +438,7 @@ export class AvatarSwitcher {
     if (ready.length === 0) {
       return `<p class="avatar-switcher-note">身份库暂无 READY 分身，先到 #/avatars 上传照片重建。</p>`;
     }
-    return ready
+    return `<div class="avatar-switcher-list">${ready
       .map((identity) => {
         const binding = this.bindingFor(identity.avatarId);
         const current = identity.avatarId === context.avatarId;
@@ -300,7 +459,7 @@ export class AvatarSwitcher {
           </button>
         `;
       })
-      .join("");
+      .join("")}</div>`;
   }
 }
 

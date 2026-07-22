@@ -5,7 +5,7 @@
 
 
 
-import { renderMarkdown } from "../../core/llm/renderMarkdown.js?v=0.1.12";
+import { renderMarkdown } from "../../core/llm/renderMarkdown.js?v=0.1.13";
 
 
 

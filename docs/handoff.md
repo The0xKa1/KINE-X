@@ -1,12 +1,14 @@
 # KINE//X 交接文档
 
-> 事实快照：2026-07-21（AI API 入口澄清、动作同步重烘、用户自配 API 与导出移除后）。只记当前可复现状态与下一步，不记开发流水。
+> 事实快照：2026-07-22（用户自配 AI、动作同步、独立分身成片 API 上线后）。只记当前可复现状态与下一步，不记开发流水。
 
 ## 零、停止点
 
-- main：用户自配 AI API、DNA 导出移除、训练记录单条删除，以及导入完成后的分身补绑均已落地；`v0.1.10` 已部署到服务器 `/root/KINE-X`，尚未 push GitHub `origin/main`。
+- main：用户自配 AI API、DNA 导出移除、训练记录单条删除、导入完成后的分身补绑，以及训练舱分身视频导出入口均已落地；`v0.1.13` 已部署到服务器 `/root/KINE-X`，尚未 push GitHub `origin/main`。
 - 门禁：`npm run check` ✓、`npm run test:ai` 8/8 ✓、`npm run test:session` 3/3 ✓、`npm run test:avatar` 48/48 ✓；Python 四套件 57/57 ✓；`npx tsc --noEmit` 保留 8 个既有参考诊断（未入门禁）。
 - AutoDL 全栈运行：**单端口 `:8765` 同时服务前端静态与 API**（Starlette 挂载仓库根，带 Range）；旧 `:5173`（http.server）仍在但视频不可 seek，仅作兜底。
+- 独立分身成片 API 与训练舱入口已部署：`POST /avatar-video-exports` 用 ready `avatarId + motionId` 异步生成 MP4，查询/列表走同名前缀 GET。分身切换器旁的按钮承担提交、进度、失败重试与下载；身份弹层限定三行后内部滚动。服务器启动脚本固定 `PYOPENGL_PLATFORM=egl`，运行时拒绝 llvmpipe；记录、成片与恢复状态持久化在 `public/coach_clips/avatar-video-exports/`。
+- 2026-07-22 真实验收：七海千秋 `av-d01e4...` × ugc-dance `motion-20260719-111338-cf2d79` 生成 `export-928d5d61196948bea73a5efd69d65d57`，约 13 秒到 ready；记录返回 RTX 4080 / OpenGL 4.1，成片 H.264 1920×1080、15 FPS、150 帧、10 秒，服务器环回与公网 HTTPS Range 均为 206；重复 POST 返回同一 ready export，不重复渲染。
 - 2026-07-21 公网部署复验：HTTPS `/healthz` 返回 CUDA ready，根页为 `v0.1.10`；用 `avatarId + jobId` 为任务 `20260721-203028-f26db1` 请求“绫波丽”时返回既有 ready 绑定 `binding-9d1d48f458954a1980f5a4281ee50e58` 与同一 `motion-20260721-203028-f26db1`，证明后置补绑契约已上线且幂等。AI 双链路测试、追问上下文限制、Vault 四种预览姿态、训练记录删除与 DNA 导出移除仍保留。
 - 种子卡：squat / ugc-squat / ugc-yoga(flow) / ugc-dance(bounce)；身份 `av-legacy-demo`（白裙少女，ready）× 两条 `motion-<jobId>` 的绑定均 ready，训练舱分身按钮已解锁。
 - 播放同步批次：① 采样边界统一 clamp（`sampleClip`/`sampleFrameIndex`/`updateAvatar`，progress=1 不再跳回第 0 帧）；② CoachVideo 速率按 `speed×video时长/clip时长` 跟踪 + 结算后钉住末帧；③ 时间轴帧条=唯一进度面（点帧跳转并暂停、整条拖拽刮擦、playhead 竖线），右侧 timeSlider 删除，左侧 Tempo 加 `×0.65` 实时读数；④ 后端静态挂载修视频 seek + 全量 mp4 faststart；⑤ `resolveBackendUrl` 回退改同源（5173 除外）+ `/import/jobs` 水合等 load 事件并重试；⑥ 分身二进制与前端本地业务模块/CSS 已统一做版本化缓存失效。
@@ -52,6 +54,7 @@
 | `public/coach_clips/avatar-identities/<avatarId>/` | `record.json`、`identity.bin`、预览图 | 注册表真源，不得镜像删除 |
 | `public/coach_clips/motions/<motionId>/` | `record.json`、`motion.bin` | 不得镜像删除 |
 | `public/coach_clips/avatar-bindings/` | identity×motion manifest | ready 绑定在身份软删后保留 |
+| `public/coach_clips/avatar-video-exports/` | 独立成片 manifest + `avatar.mp4` | 运行时真源；部署不可 `--delete` |
 | `~/.local/share/kinex/avatar-jobs/` | LHM 私有源视频 | 绝不放到前端静态根 |
 
 ## 四、运行与部署
@@ -75,6 +78,7 @@ python3 -m unittest backend.test_avatar_assets backend.test_avatar_registry back
 - `POST /import/video`：multipart；可选 `startSec / endSec / motion / targetFps / name / avatarId`
 - `GET|POST /avatars`；`PATCH|DELETE /avatars/{avatarId}`；`POST /import/avatar` 仅为兼容别名（`seedId` 忽略）
 - `GET /avatar-bindings`；`POST /avatar-bindings` 支持 `avatarId + motionId` 复用已有动作，或 `avatarId + jobId` 为已完成但未选分身的导入延迟生成 `motion-<jobId>` 并建绑
+- `POST /avatar-video-exports` 创建/幂等复用分身成片；`GET /avatar-video-exports/{exportId}` 查询；`GET /avatar-video-exports?avatarId=&motionId=` 过滤列表
 
 ## 六、坑位备忘（只留真坑）
 
@@ -106,4 +110,4 @@ python3 -m unittest backend.test_avatar_assets backend.test_avatar_registry back
 - 单位只用米，坐标只用右手系，旋转只用四元数。
 - 切换动作必须走 `MotionStage.resetForSeed()` 与资源释放边界。
 - 不要复活 `MockStream`、`mockFrameSource`、`landmarksToPose` 或 `postProcess`。
-- 完成前至少运行 `npm run check`；分身变更还应运行 Python 四套件与 `npm run test:avatar`。
+- 完成前至少运行 `npm run check`；分身变更还应运行 Python 五套件（含 `backend.test_avatar_video`）与 `npm run test:avatar`。

@@ -5,14 +5,14 @@ import {
   AvatarRegistryOfflineError,
   AvatarRenameDraftStore,
 
-} from "../../core/avatar/AvatarRegistryClient.js?v=0.1.12";
-import { GaussianAvatar } from "../../core/avatar/GaussianAvatar.js?v=0.1.12";
+} from "../../core/avatar/AvatarRegistryClient.js?v=0.1.13";
+import { GaussianAvatar } from "../../core/avatar/GaussianAvatar.js?v=0.1.13";
 import {
   AVATAR_PREVIEW_POSES,
   createAvatarPreviewPose,
 
-} from "../../core/avatar/AvatarPreviewPoses.js?v=0.1.12";
-import { THREE } from "../../core/three-compat.js?v=0.1.12";
+} from "../../core/avatar/AvatarPreviewPoses.js?v=0.1.13";
+import { THREE } from "../../core/three-compat.js?v=0.1.13";
 
 
 

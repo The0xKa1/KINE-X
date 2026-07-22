@@ -41,7 +41,7 @@ boot 完成后进入初始路由，默认 `#/`。
 动作库：海报式标题 + 种子卡墙（封面缩略图、时长 / 帧数 / 训练场次与最好成绩）+ 导入入口卡 + 训练记录条（点击直达对应报告，确认后可逐条删除）。
 训练舱为左右两舱：左舱「现实镜像」摄像头水平镜像 + 2D 骨骼贴合层；右舱「全息标准舱」由教练视频层与结构蓝图（Three.js 3D 教练）共享——模式决定主视图（教练模式 = 视频主角、蓝图缩为角标小卡；骨骼 / 应力 / 分身模式 = 蓝图主角、视频缩为小卡），点击小卡即换主视图。
 右舱模式行为四键：教练（视频主角：导入种子播原视频切片，ugc-squat 另有 twin/LHM 三视角）/ 分身（3DGS 数字分身全幅，当种子绑定 ready 或持兼容 `avatarUrl` 时显示）/ 骨骼（线框 + 骨架）/ 应力（蒙皮 + 风险着色）；绑定排队或失败不阻塞普通教练与骨骼模式。
-渲染模式旁的分身切换器在已有 motion 或仍保留 `jobId` 的导入种子显示；无 motion 时按钮为“应用分身”，选择 READY 身份后用 `jobId` 后置生成一次 `KINEXGM1`，已有 motion 时只切换身份、不重做动作资产。
+渲染模式旁的分身切换器在已有 motion 或仍保留 `jobId` 的导入种子显示；无 motion 时按钮为“应用分身”，选择 READY 身份后用 `jobId` 后置生成一次 `KINEXGM1`，已有 motion 时只切换身份、不重做动作资产。弹层的身份名单最多显示三行，更多身份在弹层内部滚动，不再持续撑高训练舱。
 右下 SYNC 巨数区（clamp 72–132px Archivo Black），分数跳变机械闪切；PERFECT 触发全屏描边巨字（描边→填橙）。
 两个 bay 四角 crosshair 角标，右舱左下 mono telemetry 数据带（FRAME / PROG / LAT / Δ），顶栏连接指示带实时延迟读数。
 全站覆盖低透明度 SVG 噪点纹理（multiply），时间轴缩略图印刷化灰度处理（active/hover 恢复全彩）。
@@ -95,6 +95,7 @@ EventBus 事件共八类：`score:update` / `pipeline:update` / `seed:update` / 
 4. 前端分身预览加载身份后，可用四种一帧内存动作驱动同一套 55 关节 FK / LBS；历史合并资产保持原始姿态。训练舞台仍只把 `KINEXGI1` 与真实 `KINEXGM1` 组合，通过顶点 shader LBS + CPU 深度排序回放。
 5. 删除身份是保守软删除：从活跃身份库移除并取消未完成绑定，已 ready 的训练绑定和动作产物保留可播放。
 6. `/avatars` 与 `/avatar-bindings` 的可覆盖文件 URL 带 `?v=<mtime_ns-size>`；磁盘 manifest 保持稳定无 query。`AvatarBindingController` 启动时也刷新已 ready 的本地快照，版本变化会释放旧内存 avatar 并加载新资产。
+7. 分身成片已拆为独立业务接口：`POST /avatar-video-exports` 接收任意 ready `avatarId + motionId` 和输出尺寸/背景色，在 GPU EGL 上用与浏览器一致的 55 关节 FK、top-4 LBS、EWA splat 与深度排序异步生成 H.264 MP4；`GET /avatar-video-exports/{exportId}` 查询状态和下载 URL，列表接口可按身份/动作过滤。请求按源文件版本和渲染参数幂等，服务重启可恢复未完成任务。训练舱分身切换器旁提供前端入口：绑定 ready 后可提交任务，按钮原位显示排队/渲染进度，成功后变为下载，失败可重试。
 
 ## 评分与标定
 
@@ -169,7 +170,7 @@ guardrails 同时要求页面显示版本、入口 CSS/JS、22 个 CSS `@import`
 帧流 WS 客户端已就绪（`useWebSocket`：自动重连退避 1s→30s、PING/PONG 心跳 15s/8s 超时、点击连接指示手动重连），默认 `ws://localhost:8000/motion`，`?ws=` 覆盖；但真实帧流后端不在本仓库。
 外部帧与本地帧共用 `consumePacket → pushPacket`；前端 MediaPipe / Scoring 链路保留为后端不可用时的离线方案。
 MLLM 与赛后分析一律由浏览器直连用户填写的 OpenAI-compatible API；Base URL / API Key 共用，两类模型名独立，均随 CameraSettings 持久化到 localStorage。
-导入后端（:8765）`BACKEND_URL` 可用 `?backend=` 覆盖并持久化到 localStorage；无覆盖时按端口回退——5173 静态开发服 → `:8765`，其余 → 同源（单端口部署下 :8765 同时服务前端与 API）。`POST /import/video` 返回普通 CoachClip / MeshClip，可选同时建立分身绑定。身份源于 `GET|POST /avatars`，重命名/软删除用 `PATCH|DELETE /avatars/{id}`，绑定用 `GET|POST /avatar-bindings`；`POST /import/avatar` 仅是身份上传兼容别名。
+导入后端（:8765）`BACKEND_URL` 可用 `?backend=` 覆盖并持久化到 localStorage；无覆盖时按端口回退——5173 静态开发服 → `:8765`，其余 → 同源（单端口部署下 :8765 同时服务前端与 API）。`POST /import/video` 返回普通 CoachClip / MeshClip，可选同时建立分身绑定。身份源于 `GET|POST /avatars`，重命名/软删除用 `PATCH|DELETE /avatars/{id}`，绑定用 `GET|POST /avatar-bindings`；独立成片用 `GET|POST /avatar-video-exports` 与 `GET /avatar-video-exports/{id}`；`POST /import/avatar` 仅是身份上传兼容别名。
 身份、动作、预览与旧 combined avatar URL 的版本参数只在 API 响应边界生成，注册表 JSON 不持久化 query。
 Session 历史存于浏览器 localStorage（`kinex.sessions.v1`），不上送后端。
 内置种子为 squat（`single_leg_squat.json`，118 帧）与 ugc-squat（SAM3D 真实导入后入库，118 帧）；deadlift / baduanjin / street / basketball 已下架，评分权重保留在 `MOTION_METRIC_TEMPLATES` 供导入动作复用。
@@ -185,7 +186,7 @@ UI 若直接订阅高频帧，页面会卡顿。
 切换动作如果绕过 `resetForSeed()`，长时间演示存在内存泄露隐患。
 `public/mediapipe/` 约 73MB，仓库 clone 体积偏大；升级 SDK 版本时需手工替换并 bump `WASM_BASE` / 模型路径相关常量。
 导入后端 `POST /import/video` 的 SAM 推理在 worker thread 中执行，但 HTTP 请求仍需等普通动作产物完成后才返回；LHM 绑定另行异步。`config.py` 的 SAM / LHM 默认路径面向开发主机，换机时必须用同名环境变量覆盖。
-分身资产以文件系统 manifest 为真源；部署不得使用会删除 `public/coach_clips/avatar-identities`、`motions`、`avatar-bindings` 或私有 `~/.local/share/kinex/avatar-jobs` 的镜像同步。
+分身资产以文件系统 manifest 为真源；部署不得使用会删除 `public/coach_clips/avatar-identities`、`motions`、`avatar-bindings`、`avatar-video-exports` 或私有 `~/.local/share/kinex/avatar-jobs` 的镜像同步。
 用户 AI API 必须允许浏览器 CORS；Key 保存在 localStorage，适合个人设备上的可撤销、有限额凭据，不适合共享设备或长期生产密钥。上游模型不支持 `response_format: json_object` 时 MLLM 分片会失败并显示请求错误。
 `tsc` 诊断未清零，strict 报错积累会掩盖新引入的类型错误。
 

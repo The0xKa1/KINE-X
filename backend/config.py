@@ -79,6 +79,9 @@ AVATAR_REGISTRY_ROOT = _env_path("AVATAR_REGISTRY_ROOT", REPO_ROOT / "public" / 
 AVATAR_IDENTITIES_DIR = _env_path("AVATAR_IDENTITIES_DIR", AVATAR_REGISTRY_ROOT / "avatar-identities")
 AVATAR_MOTIONS_DIR = _env_path("AVATAR_MOTIONS_DIR", AVATAR_REGISTRY_ROOT / "motions")
 AVATAR_BINDINGS_DIR = _env_path("AVATAR_BINDINGS_DIR", AVATAR_REGISTRY_ROOT / "avatar-bindings")
+AVATAR_VIDEO_EXPORTS_DIR = _env_path(
+    "AVATAR_VIDEO_EXPORTS_DIR", AVATAR_REGISTRY_ROOT / "avatar-video-exports"
+)
 # Uploaded videos selected for LHM motion preparation must never live under
 # PUBLIC_JOBS_DIR because the development static server exposes every file
 # there, including dotfiles. This user-private root survives process restarts.
@@ -90,6 +93,7 @@ AVATAR_MAX_PHOTO_BYTES = int(os.environ.get("AVATAR_MAX_PHOTO_BYTES", str(10 * 1
 AVATAR_EXPORT_TIMEOUT_SEC = int(os.environ.get("AVATAR_EXPORT_TIMEOUT_SEC", "1200"))
 AVATAR_ALIGN_TIMEOUT_SEC = int(os.environ.get("AVATAR_ALIGN_TIMEOUT_SEC", "180"))
 LHM_MOTION_TIMEOUT_SEC = int(os.environ.get("LHM_MOTION_TIMEOUT_SEC", "1800"))
+AVATAR_VIDEO_MAX_FRAMES = int(os.environ.get("AVATAR_VIDEO_MAX_FRAMES", "1800"))
 # Stub mode (AVATAR_EXPORT_STUB=1): skip the GPU export, reuse a baked bin+npz pair.
 AVATAR_STUB_BIN = _env_path("AVATAR_STUB_BIN", Path("/root/lhm_outputs/avatar_squat.bin"))
 AVATAR_STUB_NPZ = _env_path("AVATAR_STUB_NPZ", Path("/root/lhm_outputs/avatar_coach_debug.npz"))

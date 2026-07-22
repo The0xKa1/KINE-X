@@ -456,7 +456,7 @@ const avatarSwitcher = new AvatarSwitcher({
       "ready",
     );
   },
-  onError: (message) => connection.set(`分身切换失败 · ${message}`, "busy"),
+  onError: (message) => connection.set(`分身操作失败 · ${message}`, "busy"),
 });
 
 const createPage = new CreatePage({
@@ -1031,6 +1031,7 @@ function syncAvatarModeButton(): void {
           motionId: exercise.motionId,
           jobId: exercise.jobId,
           avatarId: exercise.avatarId,
+          bindingStatus: exercise.avatarBindingStatus,
         }
       : null,
   );

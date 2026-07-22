@@ -13,6 +13,7 @@ from typing import Any
 
 _TERMINAL_BINDING_STATUSES = {"ready", "error", "cancelled"}
 _CANCELLABLE_BINDING_STATUSES = {"queued", "running"}
+_TERMINAL_VIDEO_EXPORT_STATUSES = {"ready", "error", "cancelled"}
 
 
 class AvatarRegistry:
@@ -28,6 +29,7 @@ class AvatarRegistry:
         self.identities_dir = self.root / "avatar-identities"
         self.motions_dir = self.root / "motions"
         self.bindings_dir = self.root / "avatar-bindings"
+        self.video_exports_dir = self.root / "avatar-video-exports"
         self._lock = threading.RLock()
 
     def list_identities(self, *, include_deleted: bool = False) -> list[dict[str, Any]]:
@@ -100,6 +102,17 @@ class AvatarRegistry:
                 binding.setdefault("error", "identity deleted")
                 binding_id = _required_id(binding, "bindingId", "binding-")
                 self._write_json(self._binding_path(binding_id), binding)
+
+            for export in self._read_records(self.video_exports_dir, "*/record.json"):
+                if export.get("avatarId") != avatar_id:
+                    continue
+                if export.get("status") not in _CANCELLABLE_BINDING_STATUSES:
+                    continue
+                export["status"] = "cancelled"
+                export["finishedAt"] = time.time()
+                export.setdefault("error", "identity deleted")
+                export_id = _required_id(export, "exportId", "export-")
+                self._write_json(self._video_export_path(export_id), export)
             return record
 
     def upsert_motion(self, motion_id: str | None = None, **fields: Any) -> dict[str, Any]:
@@ -178,6 +191,85 @@ class AvatarRegistry:
                 records = [record for record in records if record.get("motionId") == motion_id]
             return sorted(records, key=lambda record: _timestamp(record.get("createdAt")), reverse=True)
 
+    def create_video_export(
+        self,
+        avatar_id: str,
+        motion_id: str,
+        request_key: str,
+        **fields: Any,
+    ) -> dict[str, Any]:
+        """Create or return the durable export for one exact render request."""
+        with self._lock:
+            identity = self._load_required(self._identity_path(avatar_id), "identity", avatar_id)
+            if identity.get("deletedAt") is not None:
+                raise ValueError(f"identity '{avatar_id}' is deleted")
+            self._load_required(self._motion_path(motion_id), "motion", motion_id)
+            if not isinstance(request_key, str) or not request_key:
+                raise ValueError("video export request key must not be empty")
+
+            for record in self._read_records(self.video_exports_dir, "*/record.json"):
+                if record.get("requestKey") == request_key:
+                    return record
+
+            export_id = _new_id("export-")
+            record = {
+                "exportId": export_id,
+                "avatarId": avatar_id,
+                "motionId": motion_id,
+                "requestKey": request_key,
+                "status": "queued",
+                "progress": 0,
+                "createdAt": time.time(),
+            }
+            record.update(fields)
+            record["exportId"] = export_id
+            record["avatarId"] = avatar_id
+            record["motionId"] = motion_id
+            record["requestKey"] = request_key
+            self._write_json(self._video_export_path(export_id), record)
+            return record
+
+    def get_video_export(self, export_id: str) -> dict[str, Any]:
+        with self._lock:
+            return self._load_required(
+                self._video_export_path(export_id), "video export", export_id
+            )
+
+    def update_video_export(
+        self,
+        export_id: str,
+        *,
+        expected_statuses: set[str] | None = None,
+        **changes: Any,
+    ) -> dict[str, Any]:
+        """Atomically claim or publish an export without reviving cancellation."""
+        with self._lock:
+            record = self._load_required(
+                self._video_export_path(export_id), "video export", export_id
+            )
+            if expected_statuses is not None and record.get("status") not in expected_statuses:
+                return record
+            requested_status = changes.get("status")
+            if record.get("status") == "cancelled" and requested_status not in (None, "cancelled"):
+                return record
+            record.update(changes)
+            record["exportId"] = export_id
+            if record.get("status") in _TERMINAL_VIDEO_EXPORT_STATUSES and not record.get("finishedAt"):
+                record["finishedAt"] = time.time()
+            self._write_json(self._video_export_path(export_id), record)
+            return record
+
+    def list_video_exports(
+        self, *, avatar_id: str | None = None, motion_id: str | None = None
+    ) -> list[dict[str, Any]]:
+        with self._lock:
+            records = self._read_records(self.video_exports_dir, "*/record.json")
+            if avatar_id is not None:
+                records = [record for record in records if record.get("avatarId") == avatar_id]
+            if motion_id is not None:
+                records = [record for record in records if record.get("motionId") == motion_id]
+            return sorted(records, key=lambda record: _timestamp(record.get("createdAt")), reverse=True)
+
     def _identity_path(self, avatar_id: str) -> Path:
         _require_prefixed_id(avatar_id, "av-")
         return self.identities_dir / avatar_id / "record.json"
@@ -189,6 +281,10 @@ class AvatarRegistry:
     def _binding_path(self, binding_id: str) -> Path:
         _require_prefixed_id(binding_id, "binding-")
         return self.bindings_dir / f"{binding_id}.json"
+
+    def _video_export_path(self, export_id: str) -> Path:
+        _require_prefixed_id(export_id, "export-")
+        return self.video_exports_dir / export_id / "record.json"
 
     @staticmethod
     def _read_records(directory: Path, pattern: str) -> list[dict[str, Any]]:
