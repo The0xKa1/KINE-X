@@ -51,3 +51,8 @@ Thumbs.db
 .history/
 .cache/
 .codegraph/
+
+# Local one-off assets (decided not to commit)
+assets/audio/
+poster-work/
+skill-packages/
