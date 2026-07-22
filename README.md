@@ -7,6 +7,7 @@
 [![MediaPipe](https://img.shields.io/badge/MediaPipe-Tasks_Vision-4285F4?logo=google&logoColor=white)](https://developers.google.com/mediapipe)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.110+-009688?logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com/)
 [![SAM 3D Body](https://img.shields.io/badge/SAM_3D_Body-SMPL--X-FF6F00)](https://github.com/facebookresearch/sam)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Status](https://img.shields.io/badge/status-prototype-orange)](#)
 
 **KINE//X 把"运动短视频"变成"可计算的 3D 私教"。**
@@ -227,3 +228,14 @@ npm run check
 ---
 
 KINE//X 当前为黑客松原型，已跑通完整闭环：**导入视频 → 生成 3D 教练 → 绑定数字分身 → 摄像头跟练 → 实时评分 → 结算复盘 → AI 教练反馈。**它想证明的一件事：运动视频不必只能"看"——它可以被计算、被比较、被反馈，也可以穿在你的分身上。
+
+## License
+
+本项目代码以 [MIT License](LICENSE) 开源。
+
+第三方资产不适用本许可，需遵循其各自条款：
+
+- **SAM 3D Body / SMPL-X / LHM 模型权重**不包含在本仓库中，需自行获取并遵守其原始许可（SMPL-X 仅限非商业研究用途）；
+- `public/mediapipe/` 内的模型资产遵循 MediaPipe 各自条款；
+- `public/fonts/` 内的 Archivo Black、JetBrains Mono、Noto Sans SC 以 SIL Open Font License 分发；
+- Three.js(MIT)、MediaPipe(Apache-2.0)、FastAPI(MIT)按各自许可使用。
