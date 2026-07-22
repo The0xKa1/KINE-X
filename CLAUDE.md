@@ -22,7 +22,7 @@ No linter or formatter. The guardrail script plus the avatar test suites are the
 - The build only **strips types** — it does not transpile, bundle, or resolve. Each `src/foo/bar.ts` becomes `dist/foo/bar.js` with the same shape.
 - Because of this, **all relative imports in `.ts` source must use the `.js` extension** (e.g. `import { EventBus } from "./core/EventBus.js"`). The path resolves at runtime in the browser against `dist/`.
 - `index.html` loads `./dist/main.js` directly as `<script type="module">`. There is no dev server with HMR. After editing TS, re-run `npm run build` (or `npm run dev`).
-- Runtime deps come from the `index.html` importmap, both fully local/offline: `three` → `./public/three/three.module.min.js` (r160), `@mediapipe/tasks-vision` → `./public/mediapipe/` bundle. Only Google Fonts still uses a CDN (system-font fallback offline).
+- Runtime deps are fully local/offline: the `index.html` importmap maps `three` → `./public/three/three.module.min.js` (r160) and `@mediapipe/tasks-vision` → `./public/mediapipe/`; Archivo Black, JetBrains Mono, and the full Noto Sans SC variable font live under `public/fonts/` and are declared in `src/styles/fonts.css`.
 - `tsconfig.json` has `"noEmit": true` — `tsc` is only for diagnostics, never for output.
 
 ## Guardrails (enforced by `scripts/guardrails.mjs`)

@@ -5,14 +5,15 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>kine//x · real time motion coaching system</title>
 
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
-      rel="stylesheet"
-      href="https://fonts.googleapis.com/css2?family=Archivo+Black&family=JetBrains+Mono:wght@400;500;600;700&family=Noto+Sans+SC:wght@400;500;700;900&display=swap"
+      rel="preload"
+      href="./public/fonts/archivo-black.woff2?v=0.1.11"
+      as="font"
+      type="font/woff2"
+      crossorigin
     />
 
-    <link rel="stylesheet" href="./src/styles.css?v=0.1.10" />
+    <link rel="stylesheet" href="./src/styles.css?v=0.1.11" />
 
     <script type="importmap">
       {
@@ -26,7 +27,7 @@
   <body class="boot-pending">
     <div id="bootOverlay" class="boot-overlay" aria-label="系统启动中">
       <div class="boot-frame">
-        <p class="boot-eyebrow">REAL-TIME MOTION COACHING SYSTEM · v0.1.10</p>
+        <p class="boot-eyebrow">REAL-TIME MOTION COACHING SYSTEM · v0.1.11</p>
         <h1 class="boot-brand">KINE<b>//</b>X</h1>
         <ul class="boot-checks">
           <li data-check="clip"><span>COACH CLIP</span><i class="boot-dots"></i><b>WAIT</b></li>
@@ -68,7 +69,7 @@
       <main class="workspace">
         <header class="topbar">
           <div class="title-block">
-          <p>real time motion coaching system · v0.1.10</p>
+          <p>real time motion coaching system · v0.1.11</p>
             <h1>KINE<b>//</b>X</h1>
           </div>
 
@@ -514,6 +515,6 @@
       </div>
     </div>
 
-    <script type="module" src="./dist/main.js?v=0.1.10"></script>
+    <script type="module" src="./dist/main.js?v=0.1.11"></script>
   </body>
 </html>

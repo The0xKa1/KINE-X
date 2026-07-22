@@ -14,7 +14,7 @@ KINE//X 的项目结构索引。
 `README.md`：使用说明、模块清单、数据契约。
 `CLAUDE.md` / `AGENTS.md`：面向代码助手的工程约束说明（内容一致，修改时保持同步）。
 `assets/`：历史演示资源；`smpl-lite-rig.gltf` 为未被代码引用的占位文件。
-`public/`：离线运行时资产。`public/mediapipe/`（约 73MB）、`public/three/`（r160 min，670KB）、`public/coach_clips/`（内置 clip、SMPL-X mesh、导入产物 `jobs/`）。
+`public/`：离线运行时资产。`public/mediapipe/`（约 73MB）、`public/three/`（r160 min，670KB）、`public/fonts/`（Archivo Black、JetBrains Mono、完整 Noto Sans SC WOFF2 与 OFL 许可证）、`public/coach_clips/`（内置 clip、SMPL-X mesh、导入产物 `jobs/`）。
 `docs/`：项目文档与海报参考。
 `scripts/`：构建、守卫与调试脚本。
 `src/`：TypeScript / CSS 源码。
@@ -30,7 +30,7 @@ KINE//X 的项目结构索引。
 `npm run test:ai`：构建后验证浏览器直连 OpenAI-compatible MLLM / 赛后分析 API 的请求合同与配置校验。
 `npm run test:session`：构建后验证本地训练存档单条删除、失败语义及动作库/报告页删除入口。
 源码 `import` 必须使用 `.js` 后缀，浏览器在 `dist/` 解析模块。
-项目零 `dependencies`；three 与 MediaPipe 均走本地 `public/`，仅 Google Fonts 走 CDN。
+项目零 `dependencies`；three、MediaPipe 和界面字体均走本地 `public/`。
 `npx tsc --noEmit` 仅作参考，目前 8 个已知诊断，未入门禁。
 
 ## 信息架构（hash 路由）
@@ -230,7 +230,7 @@ DOM id 变化：同步 `src/bootstrap/dom.ts` 与 `index.html`。
 空间单位只用米。
 摄像头视频镜像，3D 教练画布不镜像。
 切换动作必须经 `MotionStage.resetForSeed()` 释放旧资源。
-MediaPipe 与 three 资产升级走 `public/` 整体替换 + 引用版本号同步；Google Fonts 走 CDN（本地化可选）。
+MediaPipe、three 与字体资产升级走 `public/` 显式替换 + 引用版本号同步；字体版本由 `src/styles/fonts.css` 和 `package.json` 共同约束。
 视觉点缀色仅 `--hot` `#ff4d00`（3D 应力关节另用 `#ff5500`），总占比 < 2%。
 关键数字使用等宽字体并 `font-variant-numeric: tabular-nums`。
 语言规则：英文 mono 大写小字为机器声部，中文 Noto Sans SC 为用户声部；mono 上下文中的中文用 `--mono-cjk`。

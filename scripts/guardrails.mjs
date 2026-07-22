@@ -26,6 +26,7 @@ const distFiles = await walk(path.join(root, "dist"), (file) => file.endsWith(".
 const sourceText = (await Promise.all(sourceFiles.map((file) => readFile(file, "utf8")))).join("\n");
 const indexText = await readFile(path.join(root, "index.html"), "utf8");
 const stylesText = await readFile(path.join(root, "src", "styles.css"), "utf8");
+const fontsText = await readFile(path.join(root, "src", "styles", "fonts.css"), "utf8");
 const packageMetadata = JSON.parse(await readFile(path.join(root, "package.json"), "utf8"));
 const assetVersion = encodeURIComponent(packageMetadata.version);
 
@@ -60,6 +61,27 @@ if (!indexText.includes(`href="./src/styles.css?v=${assetVersion}"`)) {
 }
 if (!indexText.includes(`src="./dist/main.js?v=${assetVersion}"`)) {
   failures.push("Frontend module entry does not match package asset version");
+}
+if (/fonts\.(?:googleapis|gstatic)\.com/.test(`${indexText}\n${sourceText}`)) {
+  failures.push("Remote Google Fonts dependency found; fonts must remain fully local");
+}
+const localFontFiles = ["archivo-black.woff2", "jetbrains-mono.woff2", "noto-sans-sc.woff2"];
+for (const fontFile of localFontFiles) {
+  const fontUrl = `../../public/fonts/${fontFile}?v=${assetVersion}`;
+  if (!fontsText.includes(fontUrl)) {
+    failures.push(`Local font URL does not match package asset version: ${fontFile}`);
+  }
+  try {
+    const font = await readFile(path.join(root, "public", "fonts", fontFile));
+    if (font.subarray(0, 4).toString("ascii") !== "wOF2") {
+      failures.push(`Local font is not a valid WOFF2 container: ${fontFile}`);
+    }
+  } catch {
+    failures.push(`Local font file is missing: ${fontFile}`);
+  }
+}
+if (!indexText.includes(`href="./public/fonts/archivo-black.woff2?v=${assetVersion}"`)) {
+  failures.push("Display font preload does not match package asset version");
 }
 const displayedVersions = [...indexText.matchAll(/motion coaching system · v([0-9.]+)/gi)].map((match) => match[1]);
 if (displayedVersions.length === 0 || displayedVersions.some((version) => version !== packageMetadata.version)) {
